@@ -1,0 +1,12 @@
+metric,target_gate,achieved,status
+Train MAE (60 puts),<= 0.080 USD,0.0259 USD,PASS
+Train RMSE (60 puts),<= 0.120 USD,0.0380 USD,PASS
+Strike Holdout MAE (22 puts),<= 0.100 USD,0.0211 USD,PASS
+Tenor Holdout MAE (15 puts),<= 0.100 USD,0.0206 USD,PASS
+Numerical Grid Budget,<= 0.0020 USD,Max |Med-Fine| = 0.001640 USD,PASS
+Full Sample MAE (97 puts),Diagnostic,0.0240 USD,INFO
+External Calls MAE (142 calls),Diagnostic,0.0873 USD,INFO
+Common 84 Heston MAE,Diagnostic,0.0233 USD,INFO
+Common 84 SVI Historical MAE,Reference R3,0.0684 USD,INFO
+Common 84 Flat Baseline MAE,Common Curve,0.0397 USD,INFO
+Feller Ratio (Best Model),Reported without filter,5.0180 (Satisfied: True),INFO

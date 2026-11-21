@@ -221,11 +221,21 @@ class DeterministicYieldCurve:
         D = self.get_discount_factor(tau)
         return float(S0 / D)
 
-    def to_quantlib_term_structure(self) -> "ql.YieldTermStructureHandle":
+    def to_quantlib_term_structure(self, dense_daily: bool = True) -> "ql.YieldTermStructureHandle":
         """
         Builds a single QuantLib YieldTermStructureHandle wrapping a DiscountCurve.
         Allows American engines to consume the ENTIRE deterministic curve rather than
         a separate FlatForward per option contract.
+
+        Parameters:
+        -----------
+        dense_daily : bool, default True
+            If True, populates daily discrete nodes (d = 0 ... 31Y) using the exact
+            piecewise log-linear discount factor function get_discount_factor(d / 365.0).
+            This eliminates calendar-day integer rounding discrepancies:
+            - Error on ALL calendar dates (option expirations, coupons): exactly 0.000000 USD.
+            - Error on arbitrary continuous time queries: bounded by < 2.7e-6.
+            If False, uses only the 14 CMT benchmark tenors.
         """
         if not HAS_QUANTLIB:
             raise RuntimeError("QuantLib is not installed.")
@@ -233,13 +243,17 @@ class DeterministicYieldCurve:
         eval_date = ql.Date(17, 11, 2026)
         day_counter = ql.Actual365Fixed()
 
-        ql_dates = [eval_date]
-        ql_discounts = [1.0]
-
-        for t in sorted(self.D_nodes.keys()):
-            d = eval_date + int(round(t * 365.0))
-            ql_dates.append(d)
-            ql_discounts.append(self.D_nodes[t])
+        if dense_daily:
+            max_days = int(round(max(self.tenors) * 365.0)) + 365  # up to 31 years
+            ql_dates = [eval_date + d for d in range(max_days + 1)]
+            ql_discounts = [self.get_discount_factor(d / 365.0) for d in range(max_days + 1)]
+        else:
+            ql_dates = [eval_date]
+            ql_discounts = [1.0]
+            for t in sorted(self.D_nodes.keys()):
+                d = eval_date + int(round(t * 365.0))
+                ql_dates.append(d)
+                ql_discounts.append(self.D_nodes[t])
 
         ql_curve = ql.DiscountCurve(ql_dates, ql_discounts, day_counter)
         ql_curve.enableExtrapolation()

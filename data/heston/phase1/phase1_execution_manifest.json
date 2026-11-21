@@ -1,0 +1,107 @@
+{
+  "phase": "PHASE_1_POC_HESTON",
+  "retrieval_timestamp_historical": "2026-11-21T18:45:00Z",
+  "execution_timestamp": "2026-11-21T22:35:46.646622+00:00",
+  "runtime_wall_seconds": 1204.4,
+  "environment": {
+    "python_version": "3.12.6",
+    "quantlib_version": "1.44",
+    "scipy_version": "1.18.0",
+    "os": "Windows"
+  },
+  "input_hashes": {
+    "treasury_cmt_2026_11_17_raw.json": "87e1d8653fb68224bee2becd9032d2d1e7c75e5bf23e66b8b1c8370ecd97d175",
+    "data_split_train.csv": "68bcff1aa22f75bd9193751b3df70f4eef87183957cbfda3249de02d084b48bc",
+    "data_split_strike_holdout.csv": "c0540443dc717d8fce84aae1c73d96e1efe391bcb23aab45366880a2ab0d8373",
+    "data_split_tenor_holdout.csv": "29a7fd19b7e73d661159238ad612553580879f3d0787f11003caa1e805b8157f",
+    "puts_selected_clean.csv": "1c069129d8dc138f8896fb8f02c83809454df0d041569f418a7cbbea21545df2",
+    "data_split_calls_contrast.csv": "1ec1d2fd455aa5c31e464be8bb1e630a3080126e93ac5ad85fb6a3442aaeed07",
+    "baseline_comparison_detailed.csv": "4e3e9c422c2edc9f9bdf28e40eee45f86322f9ddd1d91e52249a6ff851ba2df2"
+  },
+  "predeclared_bounds": {
+    "v0": [
+      0.01,
+      1.5
+    ],
+    "kappa": [
+      0.1,
+      15.0
+    ],
+    "theta": [
+      0.01,
+      1.5
+    ],
+    "xi": [
+      0.05,
+      3.0
+    ],
+    "rho": [
+      -0.95,
+      0.95
+    ]
+  },
+  "predeclared_numerical_budget_usd": 0.002,
+  "gate_criteria": {
+    "train_mae_max": 0.08,
+    "train_rmse_max": 0.12,
+    "strike_holdout_mae_max": 0.1,
+    "tenor_holdout_mae_max": 0.1,
+    "numerical_budget_max": 0.002
+  },
+  "best_model_parameters": {
+    "v0": 0.18613777847584004,
+    "kappa": 2.7254603668370714,
+    "theta": 0.2136796992000426,
+    "xi": 0.48178472584296955,
+    "rho": -0.9498066630129803,
+    "feller_ratio": 5.0179586201788835,
+    "feller_satisfied": true,
+    "spot_vol": 0.43143687658316837,
+    "long_term_vol": 0.4622550153324922
+  },
+  "parameter_dispersion": {
+    "v0_mean": 0.18658284044583745,
+    "v0_std": 0.000817895849409529,
+    "theta_mean": 0.2172560281941323,
+    "theta_std": 0.007086580053011468,
+    "kappa_mean": 2.8719917490935414,
+    "kappa_std": 1.4718393612786138,
+    "xi_mean": 0.6050310758481223,
+    "xi_std": 0.22273849050403208,
+    "rho_mean": -0.793717639088287,
+    "rho_std": 0.14750652441518308,
+    "best_start_name": "Start_2_Positive_Rho",
+    "best_start_index": 2,
+    "best_train_sse": 0.08664898485384667,
+    "best_train_rmse": 0.03800197031160504
+  },
+  "performance_metrics": {
+    "train_mae": 0.02588544210774172,
+    "train_rmse": 0.03799239464957478,
+    "strike_holdout_mae": 0.02108157357458562,
+    "strike_holdout_rmse": 0.026647955456786037,
+    "tenor_holdout_mae": 0.02064910664712375,
+    "tenor_holdout_rmse": 0.02676853604497001,
+    "full_sample_mae": 0.02398616231765199,
+    "full_sample_rmse": 0.03412773739075489,
+    "calls_contrast_mae": 0.08732930120600657,
+    "calls_contrast_rmse": 0.12811796799740555,
+    "common_84_heston_mae": 0.023269652840105546,
+    "common_84_svi_mae": 0.06844166666666666,
+    "common_84_flat_mae": 0.03967433561628726
+  },
+  "gate_verdict": "PASSED",
+  "output_files": [
+    "heston_calls_contrast.csv",
+    "heston_common_84_comparison.csv",
+    "heston_grid_convergence.csv",
+    "heston_multistart_results.csv",
+    "heston_phase1_summary.csv",
+    "heston_pricing_by_tenor.csv",
+    "heston_pricing_full_puts.csv",
+    "heston_pricing_strike_holdout.csv",
+    "heston_pricing_tenor_holdout.csv",
+    "heston_pricing_train.csv",
+    "heston_shape_arbitrage_checks.csv"
+  ]
+}
