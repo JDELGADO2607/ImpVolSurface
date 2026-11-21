@@ -17,3 +17,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | PHASE_1 REJECTED y reparacion1 autorizada | d6a369c, F1-01 HIGH y F1-02/F1-03 MEDIUM |
 
 | 2026-11-21 | PHASE_1 REJECTED tras reparacion1, reparacion2 autorizada | af105d1, F1-01/F1-03 resueltos en dominio probado; F1-04 HIGH nuevo, F1-02 MEDIUM parcial |
+| 2026-11-21 | Reparacion2 fase1 dispatch aceptado | ctx_42d5b8fbc60c, task_07b7236ff519; informe389f40f accesible en GitHub, PR4 OPEN |

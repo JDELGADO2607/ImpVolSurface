@@ -6,7 +6,7 @@ Reparacion2/3 autorizada: cache de calibracion sin vinculo verificable y documen
 [Informe](docs/audits/HESTON_PHASE_1_af105d1.md). [Criterios](docs/context/ACCEPTANCE_CRITERIA.md).
 Coordinacion JDELGADO2607/heston-coordination, PR#4, worktree heston-coordination.
 Implementacion Gemini JDELGADO2607/heston-implementation, worktree heston-implementation.
-Run run_0891738e9cf5. Ultima entrega completada dispatch ctx_832d10838ae2. Registrar nuevo dispatch al asignar reparacion2.
+Run run_0891738e9cf5. Reparacion2 activa: dispatch ctx_42d5b8fbc60c, task task_07b7236ff519. Informe/evidencias publicados en commit389f40f366d3c1da2787d0bec590d49e9f1016a3, PR4 abierto.
 Siguiente accion recibir PHASE_READY_FOR_AUDIT con nuevo SHA y auditar antes de solver propio fase2.
 SVI congelado 3d81ff1, auditoria R3 externa en PR#3.
 Enunciado original no encontrado, mapeo secundario46-56 identificado.
