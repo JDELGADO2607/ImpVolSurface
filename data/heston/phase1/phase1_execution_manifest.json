@@ -1,8 +1,8 @@
 {
-  "phase": "PHASE_1_POC_HESTON_REMEDIATION_1",
+  "phase": "PHASE_1_POC_HESTON_REMEDIATION_2",
   "retrieval_timestamp_historical": "2026-11-21T16:20:00-05:00",
-  "execution_timestamp": "2026-11-21T23:17:30.052520+00:00",
-  "runtime_wall_seconds": 159.56,
+  "execution_timestamp": "2026-11-21T23:41:08.481201+00:00",
+  "runtime_wall_seconds": 250.47,
   "environment": {
     "python_version": "3.12.6",
     "quantlib_version": "1.44",
@@ -116,6 +116,7 @@
     "heston_candidate_predictive_dispersion.csv",
     "heston_common_84_comparison.csv",
     "heston_grid_convergence.csv",
+    "heston_multistart_fine_sse.csv",
     "heston_multistart_results.csv",
     "heston_phase1_summary.csv",
     "heston_pricing_by_tenor.csv",

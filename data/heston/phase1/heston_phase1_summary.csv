@@ -15,4 +15,4 @@ External Calls MAE (142 calls),Diagnostic,0.0873 USD,INFO
 Common 84 Heston MAE,Diagnostic,0.0232 USD,INFO
 Common 84 SVI Historical MAE,Reference R3,0.0684 USD,INFO
 Common 84 Flat Baseline MAE,Common Curve,0.0397 USD,INFO
-Feller Ratio (Best Model),Reported without filter,5.0180 (Satisfied: True),INFO
+Feller Ratio (Best Candidate),Reported without filter,5.0180 (Satisfied: True),INFO

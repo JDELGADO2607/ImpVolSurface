@@ -4,7 +4,8 @@ Phase 1 End-to-End Execution Pipeline: Classical Heston Proof-of-Concept (PoC).
 Enforces:
 - Clean workspace isolation in data/heston/phase1/
 - Zero writes to historical or official directories
-- Strict data provenance with separation of historical retrieval timestamp (16:20 NY) and execution timestamp
+- Strict data provenance with separation of historical transcription timestamp (16:20 NY) and execution timestamp
+- Cryptographic cache validation (hashes, schema, bounds, non-negative SSE, and objective replay)
 - Optimization solely on training split (60 American puts) across 5 pre-declared starts
 - Out-of-sample evaluation on strike holdout (22 puts) and tenor holdout (15 puts)
 - External contrast on 142 call options
@@ -51,15 +52,175 @@ def sha256_file(filepath: Path) -> str:
     return h.hexdigest()
 
 
+def validate_and_load_multistart_cache(
+    out_path: Path,
+    current_file_hashes: Dict[str, str],
+    train_df: pd.DataFrame,
+    ts_handle: Any,
+    eval_date: Any
+) -> Tuple[HestonParams, pd.DataFrame, Dict[str, Any]]:
+    """
+    Cryptographically validates cached multistart calibration results.
+    Guarantees:
+    1. Input files match manifest hashes exactly (invalidates if train_df or rates changed).
+    2. Cached multistart table satisfies schema, row count, and parameter bounds.
+    3. Final SSE is non-negative, finite, and consistent with RMSE.
+    4. Replays objective evaluation on current training set within numerical tolerance.
+    5. Computes fine-grid SSE (tFactor=200, x=200, v=100) and exports heston_multistart_fine_sse.csv.
+    """
+    manifest_file = out_path / "phase1_execution_manifest.json"
+    ms_csv_file = out_path / "heston_multistart_results.csv"
+
+    if not manifest_file.exists():
+        raise ValueError(f"Cache validation failed: manifest not found at {manifest_file}")
+    if not ms_csv_file.exists():
+        raise ValueError(f"Cache validation failed: multistart results not found at {ms_csv_file}")
+
+    # 1. Verify input file hashes
+    with open(manifest_file, "r", encoding="utf-8") as f:
+        manifest_data = json.load(f)
+
+    cached_hashes = manifest_data.get("input_hashes", {})
+    for fname, curr_hash in current_file_hashes.items():
+        if fname not in cached_hashes:
+            raise ValueError(f"Cache validation failed: file '{fname}' missing from cached manifest hashes.")
+        if cached_hashes[fname] != curr_hash:
+            raise ValueError(
+                f"Cache validation failed: cryptographic hash mismatch for '{fname}'. "
+                f"Manifest has '{cached_hashes[fname]}', but current input has '{curr_hash}'. "
+                f"Cache invalidated."
+            )
+
+    # 2. Load and validate multistart table schema & values
+    df_ms = pd.read_csv(ms_csv_file)
+    required_cols = {"start_index", "name", "final_sse", "final_rmse", "v0", "kappa", "theta", "xi", "rho", "feller_ratio", "status"}
+    missing = required_cols - set(df_ms.columns)
+    if missing:
+        raise ValueError(f"Cache validation failed: multistart table missing columns: {missing}")
+
+    if len(df_ms) != 5:
+        raise ValueError(f"Cache validation failed: expected 5 starts, found {len(df_ms)}")
+    if set(df_ms["start_index"]) != {1, 2, 3, 4, 5}:
+        raise ValueError(f"Cache validation failed: start indices {set(df_ms['start_index'])} do not match {{1, 2, 3, 4, 5}}")
+
+    # Validate bounds, non-negativity of SSE, and RMSE consistency
+    n_train = len(train_df)
+    for row in df_ms.itertuples():
+        if row.final_sse < 0.0 or not np.isfinite(row.final_sse):
+            raise ValueError(
+                f"Cache validation failed: start {row.start_index} has invalid final_sse = {row.final_sse}. "
+                f"SSE must be non-negative and finite."
+            )
+        exp_rmse = np.sqrt(row.final_sse / n_train)
+        if abs(row.final_rmse - exp_rmse) > 1e-3:
+            raise ValueError(
+                f"Cache validation failed: start {row.start_index} final_rmse {row.final_rmse} "
+                f"inconsistent with final_sse {row.final_sse} (expected {exp_rmse:.6f})."
+            )
+
+        # Bounds check
+        bounds_map = {
+            "v0": (row.v0, HESTON_BOUNDS[0]),
+            "kappa": (row.kappa, HESTON_BOUNDS[1]),
+            "theta": (row.theta, HESTON_BOUNDS[2]),
+            "xi": (row.xi, HESTON_BOUNDS[3]),
+            "rho": (row.rho, HESTON_BOUNDS[4]),
+        }
+        for pname, (pval, (blow, bhigh)) in bounds_map.items():
+            if pval < blow - 1e-4 or pval > bhigh + 1e-4 or not np.isfinite(pval):
+                raise ValueError(
+                    f"Cache validation failed: start {row.start_index} parameter '{pname}'={pval} "
+                    f"outside bounds [{blow}, {bhigh}]."
+                )
+
+    # 3. Objective Replay Verification on current train set
+    cal = HestonCalibrator(train_df=train_df, yield_term_structure=ts_handle, eval_date=eval_date,
+                           grid_t_factor=50.0, grid_x=70, grid_v=35)
+    for row in df_ms.itertuples():
+        # Verify objective replay for candidate runs (status 0 and reasonable SSE)
+        if row.status == 0 and row.final_sse < 1.0:
+            arr = np.array([row.v0, row.kappa, row.theta, row.xi, row.rho])
+            replayed_sse = cal.evaluate_sse(arr)
+            if abs(replayed_sse - row.final_sse) > 1e-3:
+                raise ValueError(
+                    f"Cache validation failed: start {row.start_index} cached SSE {row.final_sse:.6f} "
+                    f"does not match replayed SSE {replayed_sse:.6f} on current training dataset."
+                )
+
+    # 4. Compute Fine-Grid SSE (tFactor=200, x=200, v=100) and export table
+    cal_fine = HestonCalibrator(train_df=train_df, yield_term_structure=ts_handle, eval_date=eval_date,
+                                grid_t_factor=200.0, grid_x=200, grid_v=100)
+    fine_records = []
+    fine_sse_list = []
+    fine_rmse_list = []
+    for row in df_ms.itertuples():
+        arr = np.array([row.v0, row.kappa, row.theta, row.xi, row.rho])
+        f_sse = cal_fine.evaluate_sse(arr)
+        f_rmse = np.sqrt(f_sse / n_train)
+        fine_sse_list.append(f_sse)
+        fine_rmse_list.append(f_rmse)
+        fine_records.append({
+            "start_index": row.start_index,
+            "name": row.name,
+            "calib_grid_sse": row.final_sse,
+            "calib_grid_rmse": row.final_rmse,
+            "fine_grid_sse": f_sse,
+            "fine_grid_rmse": f_rmse,
+            "v0": row.v0,
+            "kappa": row.kappa,
+            "theta": row.theta,
+            "xi": row.xi,
+            "rho": row.rho,
+            "feller_ratio": row.feller_ratio,
+            "status": row.status
+        })
+
+    df_fine_sse = pd.DataFrame(fine_records)
+    df_fine_sse.to_csv(out_path / "heston_multistart_fine_sse.csv", index=False)
+
+    df_ms["fine_grid_sse"] = fine_sse_list
+    df_ms["fine_grid_rmse"] = fine_rmse_list
+    df_ms.to_csv(ms_csv_file, index=False)
+
+    # Select best candidate by validated lowest final_sse
+    best_row = df_ms.sort_values("final_sse").iloc[0]
+    best_params = HestonParams(
+        v0=float(best_row["v0"]),
+        kappa=float(best_row["kappa"]),
+        theta=float(best_row["theta"]),
+        xi=float(best_row["xi"]),
+        rho=float(best_row["rho"])
+    )
+
+    converged = df_ms[(df_ms["status"] == 0) & (df_ms["final_rmse"] < 0.050)]
+    dispersion = {
+        "v0_mean": float(converged["v0"].mean()),
+        "v0_std": float(converged["v0"].std()),
+        "theta_mean": float(converged["theta"].mean()),
+        "theta_std": float(converged["theta"].std()),
+        "kappa_mean": float(converged["kappa"].mean()),
+        "kappa_std": float(converged["kappa"].std()),
+        "xi_mean": float(converged["xi"].mean()),
+        "xi_std": float(converged["xi"].std()),
+        "rho_mean": float(converged["rho"].mean()),
+        "rho_std": float(converged["rho"].std()),
+        "best_start_name": str(best_row["name"]),
+        "best_start_index": int(best_row["start_index"]),
+        "best_train_sse": float(best_row["final_sse"]),
+        "best_train_rmse": float(best_row["final_rmse"]),
+    }
+
+    return best_params, df_ms, dispersion
+
+
 def run_phase1_pipeline(
     data_dir: str = "data/heston",
     output_dir: str = "data/heston/phase1",
-    reuse_existing_multistart: bool = True
+    reuse_existing_multistart: bool = True,
+    allow_recalibration: bool = False
 ) -> Dict[str, Any]:
     """
     Executes complete Phase 1 PoC evaluation, grid verification, shape checks, and reporting.
-    If reuse_existing_multistart is True and heston_multistart_results.csv exists with valid hashes,
-    uses the verified candidates (confirmed stable under fine grid) to avoid repeating the 20-min search.
     """
     start_time_utc = datetime.now(timezone.utc).isoformat()
     t_start_wall = time.time()
@@ -68,7 +229,7 @@ def run_phase1_pipeline(
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    print(f"=== Starting Heston Phase 1 Pipeline (Remediation 1) ===")
+    print(f"=== Starting Heston Phase 1 Pipeline (Remediation 2) ===")
     print(f"Historical transcription timestamp: 2026-11-21T16:20:00-05:00")
     print(f"Execution timestamp: {start_time_utc}")
     print(f"QuantLib version: {QUANTLIB_VERSION}, SciPy version: {SCIPY_VERSION}")
@@ -109,52 +270,33 @@ def run_phase1_pipeline(
 
     print(f"Data splits: Train={len(train_df)}, StrikeHoldout={len(strike_df)}, TenorHoldout={len(tenor_df)}, FullPuts={len(puts_full_df)}, CallsContrast={len(calls_df)}")
 
-    # 4. Multi-start calibration / Verification on Train set
+    # 4. Multi-start calibration / Cryptographic Cache Verification
     ms_csv_path = out_path / "heston_multistart_results.csv"
-    if reuse_existing_multistart and ms_csv_path.exists():
-        print("\n--- Using Existing Verified Multistart Results (Classification Confirmed Stable under Fine Grid) ---")
-        df_multistarts = pd.read_csv(ms_csv_path)
-        # Update termination_type if not present
-        if "termination_type" not in df_multistarts.columns:
-            term_types = []
-            for s in df_multistarts["status"]:
-                term_types.append("CONVERGED" if s == 0 else ("MAX_ITERATIONS" if s == 1 else "ABNORMAL_TERMINATION"))
-            df_multistarts["termination_type"] = term_types
-            df_multistarts["success"] = df_multistarts["status"] == 0
+    if reuse_existing_multistart:
+        print("\n--- Validating and Verifying Multistart Cache Cryptographically ---")
+        try:
+            best_params, df_multistarts, dispersion = validate_and_load_multistart_cache(
+                out_path=out_path,
+                current_file_hashes=file_hashes,
+                train_df=train_df,
+                ts_handle=ts_handle,
+                eval_date=eval_date
+            )
+            print("Cache validation succeeded: input hashes, schema, parameter bounds, and objective replay verified.")
+        except Exception as e:
+            if not allow_recalibration:
+                raise ValueError(f"Cache validation failed and recalibration not permitted: {e}")
+            print(f"Cache validation failed ({e}); initiating full 5-start re-calibration...")
+            calibrator = HestonCalibrator(train_df=train_df, yield_term_structure=ts_handle, eval_date=eval_date)
+            best_params, df_multistarts, dispersion = calibrator.run_all_multistarts(starts=HESTON_5_STARTS, maxiter=35)
             df_multistarts.to_csv(ms_csv_path, index=False)
-
-        best_row = df_multistarts.sort_values("final_sse").iloc[0]
-        best_params = HestonParams(
-            v0=float(best_row["v0"]),
-            kappa=float(best_row["kappa"]),
-            theta=float(best_row["theta"]),
-            xi=float(best_row["xi"]),
-            rho=float(best_row["rho"])
-        )
-        converged = df_multistarts[(df_multistarts["status"] == 0) & (df_multistarts["final_rmse"] < 0.050)]
-        dispersion = {
-            "v0_mean": float(converged["v0"].mean()),
-            "v0_std": float(converged["v0"].std()),
-            "theta_mean": float(converged["theta"].mean()),
-            "theta_std": float(converged["theta"].std()),
-            "kappa_mean": float(converged["kappa"].mean()),
-            "kappa_std": float(converged["kappa"].std()),
-            "xi_mean": float(converged["xi"].mean()),
-            "xi_std": float(converged["xi"].std()),
-            "rho_mean": float(converged["rho"].mean()),
-            "rho_std": float(converged["rho"].std()),
-            "best_start_name": str(best_row["name"]),
-            "best_start_index": int(best_row["start_index"]),
-            "best_train_sse": float(best_row["final_sse"]),
-            "best_train_rmse": float(best_row["final_rmse"]),
-        }
     else:
-        print("\n--- Running 5 Dispersed Starts Optimization on Train Split (60 Puts) ---")
+        print("\n--- Running Fresh 5 Dispersed Starts Optimization on Train Split (60 Puts) ---")
         calibrator = HestonCalibrator(train_df=train_df, yield_term_structure=ts_handle, eval_date=eval_date)
         best_params, df_multistarts, dispersion = calibrator.run_all_multistarts(starts=HESTON_5_STARTS, maxiter=35)
         df_multistarts.to_csv(ms_csv_path, index=False)
 
-    print(f"Selected Best Start: {dispersion['best_start_name']} (Index {dispersion['best_start_index']})")
+    print(f"Selected Best Candidate: {dispersion['best_start_name']} (Index {dispersion['best_start_index']})")
     print(f"Best Parameters: {best_params.to_dict()}")
 
     # 5. Instantiating option pricer with best parameters
@@ -176,7 +318,7 @@ def run_phase1_pipeline(
             eval_time_ms = (time.time() - t0_eval) * 1000.0
 
             p_eu_raw = pricer.price_european(K, exp_str, best_params, option_type="P", clip_nonnegative=False)
-            
+
             intrinsic = max(K - SPOT_PRICE, 0.0)
             early_prem = p_am_raw - p_eu_raw
             err = p_am_raw - mkt
@@ -215,7 +357,7 @@ def run_phase1_pipeline(
     df_tenor_eval.to_csv(out_path / "heston_pricing_tenor_holdout.csv", index=False)
     df_full_eval.to_csv(out_path / "heston_pricing_full_puts.csv", index=False)
 
-    # 7. Aggregation by tenor (reconciled exactly from actual contract data)
+    # 7. Aggregation by tenor
     tenor_groups = []
     for exp_date, grp in df_full_eval.groupby("expirationDate"):
         tenor_groups.append({
@@ -306,7 +448,7 @@ def run_phase1_pipeline(
     df_common_eval = pd.DataFrame(c_records)
     df_common_eval.to_csv(out_path / "heston_common_84_comparison.csv", index=False)
 
-    # 10. Numerical Grid Convergence with Separate Refinements (F1-01)
+    # 10. Numerical Grid Convergence with Separate Refinements
     print("\n--- Verifying Grid Convergence & Separate Refinements on Representative Contracts ---")
     rep_contracts = [
         ("Short_OTM", 10, 10.0),
@@ -318,7 +460,7 @@ def run_phase1_pipeline(
         ("Long_OTM", 794, 8.0),
         ("Long_ATM", 794, 12.0),
         ("Long_ITM", 794, 17.0),
-        ("Sensitive_ITM_212d", 212, 17.0),  # NU270617P17 audited contract
+        ("Sensitive_ITM_212d", 212, 17.0),
     ]
     grid_records = []
     all_budget_passed = True
@@ -334,11 +476,8 @@ def run_phase1_pipeline(
     df_grid_conv = pd.DataFrame(grid_records)
     df_grid_conv.to_csv(out_path / "heston_grid_convergence.csv", index=False)
     print(f"All {len(rep_contracts)} grid tests passed budget <= 0.0020 USD: {all_budget_passed}")
-    print(f"Max temporal diff: {df_grid_conv['diff_temporal_usd'].max():.6f} USD")
-    print(f"Max spatial diff:  {df_grid_conv['diff_spatial_usd'].max():.6f} USD")
-    print(f"Max ultrafine diff:{df_grid_conv['diff_ultrafine_usd'].max():.6f} USD")
 
-    # 11. Rigorous Shape, Arbitrage, and Monotonicity Checks across ALL Tenors (F1-03)
+    # 11. Rigorous Shape, Arbitrage, and Monotonicity Checks across ALL Tenors
     print("\n--- Verifying Arbitrage Bounds, Strike Monotonicity, and Divided-Difference Convexity across ALL Tenors ---")
     shape_records = []
     strike_mono_violations = 0
@@ -372,7 +511,6 @@ def run_phase1_pipeline(
             if not eep_ok:
                 eep_violations += 1
 
-            # Strike Monotonicity: dP/dK >= -1e-4
             if i == 0:
                 mono_k = True
                 mono_status = "FIRST_STRIKE"
@@ -382,8 +520,6 @@ def run_phase1_pipeline(
                 if not mono_k:
                     strike_mono_violations += 1
 
-            # Strike Convexity via Second Divided Differences for non-uniform strike spacing:
-            # D2 = 2 * [ (P[i+1]-P[i])/(K[i+1]-K[i]) - (P[i]-P[i-1])/(K[i]-K[i-1]) ] / (K[i+1] - K[i-1])
             if i == 0 or i == n_k - 1:
                 conv_val = 0.0
                 conv_status = "NOT_TESTABLE"
@@ -391,7 +527,6 @@ def run_phase1_pipeline(
                 s_left = (p_am_vals[i] - p_am_vals[i - 1]) / (strikes[i] - strikes[i - 1])
                 s_right = (p_am_vals[i + 1] - p_am_vals[i]) / (strikes[i + 1] - strikes[i])
                 conv_val = 2.0 * (s_right - s_left) / (strikes[i + 1] - strikes[i - 1])
-                # Convexity threshold justified by grid budget
                 if conv_val >= -0.0020:
                     conv_status = "PASS"
                 else:
@@ -418,12 +553,12 @@ def run_phase1_pipeline(
     df_shape = pd.DataFrame(shape_records)
     df_shape.to_csv(out_path / "heston_shape_arbitrage_checks.csv", index=False)
 
-    # 12. Fixed-Strike Tenor Monotonicity across ALL Multi-Tenor Strikes (F1-03)
+    # 12. Fixed-Strike Tenor Monotonicity across ALL Multi-Tenor Strikes
     print("\n--- Verifying Tenor Monotonicity at Fixed Strikes across ALL Multi-Tenor Pairs ---")
     tenor_mono_records = []
     tenor_mono_violations = 0
     multi_strikes = df_full_eval["strike"].value_counts()[lambda x: x > 1].index.sort_values().tolist()
-    
+
     for K_fixed in multi_strikes:
         k_df = df_full_eval[df_full_eval["strike"] == K_fixed].sort_values("tau_days").reset_index(drop=True)
         for j in range(len(k_df) - 1):
@@ -433,9 +568,8 @@ def run_phase1_pipeline(
             exp2 = k_df.loc[j + 1, "expirationDate"]
             p1 = k_df.loc[j, "heston_price_am"]
             p2 = k_df.loc[j + 1, "heston_price_am"]
-            
+
             diff_tenor = p2 - p1
-            # For American puts with q=0, P(T2) >= P(T1) - tol_num
             mono_tenor_ok = (diff_tenor >= -0.0020)
             if not mono_tenor_ok:
                 tenor_mono_violations += 1
@@ -453,9 +587,8 @@ def run_phase1_pipeline(
             })
     df_tenor_mono = pd.DataFrame(tenor_mono_records)
     df_tenor_mono.to_csv(out_path / "heston_tenor_monotonicity_checks.csv", index=False)
-    print(f"Verified {len(df_tenor_mono)} fixed-strike tenor transitions; violations: {tenor_mono_violations}")
 
-    # 13. Near-Optimal Candidate Predictive Dispersion (F1-02)
+    # 13. Near-Optimal Candidate Predictive Dispersion
     print("\n--- Evaluating Predictive Dispersion of Near-Optimal Multistart Candidates ---")
     near_opt_subset = df_multistarts[df_multistarts["final_sse"] <= 1.05 * df_multistarts["final_sse"].min()]
     pred_disp_records = []
@@ -478,7 +611,6 @@ def run_phase1_pipeline(
         })
     df_pred_disp = pd.DataFrame(pred_disp_records)
     df_pred_disp.to_csv(out_path / "heston_candidate_predictive_dispersion.csv", index=False)
-    print(df_pred_disp.to_string(index=False))
 
     # 14. Executive Summary Metrics
     train_mae = float(df_train_eval["abs_error_usd"].mean())
@@ -514,7 +646,7 @@ def run_phase1_pipeline(
         {"metric": "Common 84 Heston MAE", "target_gate": "Diagnostic", "achieved": f"{c84_heston_mae:.4f} USD", "status": "INFO"},
         {"metric": "Common 84 SVI Historical MAE", "target_gate": "Reference R3", "achieved": f"{c84_svi_mae:.4f} USD", "status": "INFO"},
         {"metric": "Common 84 Flat Baseline MAE", "target_gate": "Common Curve", "achieved": f"{c84_flat_mae:.4f} USD", "status": "INFO"},
-        {"metric": "Feller Ratio (Best Model)", "target_gate": "Reported without filter", "achieved": f"{best_params.feller_ratio:.4f} (Satisfied: {best_params.feller_satisfied})", "status": "INFO"},
+        {"metric": "Feller Ratio (Best Candidate)", "target_gate": "Reported without filter", "achieved": f"{best_params.feller_ratio:.4f} (Satisfied: {best_params.feller_satisfied})", "status": "INFO"},
     ]
     df_summary = pd.DataFrame(summary_rows)
     df_summary.to_csv(out_path / "heston_phase1_summary.csv", index=False)
@@ -535,7 +667,7 @@ def run_phase1_pipeline(
     )
 
     manifest = {
-        "phase": "PHASE_1_POC_HESTON_REMEDIATION_1",
+        "phase": "PHASE_1_POC_HESTON_REMEDIATION_2",
         "retrieval_timestamp_historical": "2026-11-21T16:20:00-05:00",
         "execution_timestamp": start_time_utc,
         "runtime_wall_seconds": round(time.time() - t_start_wall, 2),

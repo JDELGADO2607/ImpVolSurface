@@ -1,5 +1,5 @@
 """
-Unit and integration tests for Phase 1: Classical Heston PoC Implementation (Remediation 1).
+Unit and integration tests for Phase 1: Classical Heston PoC Implementation (Remediation 2).
 
 Validates:
 1. Exactness of QuantLib term structure adapter on calendar dates.
@@ -10,7 +10,12 @@ Validates:
 6. Separate temporal and spatial numerical grid refinements satisfying <= 0.0020 USD budget.
 7. Compliance with all pre-declared gate criteria on Train, Strike Holdout, Tenor Holdout, and diagnostics.
 8. Multistart tracking: all 5 starts recorded with status, Feller ratios, and near-optimal predictive dispersion.
-9. Isolation and clean execution using tmp_path with zero writes outside phase1.
+9. Export and ranking stability of fine-grid SSE table (heston_multistart_fine_sse.csv).
+10. Exact reconciliation of Common 84 sample metrics against SVI historical and flat baseline.
+11. Negative test: Cache rejected when training data is modified (hash mismatch).
+12. Negative test: Cache rejected when SSE is negative.
+13. Negative test: Cache rejected when parameters fall outside bounds.
+14. Isolation and clean execution using tmp_path with zero writes outside phase1.
 """
 
 import sys
@@ -21,6 +26,7 @@ if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 import json
+import shutil
 import numpy as np
 import pandas as pd
 import pytest
@@ -34,6 +40,7 @@ except ImportError:
 from src.heston.rates_curve import get_official_yield_curve, SPOT_PRICE
 from src.heston.heston_model import HestonParams, HestonOptionPricer
 from src.heston.calibration import HestonCalibrator, HESTON_5_STARTS, HESTON_BOUNDS
+from src.heston.pipeline_phase1 import run_phase1_pipeline
 
 
 @pytest.mark.skipif(not HAS_QUANTLIB, reason="QuantLib required")
@@ -85,7 +92,7 @@ def test_heston_params_dataclass_and_feller():
 def test_heston_option_pricer_raw_bounds_and_arbitrage():
     """Verifies that American puts respect theoretical upper and lower bounds on RAW unclipped output."""
     pricer = HestonOptionPricer()
-    params = HestonParams(v0=0.186, kappa=2.72, theta=0.21, xi=0.48, rho=-0.95)
+    params = HestonParams(v0=0.186138, kappa=2.725460, theta=0.213680, xi=0.481785, rho=-0.949807)
 
     test_strikes = [9.0, 12.0, 15.0, 17.0, 20.0]
     for K in test_strikes:
@@ -196,6 +203,90 @@ def test_multistart_tracking_and_candidate_predictive_dispersion():
     assert len(df_disp) >= 3
 
 
+def test_multistart_fine_sse_table_stability():
+    """Verifies that fine SSE table exists and confirms Start 2 as lowest fine SSE."""
+    fine_csv = Path("data/heston/phase1/heston_multistart_fine_sse.csv")
+    assert fine_csv.exists(), "heston_multistart_fine_sse.csv must exist"
+    df_fine = pd.read_csv(fine_csv)
+
+    assert len(df_fine) == 5
+    assert set(df_fine["start_index"]) == {1, 2, 3, 4, 5}
+    best_fine = df_fine.sort_values("fine_grid_sse").iloc[0]
+    assert best_fine["start_index"] == 2, f"Expected start 2 to have lowest fine SSE, got {best_fine['start_index']}"
+    assert best_fine["fine_grid_sse"] < 0.087, f"Fine SSE {best_fine['fine_grid_sse']} is not < 0.087"
+
+
+def test_common_84_exact_reconciliation():
+    """Verifies that common 84 metrics reconcile exactly with audit values."""
+    c84_csv = Path("data/heston/phase1/heston_common_84_comparison.csv")
+    assert c84_csv.exists(), "heston_common_84_comparison.csv must exist"
+    df = pd.read_csv(c84_csv)
+    assert len(df) == 84
+
+    # Heston American
+    mae_h = df["abs_err_heston"].mean()
+    rmse_h = np.sqrt((df["err_heston"]**2).mean())
+    max_h = df["abs_err_heston"].max()
+    assert abs(mae_h - 0.02315795) < 1e-4
+    assert abs(rmse_h - 0.03392139) < 1e-4
+    assert abs(max_h - 0.18228136) < 1e-4
+
+    # Flat American Common Curve
+    mae_f = df["abs_err_flat_common"].mean()
+    rmse_f = np.sqrt((df["err_flat_common"]**2).mean())
+    max_f = df["abs_err_flat_common"].max()
+    assert abs(mae_f - 0.03967434) < 1e-4
+    assert abs(rmse_f - 0.06028916) < 1e-4
+    assert abs(max_f - 0.33331439) < 1e-4
+
+    # SVI Historical
+    mae_s = df["abs_err_svi"].mean()
+    rmse_s = np.sqrt((df["err_svi_historical"]**2).mean())
+    max_s = df["abs_err_svi"].max()
+    assert abs(mae_s - 0.06844167) < 1e-4
+    assert abs(rmse_s - 0.08857929) < 1e-4
+    assert abs(max_s - 0.24630000) < 1e-4
+
+
+def test_negative_cache_rejected_on_modified_train_data(tmp_path):
+    """Negative test: pipeline must reject cache with ValueError when train data is modified."""
+    data_t = tmp_path / "data"
+    shutil.copytree("data/heston", data_t)
+    train_file = data_t / "data_split_train.csv"
+    train_df = pd.read_csv(train_file)
+    train_df.loc[0, "lastPrice"] += 0.01
+    train_df.to_csv(train_file, index=False)
+
+    with pytest.raises(ValueError, match=r"Cache validation failed|hash mismatch"):
+        run_phase1_pipeline(str(data_t), str(data_t / "phase1"), reuse_existing_multistart=True, allow_recalibration=False)
+
+
+def test_negative_cache_rejected_on_negative_sse(tmp_path):
+    """Negative test: pipeline must reject cache with ValueError when SSE is negative."""
+    data_t = tmp_path / "data"
+    shutil.copytree("data/heston", data_t)
+    ms_file = data_t / "phase1" / "heston_multistart_results.csv"
+    ms_df = pd.read_csv(ms_file)
+    ms_df.loc[ms_df["start_index"] == 3, "final_sse"] = -1.0
+    ms_df.to_csv(ms_file, index=False)
+
+    with pytest.raises(ValueError, match=r"Cache validation failed|invalid final_sse|non-negative"):
+        run_phase1_pipeline(str(data_t), str(data_t / "phase1"), reuse_existing_multistart=True, allow_recalibration=False)
+
+
+def test_negative_cache_rejected_on_out_of_bounds_parameter(tmp_path):
+    """Negative test: pipeline must reject cache with ValueError when a parameter is out of bounds."""
+    data_t = tmp_path / "data"
+    shutil.copytree("data/heston", data_t)
+    ms_file = data_t / "phase1" / "heston_multistart_results.csv"
+    ms_df = pd.read_csv(ms_file)
+    ms_df.loc[ms_df["start_index"] == 1, "v0"] = 2.50  # Upper bound is 1.50
+    ms_df.to_csv(ms_file, index=False)
+
+    with pytest.raises(ValueError, match=r"Cache validation failed|outside bounds"):
+        run_phase1_pipeline(str(data_t), str(data_t / "phase1"), reuse_existing_multistart=True, allow_recalibration=False)
+
+
 @pytest.mark.skipif(not HAS_QUANTLIB, reason="QuantLib required")
 def test_isolated_evaluation_using_tmp_path(tmp_path):
     """Verifies that pricing and evaluation run cleanly in an isolated directory without official writes."""
@@ -203,7 +294,7 @@ def test_isolated_evaluation_using_tmp_path(tmp_path):
     test_out.mkdir()
 
     pricer = HestonOptionPricer()
-    params = HestonParams(v0=0.186, kappa=2.72, theta=0.21, xi=0.48, rho=-0.95)
+    params = HestonParams(v0=0.186138, kappa=2.725460, theta=0.213680, xi=0.481785, rho=-0.949807)
 
     test_file = test_out / "sample_pricing.csv"
     price = pricer.price_american(12.0, "2026-12-18", params, option_type="P", clip_to_intrinsic=False)
