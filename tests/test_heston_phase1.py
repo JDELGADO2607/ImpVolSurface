@@ -1,15 +1,16 @@
 """
-Unit and integration tests for Phase 1: Classical Heston PoC Implementation.
+Unit and integration tests for Phase 1: Classical Heston PoC Implementation (Remediation 1).
 
 Validates:
 1. Exactness of QuantLib term structure adapter on calendar dates.
 2. HestonParams data structure, Feller condition ratio, and conversions.
-3. American put upper/lower arbitrage bounds and early exercise premium (American >= European).
-4. Strike monotonicity and numerical strike convexity within tolerance.
-5. Numerical grid convergence budget (<= 0.0020 USD across all representative contracts).
-6. Compliance with pre-declared gate criteria on Train, Strike Holdout, and Tenor Holdout.
-7. Multistart tracking: all 5 starts recorded without discarding, Feller ratios computed.
-8. Isolation and clean execution using tmp_path with zero writes outside phase1.
+3. Unclipped raw American put lower/upper arbitrage bounds and early exercise premium (American >= European).
+4. Strike monotonicity and non-uniform strike convexity via second divided differences (with NOT_TESTABLE on endpoints).
+5. Tenor monotonicity for American puts at fixed strike K under zero dividend.
+6. Separate temporal and spatial numerical grid refinements satisfying <= 0.0020 USD budget.
+7. Compliance with all pre-declared gate criteria on Train, Strike Holdout, Tenor Holdout, and diagnostics.
+8. Multistart tracking: all 5 starts recorded with status, Feller ratios, and near-optimal predictive dispersion.
+9. Isolation and clean execution using tmp_path with zero writes outside phase1.
 """
 
 import sys
@@ -81,59 +82,75 @@ def test_heston_params_dataclass_and_feller():
 
 
 @pytest.mark.skipif(not HAS_QUANTLIB, reason="QuantLib required")
-def test_heston_option_pricer_bounds_and_arbitrage():
-    """Verifies that American puts respect theoretical upper and lower bounds and American >= European."""
+def test_heston_option_pricer_raw_bounds_and_arbitrage():
+    """Verifies that American puts respect theoretical upper and lower bounds on RAW unclipped output."""
     pricer = HestonOptionPricer()
-    params = HestonParams(v0=0.186, kappa=2.0, theta=0.22, xi=0.50, rho=-0.65)
+    params = HestonParams(v0=0.186, kappa=2.72, theta=0.21, xi=0.48, rho=-0.95)
 
-    test_strikes = [9.0, 12.0, 15.0]
+    test_strikes = [9.0, 12.0, 15.0, 17.0, 20.0]
     for K in test_strikes:
-        p_am = pricer.price_american(K, "2026-12-18", params, option_type="P")
-        p_eu = pricer.price_european(K, "2026-12-18", params, option_type="P")
+        p_am_raw = pricer.price_american(K, "2026-12-18", params, option_type="P", clip_to_intrinsic=False)
+        p_eu_raw = pricer.price_european(K, "2026-12-18", params, option_type="P", clip_nonnegative=False)
 
-        # Bounds: max(0, K - S0) <= P_am <= K
         lower_bound = max(K - SPOT_PRICE, 0.0)
         upper_bound = K
 
-        assert p_am >= lower_bound - 1e-6, f"Put price {p_am} violates lower bound {lower_bound} at K={K}"
-        assert p_am <= upper_bound + 1e-6, f"Put price {p_am} violates upper bound {upper_bound} at K={K}"
-        assert p_am >= p_eu - 1e-5, f"American price {p_am} is less than European {p_eu} at K={K}"
+        assert p_am_raw >= lower_bound - 1e-6, f"Raw put price {p_am_raw} violates lower bound {lower_bound} at K={K}"
+        assert p_am_raw <= upper_bound + 1e-6, f"Raw put price {p_am_raw} violates upper bound {upper_bound} at K={K}"
+        assert p_am_raw >= p_eu_raw - 1e-5, f"Raw American {p_am_raw} is less than European {p_eu_raw} at K={K}"
 
 
 @pytest.mark.skipif(not HAS_QUANTLIB, reason="QuantLib required")
-def test_heston_monotonicity_and_convexity():
-    """Checks strike monotonicity and convexity on an American put smile."""
-    pricer = HestonOptionPricer()
-    params = HestonParams(v0=0.186, kappa=2.0, theta=0.22, xi=0.50, rho=-0.65)
+def test_heston_strike_monotonicity_and_divided_difference_convexity():
+    """Checks strike monotonicity and second divided difference convexity on raw prices."""
+    shape_csv = Path("data/heston/phase1/heston_shape_arbitrage_checks.csv")
+    assert shape_csv.exists(), "heston_shape_arbitrage_checks.csv must exist"
+    df_shape = pd.read_csv(shape_csv)
 
-    strikes = [10.0, 11.0, 12.0, 13.0, 14.0]
-    prices = [pricer.price_american(K, "2027-01-15", params, option_type="P") for K in strikes]
+    assert len(df_shape) == 97, f"Expected 97 shape check rows, found {len(df_shape)}"
+    assert (df_shape["lower_bound_ok"]).all(), "Lower bound violations found in raw pricing"
+    assert (df_shape["upper_bound_ok"]).all(), "Upper bound violations found in raw pricing"
+    assert (df_shape["am_ge_eu_ok"]).all(), "Early exercise premium violations found in raw pricing"
 
-    # Monotonicity: P(K1) < P(K2) for K1 < K2
-    for i in range(len(prices) - 1):
-        assert prices[i] <= prices[i + 1] + 1e-6, f"Monotonicity violation between K={strikes[i]} and K={strikes[i+1]}"
+    # Strike monotonicity
+    mono_testable = df_shape[df_shape["strike_monotonicity_status"] != "FIRST_STRIKE"]
+    assert (mono_testable["strike_monotonicity_status"] == "PASS").all(), "Strike monotonicity violation"
 
-    # Convexity: P(K - h) - 2*P(K) + P(K + h) >= -tol_num
-    for i in range(1, len(prices) - 1):
-        butterfly = prices[i - 1] - 2.0 * prices[i] + prices[i + 1]
-        assert butterfly >= -0.0020, f"Convexity violation {butterfly} at K={strikes[i]}"
+    # Convexity: Interior points must PASS; Boundary points must be NOT_TESTABLE
+    interior = df_shape[df_shape["convexity_status"] != "NOT_TESTABLE"]
+    assert len(interior) > 0, "No interior convexity test points found"
+    assert (interior["convexity_status"] == "PASS").all(), "Convexity violations found in interior points"
+    assert (interior["convexity_second_divided_diff"] >= -0.0020).all()
 
 
 @pytest.mark.skipif(not HAS_QUANTLIB, reason="QuantLib required")
-def test_numerical_grid_budget_convergence():
-    """Verifies that representative contracts satisfy the 0.0020 USD grid convergence budget."""
+def test_fixed_strike_tenor_monotonicity():
+    """Validates that American put prices increase with maturity at fixed strikes."""
+    tenor_csv = Path("data/heston/phase1/heston_tenor_monotonicity_checks.csv")
+    assert tenor_csv.exists(), "heston_tenor_monotonicity_checks.csv must exist"
+    df_tenor_mono = pd.read_csv(tenor_csv)
+
+    assert len(df_tenor_mono) >= 70, f"Expected at least 70 multi-tenor transitions, found {len(df_tenor_mono)}"
+    assert (df_tenor_mono["tenor_monotonicity_ok"]).all(), "Tenor monotonicity violations found"
+    assert (df_tenor_mono["price_diff"] >= -0.0020).all()
+
+
+@pytest.mark.skipif(not HAS_QUANTLIB, reason="QuantLib required")
+def test_numerical_grid_budget_convergence_and_separate_refinements():
+    """Verifies that separate temporal and spatial refinements satisfy the 0.0020 USD budget."""
     grid_csv = Path("data/heston/phase1/heston_grid_convergence.csv")
     assert grid_csv.exists(), "heston_grid_convergence.csv must exist"
     df_grid = pd.read_csv(grid_csv)
 
-    assert len(df_grid) >= 9, f"Expected at least 9 representative grid contracts, found {len(df_grid)}"
-    max_diff = df_grid["diff_medium_fine"].max()
-    assert max_diff <= 0.0020, f"Max medium-fine grid diff {max_diff:.6f} exceeds budget of 0.0020 USD"
+    assert len(df_grid) >= 10, f"Expected at least 10 representative grid contracts, found {len(df_grid)}"
+    assert df_grid["diff_temporal_usd"].max() <= 0.0020, "Temporal refinement exceeded budget"
+    assert df_grid["diff_spatial_usd"].max() <= 0.0020, "Spatial refinement exceeded budget"
+    assert df_grid["diff_ultrafine_usd"].max() <= 0.0020, "Ultra-fine refinement exceeded budget"
     assert df_grid["budget_passed"].all(), "Not all contracts passed budget <= 0.0020 USD"
 
 
 def test_phase1_gate_criteria_compliance():
-    """Validates that all pre-declared Phase 1 gate criteria are strictly met."""
+    """Validates that all pre-declared Phase 1 gate criteria and diagnostics are strictly met."""
     manifest_path = Path("data/heston/phase1/phase1_execution_manifest.json")
     assert manifest_path.exists(), "phase1_execution_manifest.json must exist"
 
@@ -141,27 +158,42 @@ def test_phase1_gate_criteria_compliance():
         manifest = json.load(f)
 
     metrics = manifest["performance_metrics"]
+    diag = manifest["diagnostic_counts"]
+
     assert metrics["train_mae"] <= 0.080, f"Train MAE {metrics['train_mae']:.4f} > 0.080 USD"
     assert metrics["train_rmse"] <= 0.120, f"Train RMSE {metrics['train_rmse']:.4f} > 0.120 USD"
     assert metrics["strike_holdout_mae"] <= 0.100, f"Strike holdout MAE {metrics['strike_holdout_mae']:.4f} > 0.100 USD"
     assert metrics["tenor_holdout_mae"] <= 0.100, f"Tenor holdout MAE {metrics['tenor_holdout_mae']:.4f} > 0.100 USD"
+
+    assert diag["lower_bound_violations"] == 0
+    assert diag["upper_bound_violations"] == 0
+    assert diag["early_exercise_premium_violations"] == 0
+    assert diag["strike_monotonicity_violations"] == 0
+    assert diag["tenor_monotonicity_violations"] == 0
+    assert diag["convexity_violations"] == 0
+
     assert manifest["gate_verdict"] == "PASSED", f"Gate verdict is {manifest['gate_verdict']}"
 
 
-def test_multistart_results_recorded_and_feller_reported():
-    """Ensures all 5 starts are recorded with parameter dispersion and Feller ratios."""
+def test_multistart_tracking_and_candidate_predictive_dispersion():
+    """Ensures all 5 starts are recorded with status and verifies near-optimal dispersion."""
     ms_path = Path("data/heston/phase1/heston_multistart_results.csv")
     assert ms_path.exists(), "heston_multistart_results.csv must exist"
-
     df_ms = pd.read_csv(ms_path)
+
     assert len(df_ms) == 5, f"Expected 5 starts, found {len(df_ms)}"
     assert set(df_ms["start_index"]) == {1, 2, 3, 4, 5}
+    assert "termination_type" in df_ms.columns
     assert "feller_ratio" in df_ms.columns
-    assert "time_seconds" in df_ms.columns
 
-    # Best model should have lowest final_sse
     best_row = df_ms.sort_values("final_sse").iloc[0]
     assert best_row["final_rmse"] < 0.040, f"Best RMSE {best_row['final_rmse']} is not < 0.040 USD"
+
+    # Check candidate predictive dispersion file
+    disp_csv = Path("data/heston/phase1/heston_candidate_predictive_dispersion.csv")
+    assert disp_csv.exists(), "heston_candidate_predictive_dispersion.csv must exist"
+    df_disp = pd.read_csv(disp_csv)
+    assert len(df_disp) >= 3
 
 
 @pytest.mark.skipif(not HAS_QUANTLIB, reason="QuantLib required")
@@ -171,10 +203,10 @@ def test_isolated_evaluation_using_tmp_path(tmp_path):
     test_out.mkdir()
 
     pricer = HestonOptionPricer()
-    params = HestonParams(v0=0.186, kappa=2.0, theta=0.22, xi=0.50, rho=-0.65)
+    params = HestonParams(v0=0.186, kappa=2.72, theta=0.21, xi=0.48, rho=-0.95)
 
     test_file = test_out / "sample_pricing.csv"
-    price = pricer.price_american(12.0, "2026-12-18", params, option_type="P")
+    price = pricer.price_american(12.0, "2026-12-18", params, option_type="P", clip_to_intrinsic=False)
 
     pd.DataFrame([{"strike": 12.0, "price": price}]).to_csv(test_file, index=False)
     assert test_file.exists()

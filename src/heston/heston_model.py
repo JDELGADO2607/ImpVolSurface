@@ -17,11 +17,14 @@ Feller Condition:
     2 * kappa * theta >= xi^2 (guarantees v_t strictly positive almost surely)
     Feller Ratio = 2 * kappa * theta / xi^2
 
-Pricing Engines:
-    1. American Options: ql.FdHestonVanillaEngine (Douglas / Hundsdorfer-Verwer ADI FDM scheme
-       with early exercise boundary projection, consuming unified term structure).
-    2. European Options: ql.AnalyticHestonEngine (semi-analytic characteristic function integration,
-       exact machine-precision benchmark control).
+Pricing Engines and Discretization Schemes:
+    1. American Options: ql.FdHestonVanillaEngine implements an Alternating Direction Implicit (ADI)
+       finite difference scheme (Hundsdorfer-Verwer / Craig-Sneyd splitting) for 2D parabolic PDEs
+       with mixed spatial derivatives, combined with early exercise boundary projection.
+       Consumes the unified dense daily term structure.
+    2. European Options: ql.AnalyticHestonEngine uses numerical adaptive quadrature integration
+       of the characteristic function (Albrecher et al. 2007 stable formulation of Heston CF),
+       providing a high-precision semi-analytic benchmark.
 """
 
 from dataclasses import dataclass
@@ -103,6 +106,12 @@ class HestonOptionPricer:
     Consumes a common YieldTermStructureHandle to ensure unified risk-free discounting.
     """
 
+    # Unified Production Grid parameters
+    PROD_TIME_FACTOR: float = 300.0
+    PROD_MIN_TIME_STEPS: int = 60
+    PROD_SPOT_STEPS: int = 160
+    PROD_VOL_STEPS: int = 80
+
     def __init__(
         self,
         yield_term_structure: Optional["ql.YieldTermStructureHandle"] = None,
@@ -163,26 +172,32 @@ class HestonOptionPricer:
         params: HestonParams,
         option_type: str = "P",
         time_steps: Optional[int] = None,
-        spot_steps: int = 100,
-        vol_steps: int = 50
+        spot_steps: Optional[int] = None,
+        vol_steps: Optional[int] = None,
+        clip_to_intrinsic: bool = False
     ) -> float:
         """
-        Prices an American option using FdHestonVanillaEngine.
-        If time_steps is None, uses adaptive scaling with tenor T: max(50, int(100 * T)).
+        Prices an American option using FdHestonVanillaEngine under the unified production grid.
+        Default grid: time_steps = max(60, int(round(300.0 * T))), spot_steps = 160, vol_steps = 80.
+
+        If clip_to_intrinsic is False, returns raw engine output without clipping,
+        allowing independent verification of lower arbitrage bounds.
         """
         exp_date = self._parse_exp_date(exp_date_val)
         T = self.day_counter.yearFraction(self.eval_date, exp_date)
 
+        S0 = self.spot_quote.value()
+        intrinsic = max(K - S0, 0.0) if option_type.upper() in ("P", "PUT") else max(S0 - K, 0.0)
+
         if T <= 1e-6:
-            S0 = self.spot_quote.value()
-            if option_type.upper() in ("P", "PUT"):
-                return max(K - S0, 0.0)
-            else:
-                return max(S0 - K, 0.0)
+            return float(intrinsic)
 
         if time_steps is None:
-            # Adaptive scaling ensuring time-step size dt <= 0.01 yr across all tenors
-            time_steps = max(50, int(round(100.0 * T)))
+            time_steps = max(self.PROD_MIN_TIME_STEPS, int(round(self.PROD_TIME_FACTOR * T)))
+        if spot_steps is None:
+            spot_steps = self.PROD_SPOT_STEPS
+        if vol_steps is None:
+            vol_steps = self.PROD_VOL_STEPS
 
         _, model = self._build_model_and_process(params)
         engine = ql.FdHestonVanillaEngine(model, time_steps, spot_steps, vol_steps)
@@ -193,31 +208,32 @@ class HestonOptionPricer:
         option = ql.VanillaOption(payoff, exercise)
         option.setPricingEngine(engine)
 
-        npv = option.NPV()
-        S0 = self.spot_quote.value()
-        intrinsic = max(K - S0, 0.0) if ql_type == ql.Option.Put else max(S0 - K, 0.0)
-        return float(max(npv, intrinsic))
+        npv = float(option.NPV())
+        if clip_to_intrinsic:
+            return max(npv, intrinsic)
+        return npv
 
     def price_european(
         self,
         K: float,
         exp_date_val: Union[str, "ql.Date", datetime],
         params: HestonParams,
-        option_type: str = "P"
+        option_type: str = "P",
+        clip_nonnegative: bool = False
     ) -> float:
         """
         Prices a European option using semi-analytic AnalyticHestonEngine.
-        Exact machine-precision integration benchmark.
+        High-precision characteristic function quadrature integration.
         """
         exp_date = self._parse_exp_date(exp_date_val)
         T = self.day_counter.yearFraction(self.eval_date, exp_date)
 
+        S0 = self.spot_quote.value()
         if T <= 1e-6:
-            S0 = self.spot_quote.value()
             if option_type.upper() in ("P", "PUT"):
-                return max(K - S0, 0.0)
+                return float(max(K - S0, 0.0))
             else:
-                return max(S0 - K, 0.0)
+                return float(max(S0 - K, 0.0))
 
         _, model = self._build_model_and_process(params)
         engine = ql.AnalyticHestonEngine(model)
@@ -228,8 +244,10 @@ class HestonOptionPricer:
         option = ql.VanillaOption(payoff, exercise)
         option.setPricingEngine(engine)
 
-        npv = option.NPV()
-        return float(max(npv, 0.0))
+        npv = float(option.NPV())
+        if clip_nonnegative:
+            return max(npv, 0.0)
+        return npv
 
     def evaluate_grid_convergence(
         self,
@@ -239,12 +257,16 @@ class HestonOptionPricer:
         option_type: str = "P"
     ) -> Dict[str, Any]:
         """
-        Evaluates a contract under 3 grid resolutions:
-        - Coarse:  tg = max(25, int(50*T)),   xg = 60,  vg = 30
-        - Medium:  tg = max(50, int(100*T)),  xg = 120, vg = 60
-        - Fine:    tg = max(100, int(200*T)), xg = 200, vg = 100
+        Evaluates a contract under 4 grid resolutions with separate temporal and spatial refinements:
+        1. Unified Production:  tFactor = 300 (min 60),  x = 160, v = 80
+        2. Temporal Refinement: tFactor = 500 (min 100), x = 160, v = 80
+        3. Spatial Refinement:  tFactor = 300 (min 60),  x = 240, v = 120
+        4. Ultra-Fine:          tFactor = 500 (min 100), x = 240, v = 120
 
-        Verifies if |P_medium - P_fine| <= 0.0020 USD (gate numerical budget).
+        Verifies that:
+        - |P_temporal - P_prod| <= 0.0020 USD
+        - |P_spatial - P_prod|  <= 0.0020 USD
+        - |P_ultrafine - P_prod| <= 0.0020 USD
         """
         exp_date = self._parse_exp_date(exp_date_val)
         T = self.day_counter.yearFraction(self.eval_date, exp_date)
@@ -255,33 +277,43 @@ class HestonOptionPricer:
         exercise = ql.AmericanExercise(self.eval_date, exp_date)
         opt = ql.VanillaOption(payoff, exercise)
 
-        # Coarse
-        eng_c = ql.FdHestonVanillaEngine(model, max(25, int(round(50 * T))), 60, 30)
-        opt.setPricingEngine(eng_c)
-        p_coarse = opt.NPV()
+        # 1. Production (300, 160, 80)
+        eng_prod = ql.FdHestonVanillaEngine(model, max(60, int(round(300.0 * T))), 160, 80)
+        opt.setPricingEngine(eng_prod)
+        p_prod = float(opt.NPV())
 
-        # Medium
-        eng_m = ql.FdHestonVanillaEngine(model, max(50, int(round(100 * T))), 120, 60)
-        opt.setPricingEngine(eng_m)
-        p_medium = opt.NPV()
+        # 2. Temporal Refinement (500, 160, 80)
+        eng_temp = ql.FdHestonVanillaEngine(model, max(100, int(round(500.0 * T))), 160, 80)
+        opt.setPricingEngine(eng_temp)
+        p_temp = float(opt.NPV())
 
-        # Fine
-        eng_f = ql.FdHestonVanillaEngine(model, max(100, int(round(200 * T))), 200, 100)
-        opt.setPricingEngine(eng_f)
-        p_fine = opt.NPV()
+        # 3. Spatial Refinement (300, 240, 120)
+        eng_spat = ql.FdHestonVanillaEngine(model, max(60, int(round(300.0 * T))), 240, 120)
+        opt.setPricingEngine(eng_spat)
+        p_spat = float(opt.NPV())
 
-        diff_med_fine = abs(p_medium - p_fine)
-        diff_coarse_med = abs(p_coarse - p_medium)
+        # 4. Ultra-Fine Refinement (500, 240, 120)
+        eng_ultra = ql.FdHestonVanillaEngine(model, max(100, int(round(500.0 * T))), 240, 120)
+        opt.setPricingEngine(eng_ultra)
+        p_ultra = float(opt.NPV())
+
+        diff_temp = abs(p_temp - p_prod)
+        diff_spat = abs(p_spat - p_prod)
+        diff_ultra = abs(p_ultra - p_prod)
+
+        budget_passed = (diff_temp <= 0.0020) and (diff_spat <= 0.0020) and (diff_ultra <= 0.0020)
 
         return {
             "strike": K,
             "exp_date": str(exp_date),
             "tau_years": T,
-            "price_coarse": p_coarse,
-            "price_medium": p_medium,
-            "price_fine": p_fine,
-            "diff_coarse_medium": diff_coarse_med,
-            "diff_medium_fine": diff_med_fine,
+            "price_production": p_prod,
+            "price_temporal_refine": p_temp,
+            "price_spatial_refine": p_spat,
+            "price_ultrafine": p_ultra,
+            "diff_temporal_usd": diff_temp,
+            "diff_spatial_usd": diff_spat,
+            "diff_ultrafine_usd": diff_ultra,
             "budget_threshold_usd": 0.0020,
-            "budget_passed": bool(diff_med_fine <= 0.0020)
+            "budget_passed": bool(budget_passed)
         }

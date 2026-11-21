@@ -110,6 +110,7 @@ class HestonCalibrator:
         else:
             self.ts_handle = yield_term_structure
 
+        self.last_eval_error: Optional[str] = None
         # Pre-instantiate contracts to avoid overhead during optimization
         self.contracts = self._prepare_contracts()
 
@@ -162,7 +163,8 @@ class HestonCalibrator:
                 sse += diff * diff
 
             return float(sse)
-        except Exception:
+        except Exception as e:
+            self.last_eval_error = str(e)
             return 1e8
 
     def run_single_start(
@@ -176,6 +178,7 @@ class HestonCalibrator:
         name = start_def["name"]
 
         t0 = time.time()
+        self.last_eval_error = None
         init_sse = self.evaluate_sse(start_params)
         n_contracts = len(self.contracts)
         init_rmse = np.sqrt(init_sse / n_contracts)
@@ -192,6 +195,21 @@ class HestonCalibrator:
         final_params = HestonParams.from_array(opt_res.x)
         final_sse = float(opt_res.fun)
         final_rmse = np.sqrt(final_sse / n_contracts)
+
+        # Distinguish convergence status
+        status_code = int(opt_res.status)
+        if status_code == 0:
+            termination_type = "CONVERGED"
+            is_success = True
+        elif status_code == 1:
+            termination_type = "MAX_ITERATIONS"
+            is_success = False  # iteration limit reached, not guaranteed gradient minimum
+        elif status_code == 2:
+            termination_type = "ABNORMAL_TERMINATION"
+            is_success = False
+        else:
+            termination_type = f"STATUS_{status_code}"
+            is_success = False
 
         # Check boundary proximity (< 1e-3 from bounds)
         boundary_hits = []
@@ -215,9 +233,11 @@ class HestonCalibrator:
             "iterations": int(opt_res.nit),
             "function_evals": int(opt_res.nfev),
             "time_seconds": round(elapsed, 2),
-            "status": int(opt_res.status),
-            "success": bool(opt_res.success or opt_res.status in (0, 1)),
+            "status": status_code,
+            "termination_type": termination_type,
+            "success": is_success,
             "message": str(opt_res.message),
+            "last_eval_error": self.last_eval_error,
             "feller_ratio": final_params.feller_ratio,
             "feller_satisfied": final_params.feller_satisfied,
             "boundary_hits": boundary_hits,
@@ -264,6 +284,8 @@ class HestonCalibrator:
                 "function_evals": r["function_evals"],
                 "time_seconds": r["time_seconds"],
                 "status": r["status"],
+                "termination_type": r["termination_type"],
+                "success": r["success"],
                 "message": r["message"],
             })
         df_results = pd.DataFrame(rows)
@@ -278,8 +300,8 @@ class HestonCalibrator:
             rho=float(best_row["rho"])
         )
 
-        # Parameter dispersion among converged runs (status 0 or 1, excluding severe local minima)
-        converged = df_results[df_results["final_rmse"] < 0.050]
+        # Parameter dispersion among converged runs (status 0, excluding poor local minima)
+        converged = df_results[(df_results["status"] == 0) & (df_results["final_rmse"] < 0.050)]
         dispersion = {
             "v0_mean": float(converged["v0"].mean()),
             "v0_std": float(converged["v0"].std()),
