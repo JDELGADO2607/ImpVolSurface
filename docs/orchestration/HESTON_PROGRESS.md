@@ -6,4 +6,4 @@ F1-01/F1-03 resueltos en dominio probado; F1-02 residual LOW; F1-04 HIGH parcial
 22tests aprobados sin cambios de hashes oficiales; precios publicados intactos frente a af105d1, gate de ajuste favorable.
 [Informe](../audits/HESTON_PHASE_1_3a294af.md).
 Siguiente accion reparacion3 focalizada de validacion/seleccion cache y lineas documentales. Nuevo SHA y auditoria antes de fase2. Si persiste defecto material no abrir cuarta ronda automatica.
-Run run_0891738e9cf5, ultima entrega ctx_42d5b8fbc60c. Cuota restante no expuesta.
+Run run_0891738e9cf5, reparacion3 activa ctx_6b652fb70838, task task_01bc5eea818d; informe commit eafb0551f9aa9b2861def21c33584485f12c108f. Cuota restante no expuesta.

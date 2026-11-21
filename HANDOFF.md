@@ -6,7 +6,7 @@ Reparacion3/3 autorizada: replay excluye candidatos status2 que luego pueden sel
 [Informe](docs/audits/HESTON_PHASE_1_3a294af.md). [Criterios](docs/context/ACCEPTANCE_CRITERIA.md).
 Coordinacion JDELGADO2607/heston-coordination, PR#4, worktree heston-coordination.
 Implementacion Gemini JDELGADO2607/heston-implementation, worktree heston-implementation.
-Run run_0891738e9cf5. Ultima entrega ctx_42d5b8fbc60c completada. Registrar nuevo dispatch de reparacion3 tras asignacion.
+Run run_0891738e9cf5. Reparacion3 activa: dispatch ctx_6b652fb70838, task task_01bc5eea818d. Informe commit eafb0551f9aa9b2861def21c33584485f12c108f accesible, PR4 OPEN. No cuarta ronda automatica.
 Siguiente accion recibir PHASE_READY_FOR_AUDIT con nuevo SHA y auditar antes de solver propio fase2.
 SVI congelado 3d81ff1, auditoria R3 externa en PR#3.
 Enunciado original no encontrado, mapeo secundario46-56 identificado.

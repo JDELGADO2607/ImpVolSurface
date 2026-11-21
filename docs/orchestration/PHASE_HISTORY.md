@@ -19,3 +19,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | PHASE_1 REJECTED tras reparacion1, reparacion2 autorizada | af105d1, F1-01/F1-03 resueltos en dominio probado; F1-04 HIGH nuevo, F1-02 MEDIUM parcial |
 | 2026-11-21 | Reparacion2 fase1 dispatch aceptado | ctx_42d5b8fbc60c, task_07b7236ff519; informe389f40f accesible en GitHub, PR4 OPEN |
 | 2026-11-21 | PHASE_1 REJECTED tras reparacion2; reparacion3/3 autorizada | 3a294af, F1-04 HIGH parcial por seleccion sin replay, F1-02 residual LOW; precios intactos,22tests PASS |
+| 2026-11-21 | Reparacion3 fase1 dispatch aceptado, ultimo intento ordinario | ctx_6b652fb70838, task_01bc5eea818d; informe eafb055 publicado y PR4 OPEN |
