@@ -15,3 +15,5 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | PHASE_0 APPROVED en reparacion1 y PHASE_1 autorizada | 0fb8758, HESTON_PHASE_0_0fb8758.md y PHASE_1_START.md |
 | 2026-11-21 | PHASE_1 dispatch ready | ctx_bf80e6c500af, task_1e099bde984c |
 | 2026-11-21 | PHASE_1 REJECTED y reparacion1 autorizada | d6a369c, F1-01 HIGH y F1-02/F1-03 MEDIUM |
+
+| 2026-11-21 | PHASE_1 REJECTED tras reparacion1, reparacion2 autorizada | af105d1, F1-01/F1-03 resueltos en dominio probado; F1-04 HIGH nuevo, F1-02 MEDIUM parcial |

@@ -1,0 +1,128 @@
+
+===== audit_probe.log =====
+REPLAY_MAX 8.881784197001252e-16
+GRID_MAX temporal 0.00039696062332428284
+GRID_MAX spatial 0.0002816651983490459
+GRID_MAX ultra 0.0004178026758090425
+METRICS strike_holdout 22 0.021086264199552982 0.026588756069962357
+METRICS tenor_holdout 15 0.02042742513753181 0.026386614235790605
+METRICS train 60 0.02578370703150738 0.03800010772198604
+FINER NU290119P00013000 prod 3.0005833815187954 ultra 3.0010011841946045 900x320x160 3.0011898160025607 delta 0.0006064344837652946
+FINER NU280121P00015000 prod 3.6278142668515505 ultra 3.6281953121105595 900x320x160 3.628386256608837 delta 0.0005719897572866728
+FINER NU290119P00012000 prod 2.465210719603109 ultra 2.4655860125950193 900x320x160 2.465753015680312 delta 0.0005422960772030194
+RAW_BOUNDS 0.0 2.9560650550782546
+FINE_SSE 1 0.08833666095450823
+FINE_SSE 2 0.08676170871978404
+FINE_SSE 3 21.46878391010828
+FINE_SSE 4 0.08948211442410489
+FINE_SSE 5 0.08791652157519067
+HASH treasury_cmt_2026_11_17_raw.json True
+HASH data_split_train.csv True
+HASH data_split_strike_holdout.csv True
+HASH data_split_tenor_holdout.csv True
+HASH puts_selected_clean.csv True
+HASH data_split_calls_contrast.csv True
+HASH baseline_comparison_detailed.csv True
+STRIKE 2026-11-20 n 12 min_slope 0.0 min_slope_increment -3.0329072586710026e-12
+STRIKE 2026-11-27 n 6 min_slope 0.037999070072808006 min_slope_increment 0.0731830646693748
+STRIKE 2026-12-04 n 8 min_slope 0.0843436484244858 min_slope_increment 0.08683671801549017
+STRIKE 2026-12-11 n 9 min_slope 0.06312078574448801 min_slope_increment 0.058383932348509
+STRIKE 2026-12-18 n 8 min_slope 0.0349466146259024 min_slope_increment 0.07271395698388905
+STRIKE 2026-12-24 n 7 min_slope 0.10695562300781719 min_slope_increment 0.063829561268863
+STRIKE 2026-12-31 n 5 min_slope 0.27071615415412603 min_slope_increment 0.09431366940369984
+STRIKE 2027-01-15 n 7 min_slope 0.190966664452419 min_slope_increment 0.13202987175558967
+STRIKE 2027-02-19 n 5 min_slope 0.24075830561594086 min_slope_increment 0.12612341207718009
+STRIKE 2027-03-19 n 5 min_slope 0.2670318913004871 min_slope_increment 0.11444289169238886
+STRIKE 2027-04-16 n 2 min_slope 0.39257939324012303 min_slope_increment None
+STRIKE 2027-06-17 n 7 min_slope 0.20429261611716498 min_slope_increment 0.09103313271454994
+STRIKE 2027-09-17 n 3 min_slope 0.3904371867821912 min_slope_increment 0.19838245915584918
+STRIKE 2027-12-17 n 3 min_slope 0.4090830070023765 min_slope_increment 0.32636348804538434
+STRIKE 2028-01-21 n 5 min_slope 0.13467940685172683 min_slope_increment 0.1452468584968107
+STRIKE 2029-01-19 n 5 min_slope 0.1615256266620416 min_slope_increment 0.07750872146009102
+TEMPORAL_MIN 3.188615327331945e-08
+NEW_POINT 14.75 31 2.4316226824322467 2.431758226588503
+NEW_POINT 14.75 37 2.4424944134673052 2.4426531767384314
+NEW_POINT 14.75 27 2.4259741303386817 2.4260946120218048
+NEW_POINT 20.42 612 8.210891111385783 8.211605818636459
+NEW_POINT 5.0 430 0.08386078121495841 0.08386879433928861
+NEW_POINT 10.0 31 0.04273680320943198 0.04273909209780403
+NEW_POINT 12.0 1 0.01610079938226413 0.016099334343288477
+NEW_POINT 12.0 2 0.04402008462156723 0.04402104400043389
+NEW_POINT 12.0 800 2.4730155034261285 2.47341993910768
+DONE
+
+===== audit_cache_negative.log =====
+NEGATIVE_CASE changed_train_only
+=== Starting Heston Phase 1 Pipeline (Remediation 1) ===
+Historical transcription timestamp: 2026-11-21T16:20:00-05:00
+Execution timestamp: 2026-11-21T23:29:36.274301+00:00
+QuantLib version: 1.44, SciPy version: 1.18.0
+Verified 7 input files and cryptographic hashes.
+Data splits: Train=60, StrikeHoldout=22, TenorHoldout=15, FullPuts=97, CallsContrast=142
+
+--- Using Existing Verified Multistart Results (Classification Confirmed Stable under Fine Grid) ---
+Selected Best Start: Start_2_Positive_Rho (Index 2)
+Best Parameters: {'v0': 0.18613777847584, 'kappa': 2.7254603668370714, 'theta': 0.2136796992000426, 'xi': 0.4817847258429695, 'rho': -0.9498066630129804, 'feller_ratio': 5.017958620178884, 'feller_satisfied': True, 'spot_vol': 0.4314368765831683, 'long_term_vol': 0.4622550153324922}
+
+--- Evaluating Best Model across Partitions (Unified Production Grid 300x160x80) ---
+CACHE_ACCEPTED_PARAMETERS {'v0': 0.18613777847584, 'kappa': 2.7254603668370714, 'theta': 0.2136796992000426, 'xi': 0.4817847258429695, 'rho': -0.9498066630129804, 'feller_ratio': 5.017958620178884, 'feller_satisfied': True, 'spot_vol': 0.4314368765831683, 'long_term_vol': 0.4622550153324922}
+PROBE_RESULT Pricing reached without rejecting stale or invalid cache
+
+NEGATIVE_CASE negative_sse_only
+=== Starting Heston Phase 1 Pipeline (Remediation 1) ===
+Historical transcription timestamp: 2026-11-21T16:20:00-05:00
+Execution timestamp: 2026-11-21T23:29:36.645287+00:00
+QuantLib version: 1.44, SciPy version: 1.18.0
+Verified 7 input files and cryptographic hashes.
+Data splits: Train=60, StrikeHoldout=22, TenorHoldout=15, FullPuts=97, CallsContrast=142
+
+--- Using Existing Verified Multistart Results (Classification Confirmed Stable under Fine Grid) ---
+Selected Best Start: Start_3_High_VolVol_Low_Kappa (Index 3)
+Best Parameters: {'v0': 0.0255615114321117, 'kappa': 0.1141038315861711, 'theta': 0.0225043223751618, 'xi': 2.930937862854284, 'rho': -0.9403950618149712, 'feller_ratio': 0.0005978372089714964, 'feller_satisfied': False, 'spot_vol': 0.15987967798351266, 'long_term_vol': 0.1500144072253122}
+
+--- Evaluating Best Model across Partitions (Unified Production Grid 300x160x80) ---
+CACHE_ACCEPTED_PARAMETERS {'v0': 0.0255615114321117, 'kappa': 0.1141038315861711, 'theta': 0.0225043223751618, 'xi': 2.930937862854284, 'rho': -0.9403950618149712, 'feller_ratio': 0.0005978372089714964, 'feller_satisfied': False, 'spot_vol': 0.15987967798351266, 'long_term_vol': 0.1500144072253122}
+PROBE_RESULT Pricing reached without rejecting stale or invalid cache
+
+
+===== audit_extra.log =====
+SHAPE 2026-11-20 12 slope_min 0.0 d_slope_min -3.0329072586710026e-12
+SHAPE 2026-11-27 6 slope_min 0.037999070072808006 d_slope_min 0.0731830646693748
+SHAPE 2026-12-04 8 slope_min 0.0843436484244858 d_slope_min 0.08683671801549017
+SHAPE 2026-12-11 9 slope_min 0.06312078574448801 d_slope_min 0.058383932348509
+SHAPE 2026-12-18 8 slope_min 0.0349466146259024 d_slope_min 0.07271395698388905
+SHAPE 2026-12-24 7 slope_min 0.10695562300781719 d_slope_min 0.063829561268863
+SHAPE 2026-12-31 5 slope_min 0.27071615415412603 d_slope_min 0.09431366940369984
+SHAPE 2027-01-15 7 slope_min 0.190966664452419 d_slope_min 0.13202987175558967
+SHAPE 2027-02-19 5 slope_min 0.24075830561594086 d_slope_min 0.12612341207718009
+SHAPE 2027-03-19 5 slope_min 0.2670318913004871 d_slope_min 0.11444289169238886
+SHAPE 2027-04-16 2 slope_min 0.39257939324012303 d_slope_min None
+SHAPE 2027-06-17 7 slope_min 0.20429261611716498 d_slope_min 0.09103313271454994
+SHAPE 2027-09-17 3 slope_min 0.3904371867821912 d_slope_min 0.19838245915584918
+SHAPE 2027-12-17 3 slope_min 0.4090830070023765 d_slope_min 0.32636348804538434
+SHAPE 2028-01-21 5 slope_min 0.13467940685172683 d_slope_min 0.1452468584968107
+SHAPE 2029-01-19 5 slope_min 0.1615256266620416 d_slope_min 0.07750872146009102
+INTERIOR_N 65 NONTESTABLE 32
+TENOR_MIN 3.188615327331945e-08
+ALL_CSV_SHAPE_FINITE True
+
+===== audit_tests.log =====
+.................                                                        [100%]
+17 passed in 20.63s
+
+===== audit_quantlib_signatures.txt =====
+QuantLib 1.44
+FdHeston constructor:
+
+        __init__(FdHestonVanillaEngine self, ext::shared_ptr< HestonModel > const & model, Size tGrid=100, Size xGrid=100, Size vGrid=50, Size dampingSteps=0, FdmSchemeDesc schemeDesc=FdmSchemeDesc::Hundsdorfer(), ext::shared_ptr< LocalVolTermStructure > const & leverageFct={}, Real const mixingFactor=1.0) -> FdHestonVanillaEngine
+        __init__(FdHestonVanillaEngine self, ext::shared_ptr< HestonModel > const & model, ext::shared_ptr< FdmQuantoHelper > const & quantoHelper, Size tGrid=100, Size xGrid=100, Size vGrid=50, Size dampingSteps=0, FdmSchemeDesc schemeDesc=FdmSchemeDesc::Hundsdorfer(), ext::shared_ptr< LocalVolTermStructure > const & leverageFct={}, Real const mixingFactor=1.0) -> FdHestonVanillaEngine
+        __init__(FdHestonVanillaEngine self, ext::shared_ptr< HestonModel > const & model, DividendSchedule dividends, Size tGrid=100, Size xGrid=100, Size vGrid=50, Size dampingSteps=0, FdmSchemeDesc schemeDesc=FdmSchemeDesc::Hundsdorfer(), ext::shared_ptr< LocalVolTermStructure > const & leverageFct={}, Real const mixingFactor=1.0) -> FdHestonVanillaEngine
+        __init__(FdHestonVanillaEngine self, ext::shared_ptr< HestonModel > const & model, DividendSchedule dividends, ext::shared_ptr< FdmQuantoHelper > const & quantoHelper, Size tGrid=100, Size xGrid=100, Size vGrid=50, Size dampingSteps=0, FdmSchemeDesc schemeDesc=FdmSchemeDesc::Hundsdorfer(), ext::shared_ptr< LocalVolTermStructure > const & leverageFct={}, Real const mixingFactor=1.0) -> FdHestonVanillaEngine
+        
+Analytic constructor:
+
+        __init__(AnalyticHestonEngine self, ext::shared_ptr< HestonModel > const & model, Size integrationOrder=144) -> AnalyticHestonEngine
+        __init__(AnalyticHestonEngine self, ext::shared_ptr< HestonModel > const & model, Real relTolerance, Size maxEvaluations) -> AnalyticHestonEngine
+        __init__(AnalyticHestonEngine self, ext::shared_ptr< HestonModel > const & model, AnalyticHestonEngine::ComplexLogFormula cpxLog, FourierIntegration itg, Real andersenPiterbargEpsilon=1e-8) -> AnalyticHestonEngine
+        
+Pytest wrapper captured outcome: exit0; PRODUCTION_HASH_CHANGES [] (existing files under data/docs/results). Reproduction wrapper attached.

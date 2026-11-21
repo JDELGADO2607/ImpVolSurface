@@ -1,12 +1,12 @@
 # Estado para reanudar
 
 PHASE_CONTEXT_SETUP_APPROVED. PHASE_0 APPROVED en 0fb87583c6f4023049a4e6f4ae5c36c7aad247d3.
-PHASE_1 REJECTED en d6a369c3b636ee0ddb539ddf1938664b54107c4a, PR#5.
-Reparacion1/3 autorizada. PoC ajuste favorable, pendiente control numerico, documentacion y diagnosticos.
-[Informe](docs/audits/HESTON_PHASE_1_d6a369c.md). [Criterios](docs/context/ACCEPTANCE_CRITERIA.md).
+PHASE_1 REJECTED en af105d1b221d4b096695b979fb72bc55834cf47e, PR#5.
+Reparacion2/3 autorizada: cache de calibracion sin vinculo verificable y documentacion incorrecta. Precios/gates numericos favorables reproducidos.
+[Informe](docs/audits/HESTON_PHASE_1_af105d1.md). [Criterios](docs/context/ACCEPTANCE_CRITERIA.md).
 Coordinacion JDELGADO2607/heston-coordination, PR#4, worktree heston-coordination.
 Implementacion Gemini JDELGADO2607/heston-implementation, worktree heston-implementation.
-Run run_0891738e9cf5. Reparacion activa en dispatch ctx_832d10838ae2, task task_28a87a828c82; Gemini confirmado live por Orca.
+Run run_0891738e9cf5. Ultima entrega completada dispatch ctx_832d10838ae2. Registrar nuevo dispatch al asignar reparacion2.
 Siguiente accion recibir PHASE_READY_FOR_AUDIT con nuevo SHA y auditar antes de solver propio fase2.
 SVI congelado 3d81ff1, auditoria R3 externa en PR#3.
 Enunciado original no encontrado, mapeo secundario46-56 identificado.
