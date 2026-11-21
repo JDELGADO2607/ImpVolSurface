@@ -1,14 +1,9 @@
 # Avance Heston
 
-PHASE_CONTEXT_SETUP_APPROVED. Fase activa PHASE_0, IN_PROGRESS.
-Contexto base cf6c99053946bb0f610a11463c46e43ccf6967ce, publicado en PR #4.
-Ultimo SHA Heston aprobado ninguno. SHA pendiente ninguno. Reparaciones 0.
-
-[Plan](../../PLAN.md) contiene estado de todas las fases.
-[Hallazgos](../context/KNOWN_ISSUES.md) conserva evidencia historica.
-[Decisiones](../context/METHODOLOGICAL_DECISIONS.md) registra autorizacion humana vigente.
-
-Gemini tiene dispatch ctx_c044496997ad, task_ecc498140c18, Run run_0891738e9cf5.
-Implementacion exclusiva JDELGADO2607/heston-implementation.
-Siguiente accion recibir evento worker_done, verificar PHASE_READY_FOR_AUDIT y auditar SHA.
-Cuota restante no expuesta. Los eventos de Orca permiten devolver el trabajo al coordinador segun el recibo, sin prometer actividad con la aplicacion cerrada.
+PHASE_CONTEXT_SETUP_APPROVED. PHASE_0 PHASE_REJECTED, reparacion 1 de 3 autorizada.
+SHA auditado 334441842135e8a57f0b47338bd8f0ed515a09e2, PR #5. Ultimo SHA de implementacion aprobado ninguno.
+Hallazgos F0-01 HIGH (bootstrap), F0-02 MEDIUM (ablacion), F0-03 MEDIUM (dependencias y fuente).
+[Informe](../audits/HESTON_PHASE_0_3344418.md).
+Worker a contactar dispatch:ctx_20a4cd53fc36. Run run_0891738e9cf5.
+Siguiente accion recibir SHA corregido, auditar y fijar gate PoC antes de PHASE_1.
+La aprobacion de setup no autoriza avanzar sobre un SHA de implementacion rechazado.
