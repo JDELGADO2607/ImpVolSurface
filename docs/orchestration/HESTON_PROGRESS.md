@@ -7,3 +7,4 @@ Hallazgos F0-01 HIGH (bootstrap), F0-02 MEDIUM (ablacion), F0-03 MEDIUM (depende
 Worker a contactar dispatch:ctx_20a4cd53fc36. Run run_0891738e9cf5.
 Siguiente accion recibir SHA corregido, auditar y fijar gate PoC antes de PHASE_1.
 La aprobacion de setup no autoriza avanzar sobre un SHA de implementacion rechazado.
+Reparacion 1 en ejecucion mediante dispatch ctx_ecf514dd6836, task_7a75ffb83f6f. Recibo ready y reactivacion por evento confirmados. Usar este dispatch para seguimiento.

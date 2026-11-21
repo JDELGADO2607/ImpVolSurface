@@ -17,3 +17,5 @@ Contexto base publicado cf6c99053946bb0f610a11463c46e43ccf6967ce. Gemini confirm
 - Cuota restante no expuesta por herramientas disponibles. Logs extensos se guardan fuera del contexto conversacional.
 
 Entrega 3344418 auditada. Informe docs/audits/HESTON_PHASE_0_3344418.md. Siguiente accion recibir reparacion de Gemini y auditar nuevo SHA antes de fase 1.
+
+Reparacion 1 en ejecucion mediante dispatch ctx_ecf514dd6836, task_7a75ffb83f6f. Recibo ready y reactivacion por evento confirmados. Usar este dispatch para seguimiento.
