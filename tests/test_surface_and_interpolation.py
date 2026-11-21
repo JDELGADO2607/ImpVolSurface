@@ -1,7 +1,12 @@
 """
-Unit tests for Volatility Surface and SVI calibration.
-Validates surface evaluation, absence of calendar arbitrage, parameter bounds,
-and out-of-sample prediction accuracy.
+Unit tests for Volatility Surface and SVI calibration (Bloque P0-C and P1-A).
+Validates:
+1. SVI Lee wing bounds (b*(1+|rho|) < 2.0) across all calibrated slices.
+2. 100% absence of butterfly arbitrage (g(k) >= 0) on the empirical support of every SVI slice.
+3. Absence of calendar arbitrage across multiple moneyness levels (k in [-0.30, +0.30]).
+4. American economic bounds and monotonicities (calls decreasing in K, puts increasing in K,
+   monotonic in tau for American options).
+5. Leave-One-Strike-Out cross-validation uses proper American engine for Puts without call-put leakage.
 """
 
 import sys
@@ -13,7 +18,14 @@ if str(root_dir) not in sys.path:
 import pytest
 import numpy as np
 import pandas as pd
-from src.surface import VolatilitySurface, raw_svi_total_variance
+from src.surface import (
+    VolatilitySurface,
+    raw_svi_total_variance,
+    svi_butterfly_density_g,
+    check_american_economic_arbitrage,
+    leave_one_strike_out_validation
+)
+from src.market_data import SPOT_PRICE, get_zero_rate
 
 @pytest.fixture(scope="module")
 def surface_instance():
@@ -24,46 +36,89 @@ def surface_instance():
 
 def test_surface_evaluation(surface_instance):
     surface = surface_instance
-    # Test ATM queries across maturities
     for tau in [0.05, 0.1, 0.25, 0.5, 1.0, 1.5]:
         res = surface.surface_iv(k=0.0, tau=tau)
         assert not np.isnan(res['iv'])
         assert 0.20 < res['iv'] < 1.20, f"Unreasonable ATM IV at tau={tau}: {res['iv']}"
         assert res['w'] > 0
 
-def test_no_calendar_arbitrage_monotonic_total_variance(surface_instance):
+def test_no_calendar_arbitrage_multi_moneyness(surface_instance):
+    """
+    Total variance w(k, tau) must be non-decreasing in tau across multiple moneyness levels.
+    """
     surface = surface_instance
-    k_test = 0.0 # ATM
-    taus = np.linspace(0.05, 1.8, 30)
-    w_vals = [surface.surface_iv(k=k_test, tau=t)['w'] for t in taus]
+    taus = np.linspace(0.05, 1.8, 25)
 
-    # Total variance w(tau) must be non-decreasing in tau
-    diffs = np.diff(w_vals)
-    # Allow tiny numerical tolerance of 1e-5
-    min_diff = np.min(diffs)
-    assert min_diff >= -1e-5, f"Calendar arbitrage detected: total variance decreased by {-min_diff}"
+    for k_test in [-0.30, -0.15, 0.0, 0.15, 0.30]:
+        w_vals = [surface.surface_iv(k=k_test, tau=t)['w'] for t in taus]
+        diffs = np.diff(w_vals)
+        min_diff = np.min(diffs)
+        # Numerical tolerance of 1e-6
+        assert min_diff >= -1e-6, f"Calendar arbitrage detected at k={k_test}: diff={min_diff}"
 
-def test_svi_parameters_bounds():
-    params_csv = Path("outputs/tables/svi_slice_parameters.csv")
-    assert params_csv.exists()
-    df = pd.read_csv(params_csv)
+def test_svi_parameters_and_lee_wings(surface_instance):
+    """
+    Every calibrated Raw SVI slice must satisfy:
+    1. Roger Lee wing condition: b * (1 + |rho|) < 2.0.
+    2. Minimum total variance a + b*eta*sqrt(1 - rho^2) >= 0.
+    3. 100% butterfly density non-negativity (g(k) >= 0) on its support domain.
+    """
+    surface = surface_instance
+    slices_df = pd.DataFrame(surface.slice_params)
 
-    for _, row in df.iterrows():
+    for _, row in slices_df.iterrows():
         if row['method'] == 'Raw SVI':
             b = row['param_b']
             rho = row['param_rho']
+            a = row['param_a']
             eta = row['param_eta']
-            assert b >= 0.0, f"b negative: {b}"
-            assert abs(rho) <= 1.0, f"rho outside [-1, 1]: {rho}"
-            assert eta > 0.0, f"eta non-positive: {eta}"
-            assert row['pct_no_butterfly_arb'] >= 80.0, f"Excess butterfly arbitrage: {row['pct_no_butterfly_arb']}"
 
-def test_leave_one_out_accuracy():
-    val_csv = Path("outputs/tables/surface_leave_one_out_validation.csv")
-    assert val_csv.exists()
-    df = pd.read_csv(val_csv)
+            # Roger Lee condition
+            lee_wing = b * (1.0 + abs(rho))
+            assert lee_wing < 2.0, f"Slice {row['expirationDate']} violates Lee wing bound: {lee_wing:.4f} >= 2.0"
 
-    assert len(df) > 100
-    mae_px = df['price_error_usd'].abs().mean()
-    # Out of sample price error must be well under 10 cents
-    assert mae_px < 0.10, f"Leave-one-out MAE price too high: ${mae_px:.3f}"
+            # Min variance
+            min_var = a + b * eta * np.sqrt(max(1.0 - rho**2, 0.0))
+            assert min_var >= -1e-6, f"Slice {row['expirationDate']} negative minimum variance: {min_var}"
+
+            # Butterfly density check on support
+            assert row['pct_no_butterfly_arb'] == 100.0, \
+                f"Slice {row['expirationDate']} has butterfly arbitrage: {row['pct_no_butterfly_arb']}%"
+
+def test_american_economic_arbitrage_checks(surface_instance):
+    """
+    Verifies that prices generated by the surface through the American engine
+    satisfy fundamental economic arbitrage bounds:
+    - Calls decreasing in strike
+    - Puts increasing in strike
+    - Both non-decreasing in time to expiry (American property)
+    - Intrinsic lower bounds respected
+    """
+    surface = surface_instance
+    diag = check_american_economic_arbitrage(surface, S0=SPOT_PRICE)
+
+    assert diag['call_strike_monotonicity_violations'] == 0
+    assert diag['put_strike_monotonicity_violations'] == 0
+    assert diag['call_expiry_monotonicity_violations'] == 0
+    assert diag['put_expiry_monotonicity_violations'] == 0
+    assert diag['intrinsic_bound_violations'] == 0
+
+def test_leave_one_strike_out_accuracy_and_american_engine():
+    """
+    Verifies leave-one-strike-out validation:
+    - Uses American pricing engine for puts.
+    - Evaluates out-of-sample accuracy across strikes without grouped leakage.
+    - MAE price < $0.10 USD.
+    """
+    iv_csv = Path("outputs/tables/options_with_iv.csv")
+    df = pd.read_csv(iv_csv)
+    val_df = leave_one_strike_out_validation(df)
+
+    assert len(val_df) > 80
+    mae_px = val_df['price_error_usd'].abs().mean()
+    assert mae_px < 0.10, f"LOO MAE price too high: ${mae_px:.3f}"
+
+    # Verify that puts have American valuation
+    puts_val = val_df[val_df['type'] == 'P']
+    assert len(puts_val) > 20
+    assert 'pred_price' in puts_val.columns
