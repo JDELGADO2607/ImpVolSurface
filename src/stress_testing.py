@@ -151,11 +151,21 @@ def run_stress_testing(
     hedge_shares = int(port_summary['hedge_shares'])
     m2m_options_initial = float(port_summary['total_options_value_mod'] - port_summary['total_options_value_mkt'])
 
-    # Economic Margin Capital Requirement estimation:
-    # Option premium paid + short margin (20% underlying spot) + 50% short stock margin
+    # Economic Margin Capital Requirement estimation (dynamically derived from port_df):
+    # Option premium paid for longs + short option exchange margin (premium + 20% underlying spot) + 50% short stock margin
     stock_margin = abs(hedge_shares) * SPOT_PRICE * 0.50
-    short_opt_margin = (5 * 100 * (0.16 + 0.20 * SPOT_PRICE)) + (4 * 100 * (0.31 + 0.20 * SPOT_PRICE))
-    long_opt_outlay = (5 * 100 * 0.86) + (3 * 100 * 0.47) + (4 * 100 * 0.60)
+    short_opt_margin = 0.0
+    long_opt_outlay = 0.0
+    for _, leg in port_df.iterrows():
+        if leg['contractSymbol'] == 'NU_STOCK' or leg['type'] not in ('C', 'P'):
+            continue
+        qty = leg['quantity']
+        p = float(leg['obs_price'])
+        mult = int(leg.get('multiplier', CONTRACT_MULTIPLIER))
+        if qty > 0:
+            long_opt_outlay += qty * mult * p
+        elif qty < 0:
+            short_opt_margin += abs(qty) * mult * (p + 0.20 * SPOT_PRICE)
     economic_margin_capital = float(long_opt_outlay + short_opt_margin + stock_margin)
 
     scenario_matrix_records = []

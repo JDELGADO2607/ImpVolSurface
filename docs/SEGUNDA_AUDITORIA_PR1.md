@@ -163,11 +163,13 @@ Se reestructuró `run_all.py`:
 
 ### 5.3. Comportamiento de la Simulación de Estrategias ante Diferentes Señales
 
+*(Reconciliado con el régimen de costos Base de `strategy1_straddle_scenarios.csv` según hallazgo de auditoría L1)*
+
 | Escenario de Señal | Pronóstico HAR-RV | IV Straddle | Acción Emitida | Contratos Opciones | Acciones Cobertura | Costo de Fricción | P&L Escenario Nulo | P&L Shock +25% |
 |---|---|---|---|---|---|---|---|---|
-| **Causal Real (17-nov)** | 72.97% | 45.90% | `LONG_VOLATILITY_STRADDLE` | $+1$ Call, $+1$ Put | $-23$ acciones | $\$7.70$ USD | $-\$140.70$ USD | $+\$109.30$ USD |
+| **Causal Real (17-nov)** | 72.97% | 45.90% | `LONG_VOLATILITY_STRADDLE` | $+1$ Call, $+1$ Put | $-23$ acciones | $\$7.14$ USD | $-\$107.14$ USD | $+\$130.21$ USD |
 | **Contrafactual Neutro** | 46.00% | 45.90% | `NO_TRADE` | $0.0$ | $0$ | **$\$0.00$ USD** | **$\$0.00$ USD** | **$\$0.00$ USD** |
-| **Contrafactual Bajista** | 30.00% | 45.90% | `SHORT_VOLATILITY_STRADDLE` | $-1$ Call, $-1$ Put | $+23$ acciones | $\$7.70$ USD | $+\$125.30$ USD | $-\$308.20$ USD |
+| **Contrafactual Bajista** | 30.00% | 45.90% | `SHORT_VOLATILITY_STRADDLE` | $-1$ Call, $-1$ Put | $+23$ acciones | $\$7.14$ USD | $+\$92.86$ USD | $-\$144.49$ USD |
 
 ---
 

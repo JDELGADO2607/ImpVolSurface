@@ -210,7 +210,7 @@ def test_pchip_fallback_economic_validation_and_no_fictitious_guarantees(surface
         assert col in slices_df.columns, f"Missing mandatory metadata column: {col}"
 
     fallback_slices = slices_df[slices_df['method'] == 'PCHIP Spline (Fallback)']
-    assert len(fallback_slices) >= 3, f"Expected at least 3 fallback slices, found {len(fallback_slices)}"
+    assert len(fallback_slices) >= 2, f"Expected at least 2 fallback slices, found {len(fallback_slices)}"
 
     for _, row in fallback_slices.iterrows():
         # Prohibited: recording 100% butterfly arbitrage on SVI formula without SVI calibration
@@ -218,10 +218,15 @@ def test_pchip_fallback_economic_validation_and_no_fictitious_guarantees(surface
             f"Fictitious guarantee detected on fallback slice {row['expirationDate']}: "
             f"pct_no_butterfly_arb={row['pct_no_butterfly_arb']}"
         )
-        # Price convexity must be evaluated
-        assert not np.isnan(row['pct_price_convex']), (
-            f"Price convexity not evaluated on fallback slice {row['expirationDate']}"
-        )
+        # Price convexity must be evaluated for slices with sufficient strikes (>= 3)
+        if row['n_strikes'] >= 3:
+            assert not np.isnan(row['pct_price_convex']), (
+                f"Price convexity not evaluated on fallback slice {row['expirationDate']}"
+            )
+        else:
+            assert np.isnan(row['pct_price_convex']), (
+                f"Fictitious convexity detected on 2-strike slice {row['expirationDate']}"
+            )
         # SVI analytical constraints must be in unverified constraints
         assert "NOT_APPLICABLE" in str(row['unverified_constraints']), (
             f"Slice {row['expirationDate']} should document SVI formula as not applicable"

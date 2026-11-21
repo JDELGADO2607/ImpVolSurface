@@ -148,7 +148,7 @@ def test_strategy_portfolio_position_linkage_and_signal_dispatch():
        - Large moves produce tail losses (unbounded tail risk).
     """
     # Case 1: High forecast (75.0% vs ~45.9% IV)
-    df_long, sig_long = analyze_strategy_1_straddle(forecast_vol_pct=75.0)
+    df_long, sig_long = analyze_strategy_1_straddle(forecast_vol_pct=75.0, export_artifacts=False)
     assert sig_long['action'] == "LONG_VOLATILITY_STRADDLE"
     assert (df_long['Signal_Action'] == "LONG_VOLATILITY_STRADDLE").all()
     assert (df_long['Friction_Cost'] > 0.0).all()
@@ -157,7 +157,7 @@ def test_strategy_portfolio_position_linkage_and_signal_dispatch():
     assert extreme_pnl_long > 0.0
 
     # Case 2: Neutral forecast within hurdle band (46.0% vs ~45.9% IV)
-    df_none, sig_none = analyze_strategy_1_straddle(forecast_vol_pct=46.0)
+    df_none, sig_none = analyze_strategy_1_straddle(forecast_vol_pct=46.0, export_artifacts=False)
     assert sig_none['action'] == "NO_TRADE"
     assert (df_none['Signal_Action'] == "NO_TRADE").all()
     assert (df_none['Friction_Cost'] == 0.0).all(), "NO_TRADE must have 0 transaction friction"
@@ -167,7 +167,7 @@ def test_strategy_portfolio_position_linkage_and_signal_dispatch():
     assert (df_none['Net_PnL'] == 0.0).all(), "NO_TRADE must have exactly 0.0 Net PnL"
 
     # Case 3: Low forecast below hurdle band (28.0% vs ~45.9% IV)
-    df_short, sig_short = analyze_strategy_1_straddle(forecast_vol_pct=28.0)
+    df_short, sig_short = analyze_strategy_1_straddle(forecast_vol_pct=28.0, export_artifacts=False)
     assert sig_short['action'] == "SHORT_VOLATILITY_STRADDLE"
     assert (df_short['Signal_Action'] == "SHORT_VOLATILITY_STRADDLE").all()
     assert (df_short['Friction_Cost'] > 0.0).all()
@@ -188,7 +188,54 @@ def test_forecast_parameter_dynamic_dispatch_no_hardcoding():
     """
     test_forecasts = [20.0, 42.5, 55.0, 85.0]
     for fc in test_forecasts:
-        _, sig = analyze_strategy_1_straddle(forecast_vol_pct=fc)
+        _, sig = analyze_strategy_1_straddle(forecast_vol_pct=fc, export_artifacts=False)
         assert abs(sig['forecast_vol_pct'] - fc) < 1e-4, (
             f"Forecast not dynamically dispatched: expected {fc}, got {sig['forecast_vol_pct']}"
         )
+
+def test_har_rv_short_sample_causal_invariance_codex_m3():
+    """
+    Auditor Finding M3:
+    Verifies that for short synthetic samples, future return shocks strictly after day t
+    cannot contaminate the causal forecast emitted at day t.
+    """
+    from src.forecasts import fit_har_rv_walk_forward
+    rng = np.random.default_rng(3)
+    r = rng.normal(0, 0.025, 150)
+    dates = pd.date_range('2025-01-01', periods=150, freq='B')
+    df1 = pd.DataFrame({'log_ret': r, 'rv_daily': r*r}, index=dates)
+
+    _, oos1, _ = fit_har_rv_walk_forward(df1, test_window=55)
+
+    # Shock returns at positions 100 to 110 (strictly after the first test date at index 95)
+    r_mod = r.copy()
+    r_mod[100:110] *= 10.0
+    df2 = pd.DataFrame({'log_ret': r_mod, 'rv_daily': r_mod*r_mod}, index=dates)
+    _, oos2, _ = fit_har_rv_walk_forward(df2, test_window=55)
+
+    assert abs(oos1['pred_vol_har'].iloc[0] - oos2['pred_vol_har'].iloc[0]) < 1e-6, (
+        "Future return modification leaked into prior causal forecast!"
+    )
+
+def test_production_artifacts_hash_invariance_codex_h4(tmp_path):
+    """
+    Auditor Finding H4:
+    Verifies that executing strategies tests does NOT overwrite production artifacts on disk.
+    """
+    import hashlib
+    p_csv = Path("outputs/tables/strategy1_straddle_scenarios.csv")
+    p_png = Path("outputs/figures/strategy1_payoff_scenarios.png")
+    
+    if p_csv.exists() and p_png.exists():
+        hash_csv_before = hashlib.sha256(p_csv.read_bytes()).hexdigest()
+        hash_png_before = hashlib.sha256(p_png.read_bytes()).hexdigest()
+        
+        # Run counterfactual strategy calls with export_artifacts=False
+        analyze_strategy_1_straddle(forecast_vol_pct=25.0, export_artifacts=False)
+        analyze_strategy_1_straddle(forecast_vol_pct=85.0, export_artifacts=False)
+        
+        hash_csv_after = hashlib.sha256(p_csv.read_bytes()).hexdigest()
+        hash_png_after = hashlib.sha256(p_png.read_bytes()).hexdigest()
+        
+        assert hash_csv_before == hash_csv_after, "Strategy 1 production CSV was polluted by test run!"
+        assert hash_png_before == hash_png_after, "Strategy 1 production plot PNG was polluted by test run!"

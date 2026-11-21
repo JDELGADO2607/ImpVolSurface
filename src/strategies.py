@@ -154,22 +154,19 @@ def build_straddle_portfolio_from_signal(
 def analyze_strategy_1_straddle(
     iv_csv: str = "outputs/tables/options_with_iv.csv",
     forecast_vol_pct: float | None = None,
-    tables_dir: str = "outputs/tables",
-    figures_dir: str = "outputs/figures"
+    tables_dir: str | Path | None = "outputs/tables",
+    figures_dir: str | Path | None = "outputs/figures",
+    export_artifacts: bool = True
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
     Evaluates Strategy 1: Delta-Neutral Straddle on 31-day expiration (2026-12-18, Strike 12.00).
     Dynamically passes the causal HAR-RV forecast, generates explicit signal,
     and connects the signal directly to the simulated portfolio positions.
+    export_artifacts: If False, skips writing to disk to prevent test runs from polluting production files.
     """
-    out_t = Path(tables_dir)
-    out_f = Path(figures_dir)
-    out_t.mkdir(parents=True, exist_ok=True)
-    out_f.mkdir(parents=True, exist_ok=True)
-
     # Resolve causal forecast if not explicitly passed
     if forecast_vol_pct is None:
-        eval_csv = out_t / "volatility_forecast_evaluation.csv"
+        eval_csv = Path(tables_dir) / "volatility_forecast_evaluation.csv" if tables_dir else Path("outputs/tables/volatility_forecast_evaluation.csv")
         if eval_csv.exists():
             from src.forecasts import run_forecast_pipeline
             _, forecast_vol_pct = run_forecast_pipeline()
@@ -279,84 +276,87 @@ def analyze_strategy_1_straddle(
             })
 
     strat1_df = pd.DataFrame(records)
-    out_csv = out_t / "strategy1_straddle_scenarios.csv"
-    strat1_df.to_csv(out_csv, index=False)
-    print(f"Exported Strategy 1 scenarios: {out_csv}")
 
-    # Plot Strategy 1 Payoff Curves
-    plt.figure(figsize=(10, 6))
-    dense_spots = np.linspace(8.0, 16.0, 120)
+    if export_artifacts and tables_dir is not None:
+        out_t = Path(tables_dir)
+        out_t.mkdir(parents=True, exist_ok=True)
+        out_csv = out_t / "strategy1_straddle_scenarios.csv"
+        strat1_df.to_csv(out_csv, index=False)
+        print(f"Exported Strategy 1 scenarios: {out_csv}")
 
-    for cost_name in COST_TIERS.keys():
-        sub_c = COST_TIERS[cost_name]
-        if portfolio['action'] == "NO_TRADE":
-            fric = 0.0
-            net_curve = [0.0 for _ in dense_spots]
-            lbl = f"Cost Regime: {cost_name} (NO_TRADE: P&L = $0.00)"
-        elif portfolio['action'] == "LONG_VOLATILITY_STRADDLE":
-            fric = (2.0 * sub_c['half_spread_opt'] * CONTRACT_MULTIPLIER
-                    + 2.0 * sub_c['commission_per_contract']
-                    + abs(portfolio['hedge_shares']) * SPOT_PRICE * (sub_c['stock_spread_bps'] / 10000.0))
-            net_curve = []
-            for st in dense_spots:
-                c_p = max(st - K, 0.0) * CONTRACT_MULTIPLIER
-                p_p = max(K - st, 0.0) * CONTRACT_MULTIPLIER
-                stk_pnl = portfolio['hedge_shares'] * (st - SPOT_PRICE)
-                pnl = (c_p + p_p - portfolio['initial_premium_cash']) + stk_pnl - fric
-                net_curve.append(pnl)
-            lbl = f"Cost Regime: {cost_name} (Fric = ${fric:.2f})"
-        else: # SHORT_VOLATILITY_STRADDLE
-            fric = (2.0 * sub_c['half_spread_opt'] * CONTRACT_MULTIPLIER
-                    + 2.0 * sub_c['commission_per_contract']
-                    + abs(portfolio['hedge_shares']) * SPOT_PRICE * (sub_c['stock_spread_bps'] / 10000.0))
-            net_curve = []
-            for st in dense_spots:
-                c_liab = -max(st - K, 0.0) * CONTRACT_MULTIPLIER
-                p_liab = -max(K - st, 0.0) * CONTRACT_MULTIPLIER
-                stk_pnl = portfolio['hedge_shares'] * (st - SPOT_PRICE)
-                pnl = (portfolio['initial_premium_cash'] + c_liab + p_liab) + stk_pnl - fric
-                net_curve.append(pnl)
-            lbl = f"Cost Regime: {cost_name} (Short Straddle, Fric = ${fric:.2f})"
+    if export_artifacts and figures_dir is not None:
+        out_f = Path(figures_dir)
+        out_f.mkdir(parents=True, exist_ok=True)
+        # Plot Strategy 1 Payoff Curves
+        plt.figure(figsize=(10, 6))
+        dense_spots = np.linspace(8.0, 16.0, 120)
 
-        plt.plot(dense_spots, net_curve, label=lbl, linewidth=2)
+        for cost_name in COST_TIERS.keys():
+            sub_c = COST_TIERS[cost_name]
+            if portfolio['action'] == "NO_TRADE":
+                fric = 0.0
+                net_curve = [0.0 for _ in dense_spots]
+                lbl = f"Cost Regime: {cost_name} (NO_TRADE: P&L = $0.00)"
+            elif portfolio['action'] == "LONG_VOLATILITY_STRADDLE":
+                fric = (2.0 * sub_c['half_spread_opt'] * CONTRACT_MULTIPLIER
+                        + 2.0 * sub_c['commission_per_contract']
+                        + abs(portfolio['hedge_shares']) * SPOT_PRICE * (sub_c['stock_spread_bps'] / 10000.0))
+                net_curve = []
+                for st in dense_spots:
+                    c_p = max(st - K, 0.0) * CONTRACT_MULTIPLIER
+                    p_p = max(K - st, 0.0) * CONTRACT_MULTIPLIER
+                    stk_pnl = portfolio['hedge_shares'] * (st - SPOT_PRICE)
+                    pnl = (c_p + p_p - portfolio['initial_premium_cash']) + stk_pnl - fric
+                    net_curve.append(pnl)
+                lbl = f"Cost Regime: {cost_name} (Fric = ${fric:.2f})"
+            else: # SHORT_VOLATILITY_STRADDLE
+                fric = (2.0 * sub_c['half_spread_opt'] * CONTRACT_MULTIPLIER
+                        + 2.0 * sub_c['commission_per_contract']
+                        + abs(portfolio['hedge_shares']) * SPOT_PRICE * (sub_c['stock_spread_bps'] / 10000.0))
+                net_curve = []
+                for st in dense_spots:
+                    c_liab = -max(st - K, 0.0) * CONTRACT_MULTIPLIER
+                    p_liab = -max(K - st, 0.0) * CONTRACT_MULTIPLIER
+                    stk_pnl = portfolio['hedge_shares'] * (st - SPOT_PRICE)
+                    pnl = (portfolio['initial_premium_cash'] + c_liab + p_liab) + stk_pnl - fric
+                    net_curve.append(pnl)
+                lbl = f"Cost Regime: {cost_name} (Short Straddle, Fric = ${fric:.2f})"
 
-    plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
-    plt.axvline(SPOT_PRICE, color='gray', linestyle=':', label=f"Spot $S_0={SPOT_PRICE:.2f}$")
-    plt.axvline(K, color='purple', linestyle='-.', alpha=0.7, label=f"Strike $K={K:.2f}$")
-    plt.xlabel("Terminal Stock Price $S_T$ (USD)", fontsize=11)
-    plt.ylabel("Net P&L per Straddle Contract (USD)", fontsize=11)
+            plt.plot(dense_spots, net_curve, label=lbl, linewidth=2)
 
-    title_str = (
-        f"Strategy 1: {portfolio['action']} at Maturity "
-        f"(Hedge = {portfolio['hedge_shares']} shares | Signal Spread = {signal['vol_spread_pp']:+.2f} pp)"
-    )
-    plt.title(title_str, fontsize=11, fontweight='bold')
-    plt.legend(fontsize=9)
-    plt.grid(True, linestyle='--', alpha=0.5)
-    plt.tight_layout()
+        plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
+        plt.axvline(SPOT_PRICE, color='gray', linestyle=':', label=f"Spot $S_0={SPOT_PRICE:.2f}$")
+        plt.axvline(K, color='purple', linestyle='-.', alpha=0.7, label=f"Strike $K={K:.2f}$")
+        plt.xlabel("Terminal Stock Price $S_T$ (USD)", fontsize=11)
+        plt.ylabel("Net P&L per Straddle Contract (USD)", fontsize=11)
 
-    fig_path = out_f / "strategy1_payoff_scenarios.png"
-    plt.savefig(fig_path, dpi=300)
-    plt.close()
-    print(f"Saved Strategy 1 plot: {fig_path}")
+        title_str = (
+            f"Strategy 1: {portfolio['action']} at Maturity "
+            f"(Hedge = {portfolio['hedge_shares']} shares | Signal Spread = {signal['vol_spread_pp']:+.2f} pp)"
+        )
+        plt.title(title_str, fontsize=11, fontweight='bold')
+        plt.legend(fontsize=9)
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.tight_layout()
+
+        fig_path = out_f / "strategy1_payoff_scenarios.png"
+        plt.savefig(fig_path, dpi=300)
+        plt.close()
+        print(f"Saved Strategy 1 plot: {fig_path}")
 
     return strat1_df, signal
 
 def analyze_strategy_2_calendar_spread(
     iv_csv: str = "outputs/tables/options_with_iv.csv",
-    tables_dir: str = "outputs/tables",
-    figures_dir: str = "outputs/figures"
+    tables_dir: str | Path | None = "outputs/tables",
+    figures_dir: str | Path | None = "outputs/figures",
+    export_artifacts: bool = True
 ) -> pd.DataFrame:
     """
     Evaluates Strategy 2: Calendar Spread (Long Call 59d vs Short Call 31d at Strike K=13.00).
     Formulates forward implied volatility at fixed strike K=13.00.
     Evaluates Vega asymmetry, early exercise safety (Merton theorem q=0), and roll-down.
     """
-    out_t = Path(tables_dir)
-    out_f = Path(figures_dir)
-    out_t.mkdir(parents=True, exist_ok=True)
-    out_f.mkdir(parents=True, exist_ok=True)
-
     df_iv = pd.read_csv(iv_csv).set_index('contractSymbol')
     surface = VolatilitySurface(pd.read_csv(iv_csv))
 
@@ -435,41 +435,48 @@ def analyze_strategy_2_calendar_spread(
             })
 
     strat2_df = pd.DataFrame(records)
-    out_csv = out_t / "strategy2_calendar_scenarios.csv"
-    strat2_df.to_csv(out_csv, index=False)
-    print(f"Exported Strategy 2 scenarios: {out_csv}")
 
-    # Plot Strategy 2 Payoff Curve at Day 31
-    plt.figure(figsize=(10, 6))
-    dense_spots = np.linspace(10.0, 15.5, 100)
-    for cost_name in COST_TIERS.keys():
-        sub_c = COST_TIERS[cost_name]
-        fric = (2.0 * n_contracts * CONTRACT_MULTIPLIER * sub_c['half_spread_opt']
-                + 2.0 * n_contracts * sub_c['commission_per_contract'])
-        curve = []
-        for st in dense_spots:
-            sh_p = -n_contracts * CONTRACT_MULTIPLIER * (max(st - 13.0, 0.0) - p_short_init)
-            k_r = float(np.log(13.0 / (st * np.exp(r_rem * tau_rem))))
-            iv_r = surface.surface_iv(k_r, tau_rem)['iv']
-            lg_val = price_american_option('C', st, 13.0, tau_rem, r_rem, iv_r, q=0.0)
-            lg_p = n_contracts * CONTRACT_MULTIPLIER * (lg_val - p_long_init)
-            curve.append((sh_p + lg_p) - fric)
-        plt.plot(dense_spots, curve, label=f"Cost Regime: {cost_name}", linewidth=2)
+    if export_artifacts and tables_dir is not None:
+        out_t = Path(tables_dir)
+        out_t.mkdir(parents=True, exist_ok=True)
+        out_csv = out_t / "strategy2_calendar_scenarios.csv"
+        strat2_df.to_csv(out_csv, index=False)
+        print(f"Exported Strategy 2 scenarios: {out_csv}")
 
-    plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
-    plt.axvline(13.00, color='purple', linestyle='-.', label='Calendar Strike K=13.00')
-    plt.axvline(SPOT_PRICE, color='gray', linestyle=':', label=f'Current Spot $S_0={SPOT_PRICE:.2f}$')
-    plt.xlabel("Stock Price at Day 31 $S_{31}$ (USD)", fontsize=11)
-    plt.ylabel("Net P&L of 5 Calendar Spreads (USD)", fontsize=11)
-    plt.title("Strategy 2: Calendar Spread (Long 59d / Short 31d at K=13.00) Payoff at Day 31", fontsize=12, fontweight='bold')
-    plt.legend(fontsize=10)
-    plt.grid(True, linestyle='--', alpha=0.5)
-    plt.tight_layout()
+    if export_artifacts and figures_dir is not None:
+        out_f = Path(figures_dir)
+        out_f.mkdir(parents=True, exist_ok=True)
+        # Plot Strategy 2 Payoff Curve at Day 31
+        plt.figure(figsize=(10, 6))
+        dense_spots = np.linspace(10.0, 15.5, 100)
+        for cost_name in COST_TIERS.keys():
+            sub_c = COST_TIERS[cost_name]
+            fric = (2.0 * n_contracts * CONTRACT_MULTIPLIER * sub_c['half_spread_opt']
+                    + 2.0 * n_contracts * sub_c['commission_per_contract'])
+            curve = []
+            for st in dense_spots:
+                sh_p = -n_contracts * CONTRACT_MULTIPLIER * (max(st - 13.0, 0.0) - p_short_init)
+                k_r = float(np.log(13.0 / (st * np.exp(r_rem * tau_rem))))
+                iv_r = surface.surface_iv(k_r, tau_rem)['iv']
+                lg_val = price_american_option('C', st, 13.0, tau_rem, r_rem, iv_r, q=0.0)
+                lg_p = n_contracts * CONTRACT_MULTIPLIER * (lg_val - p_long_init)
+                curve.append((sh_p + lg_p) - fric)
+            plt.plot(dense_spots, curve, label=f"Cost Regime: {cost_name}", linewidth=2)
 
-    fig_path = out_f / "strategy2_calendar_payoff.png"
-    plt.savefig(fig_path, dpi=300)
-    plt.close()
-    print(f"Saved Strategy 2 plot: {fig_path}")
+        plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
+        plt.axvline(13.00, color='purple', linestyle='-.', label='Calendar Strike K=13.00')
+        plt.axvline(SPOT_PRICE, color='gray', linestyle=':', label=f'Current Spot $S_0={SPOT_PRICE:.2f}$')
+        plt.xlabel("Stock Price at Day 31 $S_{31}$ (USD)", fontsize=11)
+        plt.ylabel("Net P&L of 5 Calendar Spreads (USD)", fontsize=11)
+        plt.title("Strategy 2: Calendar Spread (Long 59d / Short 31d at K=13.00) Payoff at Day 31", fontsize=12, fontweight='bold')
+        plt.legend(fontsize=10)
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.tight_layout()
+
+        fig_path = out_f / "strategy2_calendar_payoff.png"
+        plt.savefig(fig_path, dpi=300)
+        plt.close()
+        print(f"Saved Strategy 2 plot: {fig_path}")
 
     return strat2_df
 

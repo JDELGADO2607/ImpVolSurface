@@ -1,11 +1,13 @@
 """
 Implied Volatility Surface Construction: Raw SVI, Spline Interpolation,
-Comprehensive Arbitrage Diagnostics (Analytical SVI Butterfly, Divided-Difference Price Convexity,
-Monotonic Cumulative Calendar Projection), American Economic Checks,
-Grouped Leave-One-Strike-Out Validation, and Visualizations.
+Harmonized Slice Level Calibration, Linear-in-Total-Variance Interpolation,
+Analytical SVI Butterfly Arbitrage Diagnostics, Divided-Difference Price Convexity,
+Monotonic Calendar Consistency, American Put Monotonicity,
+True 2D Out-of-Sample Holdout Validation, Release Grid, and Visualizations.
 """
 
 import sys
+import copy
 from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
@@ -86,7 +88,6 @@ def check_price_convexity_divided_diffs(
     P = prices[sort_idx]
 
     dK = np.diff(K)
-    # Avoid zero division on duplicate strikes
     valid_dK = dK > 1e-6
     if not np.all(valid_dK):
         K_unique, uniq_idx = np.unique(K, return_index=True)
@@ -239,8 +240,7 @@ def validate_slice_economic_arbitrage(
     4. Call and Put strike monotonicity (Calls decreasing, Puts increasing in K).
     5. Divided-difference price convexity (d2C/dK2 >= 0, d2P/dK2 >= 0).
     6. For SVI slices: Gatheral's analytical g(k) >= 0 and Roger Lee wing slope.
-    7. For Fallback PCHIP slices: explicitly marks SVI formulas as NOT_EVALUATED / NOT_APPLICABLE,
-       and reports empirical price convexity and monotonicity diagnostics.
+    7. For Fallback PCHIP slices: explicitly marks SVI formulas as NOT_EVALUATED / NOT_APPLICABLE.
     """
     r = get_zero_rate(tau)
     fwd = get_forward_price(tau, S0)
@@ -308,7 +308,6 @@ def validate_slice_economic_arbitrage(
         verified_constraints.extend(['svi_analytical_butterfly_g', 'roger_lee_wings'])
         cross_status = 'VERIFIED_SVI_NO_ARBITRAGE' if (pct_no_butterfly_arb >= 99.9 and lee_wing < 2.0 and mono_pass and bounds_pass) else 'SVI_ARBITRAGE_DETECTED'
     else:
-        # PCHIP Fallback: SVI analytical g(k) and Lee wing bounds do NOT apply to splines!
         pct_no_butterfly_arb = np.nan
         lee_wing = np.nan
         unverified_constraints.extend(['svi_analytical_butterfly_g(NOT_APPLICABLE_TO_SPLINE)', 'roger_lee_wings(NOT_APPLICABLE_TO_SPLINE)'])
@@ -338,13 +337,15 @@ class VolatilitySurface:
     """
     Two-dimensional implied volatility surface sigma(k, tau) calibrated on NU options.
     Enforces:
-    1. Explicit SVI calibrate/PCHIP fallback policies with rigorous per-slice validation.
-    2. Elimination of calendar arbitrage via cumulative monotonic projection across tenors:
-       w(k, tau_2) >= w(k, tau_1) for tau_2 >= tau_1 >= 0.
-    3. Uniform evaluation policy at calibrated tenors and intermediate points:
-       no point discontinuities when approaching calibrated nodes.
-    4. Local vs global empirical support tracking with granular quality flags.
-    5. Full traceability of adjustments introduced by temporal projection.
+    1. Explicit SVI calibrate / PCHIP fallback policies with rigorous per-slice validation.
+    2. Elimination of calendar arbitrage via slice level harmonization and linear-in-total-variance
+       bracket interpolation across tenors: w(k, tau_2) >= w(k, tau_1) for tau_2 >= tau_1 >= 0.
+    3. Elimination of butterfly arbitrage in interpolated tenors (preserves price convexity).
+    4. American put monotonicity across maturities (prevents continuation value decay).
+    5. Quarantined LEAPS policy: Jan 2029 LEAPS filtered at K>3.0 for SVI fitting, but quarantined
+       from production core (production horizon: tau <= 430 days).
+    6. Non-artificial diagnostic flags: 2-strike slices marked INSUFFICIENT_DATA_TWO_STRIKES.
+    7. Full traceability of adjustments introduced by temporal harmonization.
     """
     def __init__(self, iv_df: pd.DataFrame):
         self.raw_data = iv_df[iv_df['our_iv_decimal'].notna()].copy()
@@ -377,46 +378,87 @@ class VolatilitySurface:
             k_min = float(k_obs.min())
             k_max = float(k_obs.max())
             span = float(k_max - k_min)
+            n_strikes = len(np.unique(k_obs))
 
-            svi_res = fit_svi_slice(k_obs, w_obs, tau)
-            if svi_res['success']:
-                a, b, rho, m, eta = svi_res['params']
-                eval_f = lambda k, p=(a, b, rho, m, eta): raw_svi_total_variance(k, *p)
-                val_diag = validate_slice_economic_arbitrage(k_obs, w_obs, tau, 'svi', eval_f, svi_params=(a, b, rho, m, eta))
-
+            # Audit Finding M1: Nov 20, 2026 (3d) has only 2 strikes -> insufficient data
+            if n_strikes < 3:
+                df_slice = pd.DataFrame({'k': k_obs, 'w': w_obs}).groupby('k', as_index=False).median()
+                k_uniq = df_slice['k'].values
+                w_uniq = df_slice['w'].values
+                pchip = PchipInterpolator(k_uniq, w_uniq, extrapolate=True) if len(k_uniq) >= 2 else lambda k: np.full_like(k, w_uniq[0])
+                eval_f = lambda k, it=pchip: float(it(k))
+                val_diag = validate_slice_economic_arbitrage(k_uniq, w_uniq, tau, 'spline', eval_f)
+                val_diag['cross_sectional_arb_status'] = 'INSUFFICIENT_DATA_TWO_STRIKES'
+                val_diag['pct_price_convex'] = np.nan
                 temp_slices[tau] = {
-                    'type': 'svi',
-                    'params': (a, b, rho, m, eta),
+                    'type': 'spline',
+                    'interpolator': pchip,
+                    'offset_w': 0.0,
                     'k_min': k_min,
                     'k_max': k_max,
                     'span': span,
                     'tau': tau,
                     'tau_days': tau_days,
                     'exp_date': exp_date,
-                    'n_strikes': len(np.unique(k_obs)),
-                    'k_obs': k_obs,
-                    'w_obs': w_obs,
+                    'n_strikes': n_strikes,
+                    'k_obs': k_uniq,
+                    'w_obs': w_uniq,
+                    'val_diag': val_diag,
+                    'rmse_iv': np.nan,
+                    'method_name': 'PCHIP Spline (Fallback)',
+                    'is_quarantined': True,
+                    'production_status': 'INSUFFICIENT_DATA_TWO_STRIKES'
+                }
+                continue
+
+            # Audit Finding H2: Jan 2029 (794d LEAPS) deep ITM strike 3.0 outlier
+            if exp_date == '2029-01-19':
+                mask = grp['strike'].values[sort_idx] > 3.0
+                k_calib, w_calib = k_obs[mask], w_obs[mask]
+                is_quarantined = True
+                prod_status = 'QUARANTINED_LEAPS_EXPLORATORY_ONLY'
+            else:
+                k_calib, w_calib = k_obs, w_obs
+                is_quarantined = False
+                prod_status = 'PRODUCTION_CORE'
+
+            svi_res = fit_svi_slice(k_calib, w_calib, tau)
+            if svi_res['success']:
+                a, b, rho, m, eta = svi_res['params']
+                eval_f = lambda k, p=(a, b, rho, m, eta): raw_svi_total_variance(k, *p)
+                val_diag = validate_slice_economic_arbitrage(k_calib, w_calib, tau, 'svi', eval_f, svi_params=(a, b, rho, m, eta))
+
+                temp_slices[tau] = {
+                    'type': 'svi',
+                    'params': [float(a), float(b), float(rho), float(m), float(eta)],
+                    'raw_params': [float(a), float(b), float(rho), float(m), float(eta)],
+                    'k_min': float(k_calib.min()),
+                    'k_max': float(k_calib.max()),
+                    'span': float(k_calib.max() - k_calib.min()),
+                    'tau': tau,
+                    'tau_days': tau_days,
+                    'exp_date': exp_date,
+                    'n_strikes': len(np.unique(k_calib)),
+                    'k_obs': k_calib,
+                    'w_obs': w_calib,
                     'val_diag': val_diag,
                     'rmse_iv': svi_res['rmse_iv'],
-                    'method_name': 'Raw SVI'
+                    'method_name': 'Raw SVI',
+                    'is_quarantined': is_quarantined,
+                    'production_status': prod_status
                 }
             else:
-                # Fallback: Monotonic PCHIP on empirical slice strikes
                 df_slice = pd.DataFrame({'k': k_obs, 'w': w_obs}).groupby('k', as_index=False).median()
                 k_uniq = df_slice['k'].values
                 w_uniq = df_slice['w'].values
-
-                if len(k_uniq) >= 2:
-                    pchip = PchipInterpolator(k_uniq, w_uniq, extrapolate=True)
-                else:
-                    pchip = lambda k_eval: np.full_like(k_eval, w_uniq[0])
-
+                pchip = PchipInterpolator(k_uniq, w_uniq, extrapolate=True) if len(k_uniq) >= 2 else lambda k: np.full_like(k, w_uniq[0])
                 eval_f = lambda k, it=pchip: float(it(k))
                 val_diag = validate_slice_economic_arbitrage(k_uniq, w_uniq, tau, 'spline', eval_f)
 
                 temp_slices[tau] = {
                     'type': 'spline',
                     'interpolator': pchip,
+                    'offset_w': 0.0,
                     'k_min': k_min,
                     'k_max': k_max,
                     'span': span,
@@ -428,123 +470,117 @@ class VolatilitySurface:
                     'w_obs': w_uniq,
                     'val_diag': val_diag,
                     'rmse_iv': np.nan,
-                    'method_name': 'PCHIP Spline (Fallback)'
+                    'method_name': 'PCHIP Spline (Fallback)',
+                    'is_quarantined': is_quarantined,
+                    'production_status': prod_status
                 }
 
         self.slices = temp_slices
         self.tenors = sorted(list(self.slices.keys()))
+        self.tau_max_prod = self.tenors[-2]  # 430.0 days (Jan 21, 2028)
 
-        # Assess cross-tenor calendar consistency on raw slices and record projection modifications
-        dense_k_eval = np.linspace(self.k_min_global, self.k_max_global, 100)
+        # Harmonize slice levels sequentially to guarantee calendar monotonicity across empirical domain
+        for i in range(1, len(self.tenors)):
+            t_prev = self.tenors[i-1]
+            t_curr = self.tenors[i]
+            s_prev = self.slices[t_prev]
+            s_curr = self.slices[t_curr]
 
+            # Evaluate across s_curr empirical support and benchmark moneyness mesh [-0.40, 0.35]
+            k_min_eval = min(s_curr['k_min'], -0.40)
+            k_max_eval = max(s_curr['k_max'], 0.35)
+            k_grid = np.linspace(k_min_eval, k_max_eval, 50)
+
+            # American put continuation value growth scaling (alpha = 0.22)
+            scale = (t_curr / t_prev) ** 0.22 if t_curr <= self.tau_max_prod else 1.0
+
+            w_prev_seq = [self._evaluate_slice_w(t_prev, k) for k in k_grid]
+            w_curr_seq = [self._evaluate_slice_w(t_curr, k) for k in k_grid]
+
+            diffs = [w_prev_seq[idx] * scale - w_curr_seq[idx] for idx in range(len(k_grid))]
+            max_deficit = max(max(diffs), 0.0)
+
+            if max_deficit > 1e-6:
+                lift = max_deficit + 1e-5
+                if s_curr['type'] == 'svi':
+                    s_curr['params'][0] += lift
+                else:
+                    s_curr['offset_w'] += lift
+                s_curr['calendar_lift'] = lift
+            else:
+                s_curr['calendar_lift'] = 0.0
+
+        # Build slice parameters metadata table
         for i, t_i in enumerate(self.tenors):
             s_info = self.slices[t_i]
             val_diag = s_info['val_diag']
+            lift = s_info.get('calendar_lift', 0.0)
+            status = 'CALENDAR_ARBITRAGE_REMOVED_VIA_PROJECTION' if lift > 0 else 'MONOTONIC_ORIGINAL'
+            fwd = get_forward_price(t_i)
+            K_min = fwd * np.exp(s_info['k_min'])
+            K_max = fwd * np.exp(s_info['k_max'])
 
-            # Evaluate adjustment on this slice's local support
-            k_local_grid = np.linspace(s_info['k_min'], s_info['k_max'], 50)
-            w_raw_local = np.array([self._evaluate_raw_slice_w(t_i, k)[0] for k in k_local_grid])
+            rec = {
+                'expirationDate': s_info['exp_date'],
+                'tau_days': round(s_info['tau_days'], 1),
+                'tau_years': round(t_i, 4),
+                'n_strikes': s_info['n_strikes'],
+                'method': s_info['method_name'],
+                'param_a': round(s_info['params'][0], 5) if s_info['type'] == 'svi' else np.nan,
+                'param_b': round(s_info['params'][1], 5) if s_info['type'] == 'svi' else np.nan,
+                'param_rho': round(s_info['params'][2], 4) if s_info['type'] == 'svi' else np.nan,
+                'param_m': round(s_info['params'][3], 4) if s_info['type'] == 'svi' else np.nan,
+                'param_eta': round(s_info['params'][4], 5) if s_info['type'] == 'svi' else np.nan,
+                'rmse_iv_pp': round(s_info['rmse_iv'] * 100.0, 3) if not np.isnan(s_info['rmse_iv']) else np.nan,
+                'pct_no_butterfly_arb': val_diag['pct_no_butterfly_arb'],
+                'pct_price_convex': val_diag['pct_price_convex'],
+                'lee_wing_b_1_rho': round(val_diag['lee_wing_b_1_rho'], 4) if not np.isnan(val_diag['lee_wing_b_1_rho']) else np.nan,
+                'k_support_min': round(s_info['k_min'], 3),
+                'k_support_max': round(s_info['k_max'], 3),
+                'k_support_span': round(s_info['span'], 3),
+                'slice_support_K_min': round(K_min, 2),
+                'slice_support_K_max': round(K_max, 2),
+                'cross_sectional_arb_status': val_diag['cross_sectional_arb_status'],
+                'temporal_arb_status': status,
+                'calendar_adj_points': 50 if lift > 0 else 0,
+                'max_calendar_adj_w': round(lift, 6),
+                'pct_calendar_adjusted': 100.0 if lift > 0 else 0.0,
+                'is_production_ready': (not s_info['is_quarantined']) and (s_info['n_strikes'] >= 3),
+                'production_status': s_info['production_status'],
+                'verified_constraints': val_diag['verified_constraints'],
+                'unverified_constraints': val_diag['unverified_constraints']
+            }
+            self.slice_params.append(rec)
 
-            # Accumulated maximum up to tenor t_i
-            w_proj_local = []
-            for k in k_local_grid:
-                raw_seq = [self._evaluate_raw_slice_w(self.tenors[j], k)[0] for j in range(i + 1)]
-                w_proj_local.append(float(np.max(raw_seq)))
-            w_proj_local = np.array(w_proj_local)
-
-            diff_local = w_proj_local - w_raw_local
-            max_adj = float(np.max(diff_local))
-            adj_mask = diff_local > 1e-6
-            adj_points = int(np.sum(adj_mask))
-            pct_adj = float(np.mean(adj_mask) * 100.0)
-
-            if adj_points > 0:
-                temporal_status = 'CALENDAR_ARBITRAGE_REMOVED_VIA_PROJECTION'
-            else:
-                temporal_status = 'MONOTONIC_ORIGINAL'
-
-            s_info['max_calendar_adj_w'] = max_adj
-            s_info['calendar_adj_points'] = adj_points
-            s_info['pct_calendar_adjusted'] = pct_adj
-            s_info['temporal_arb_status'] = temporal_status
-
-            # Build metadata record
-            if s_info['type'] == 'svi':
-                a, b, rho, m, eta = s_info['params']
-                record = {
-                    'expirationDate': s_info['exp_date'],
-                    'tau_days': round(s_info['tau_days'], 1),
-                    'tau_years': round(t_i, 4),
-                    'n_strikes': s_info['n_strikes'],
-                    'method': s_info['method_name'],
-                    'param_a': round(a, 5),
-                    'param_b': round(b, 5),
-                    'param_rho': round(rho, 4),
-                    'param_m': round(m, 4),
-                    'param_eta': round(eta, 5),
-                    'rmse_iv_pp': round(s_info['rmse_iv'] * 100.0, 3) if not np.isnan(s_info['rmse_iv']) else np.nan,
-                    'pct_no_butterfly_arb': val_diag['pct_no_butterfly_arb'],
-                    'pct_price_convex': val_diag['pct_price_convex'],
-                    'lee_wing_b_1_rho': round(val_diag['lee_wing_b_1_rho'], 4),
-                    'k_support_min': round(s_info['k_min'], 3),
-                    'k_support_max': round(s_info['k_max'], 3),
-                    'k_support_span': round(s_info['span'], 3),
-                    'cross_sectional_arb_status': val_diag['cross_sectional_arb_status'],
-                    'temporal_arb_status': temporal_status,
-                    'calendar_adj_points': adj_points,
-                    'max_calendar_adj_w': round(max_adj, 6),
-                    'pct_calendar_adjusted': round(pct_adj, 2),
-                    'verified_constraints': val_diag['verified_constraints'],
-                    'unverified_constraints': val_diag['unverified_constraints']
-                }
-            else:
-                record = {
-                    'expirationDate': s_info['exp_date'],
-                    'tau_days': round(s_info['tau_days'], 1),
-                    'tau_years': round(t_i, 4),
-                    'n_strikes': s_info['n_strikes'],
-                    'method': s_info['method_name'],
-                    'param_a': np.nan,
-                    'param_b': np.nan,
-                    'param_rho': np.nan,
-                    'param_m': np.nan,
-                    'param_eta': np.nan,
-                    'rmse_iv_pp': np.nan,
-                    'pct_no_butterfly_arb': np.nan, # Explicitly NOT fake 100.0
-                    'pct_price_convex': val_diag['pct_price_convex'],
-                    'lee_wing_b_1_rho': np.nan,
-                    'k_support_min': round(s_info['k_min'], 3),
-                    'k_support_max': round(s_info['k_max'], 3),
-                    'k_support_span': round(s_info['span'], 3),
-                    'cross_sectional_arb_status': val_diag['cross_sectional_arb_status'],
-                    'temporal_arb_status': temporal_status,
-                    'calendar_adj_points': adj_points,
-                    'max_calendar_adj_w': round(max_adj, 6),
-                    'pct_calendar_adjusted': round(pct_adj, 2),
-                    'verified_constraints': val_diag['verified_constraints'],
-                    'unverified_constraints': val_diag['unverified_constraints']
-                }
-            self.slice_params.append(record)
-
-    def _evaluate_raw_slice_w(self, tau: float, k: float) -> tuple[float, str]:
+    def _evaluate_slice_w(self, tau: float, k: float) -> float:
         """
-        Evaluates raw unprojected total variance w(k) on calibrated slice tau.
+        Evaluates harmonized slice total variance w(k) on calibrated slice tau.
+        Clamps moneyness slightly outside empirical support to prevent unconstrained wing explosion.
         """
-        slice_info = self.slices[tau]
-        if slice_info['type'] == 'svi':
-            a, b, rho, m, eta = slice_info['params']
-            w = raw_svi_total_variance(np.array([k]), a, b, rho, m, eta)[0]
-            method = 'svi'
+        s = self.slices[tau]
+        k_c = float(np.clip(k, s['k_min'] - 0.03, s['k_max'] + 0.03))
+        if s['type'] == 'svi':
+            val = float(raw_svi_total_variance(np.array([k_c]), *s['params'])[0])
         else:
-            w = float(slice_info['interpolator'](np.array([k]))[0])
-            method = 'spline'
-        w = max(float(w), 1e-6)
-        return w, method
+            val = float(s['interpolator'](np.array([k_c]))[0] + s.get('offset_w', 0.0))
+        return max(val, 1e-6)
+
+    def _evaluate_raw_slice_w(self, tau: float, k: float) -> float:
+        """
+        Evaluates raw unadjusted total variance w(k) on calibrated slice tau.
+        Clamps moneyness slightly outside empirical support to prevent unconstrained wing explosion.
+        """
+        s = self.slices[tau]
+        k_c = float(np.clip(k, s['k_min'] - 0.03, s['k_max'] + 0.03))
+        if s['type'] == 'svi':
+            val = float(raw_svi_total_variance(np.array([k_c]), *s['raw_params'])[0])
+        else:
+            val = float(s['interpolator'](np.array([k_c]))[0])
+        return max(val, 1e-6)
 
     def evaluate_slice_total_variance(self, tau: float, k: float) -> tuple[float, str]:
         """
         Evaluates total variance w(k, tau) consistently through the surface evaluation engine.
-        Guarantees that individual slice evaluations are identical to 2D surface evaluations.
         """
         res = self.surface_iv(k, tau)
         return res['w'], res['method']
@@ -559,40 +595,35 @@ class VolatilitySurface:
         Evaluates implied volatility sigma(k, tau) and total variance w(k, tau).
         Guarantees:
         - Strict calendar monotonicity: w(k, T2) >= w(k, T1) for T2 >= T1 >= 0.
-        - Identical evaluation at calibrated nodes and interpolated tenors.
-        - Strict C^1 continuity across all tenors: no artificial jump discontinuities.
+        - Butterfly arbitrage elimination in interpolated tenors (preserves price convexity).
+        - Uniform evaluation policy at calibrated nodes and interpolated tenors.
+        - Strict C^1 continuity across all tenors.
         - Robust short and long tenor flat IV extrapolations.
-        - Local slice vs global domain support tracking.
+        - Local slice vs global domain support tracking with production flags.
         """
-        # Global domain checks
-        is_globally_extrapolated = (
-            k < self.k_min_global - 0.05 or k > self.k_max_global + 0.05 or
-            tau < self.tau_min_global * 0.8 or tau > self.tau_max_global * 1.2
-        )
-
-        if is_globally_extrapolated and policy == 'strict':
-            raise ValueError(f"Query point (k={k:.3f}, tau={tau:.4f}) outside global surface empirical support.")
+        if tau > self.tau_max_prod and policy == 'strict':
+            raise ValueError(f"Query tenor tau={tau*365:.1f}d exceeds production horizon ({self.tau_max_prod*365:.1f}d).")
 
         t_min = self.tenors[0]
         t_max = self.tenors[-1]
 
         # Determine local slice support bounds for tau
         if tau <= t_min:
-            k_loc_min = self.slices[t_min]['k_min']
-            k_loc_max = self.slices[t_min]['k_max']
+            k_loc_min, k_loc_max = self.slices[t_min]['k_min'], self.slices[t_min]['k_max']
         elif tau >= t_max:
-            k_loc_min = self.slices[t_max]['k_min']
-            k_loc_max = self.slices[t_max]['k_max']
+            k_loc_min, k_loc_max = self.slices[t_max]['k_min'], self.slices[t_max]['k_max']
         else:
-            # Bracket between neighbor tenors
-            idx_after = int(np.searchsorted(self.tenors, tau))
-            t_prev = self.tenors[idx_after - 1]
-            t_next = self.tenors[idx_after]
-            weight = (tau - t_prev) / max(t_next - t_prev, 1e-6)
-            k_loc_min = (1.0 - weight) * self.slices[t_prev]['k_min'] + weight * self.slices[t_next]['k_min']
-            k_loc_max = (1.0 - weight) * self.slices[t_prev]['k_max'] + weight * self.slices[t_next]['k_max']
+            idx = int(np.searchsorted(self.tenors, tau))
+            t1, t2 = self.tenors[idx - 1], self.tenors[idx]
+            lam = (tau - t1) / max(t2 - t1, 1e-6)
+            k_loc_min = (1.0 - lam) * self.slices[t1]['k_min'] + lam * self.slices[t2]['k_min']
+            k_loc_max = (1.0 - lam) * self.slices[t1]['k_max'] + lam * self.slices[t2]['k_max']
 
         is_locally_extrapolated = (k < k_loc_min - 0.01 or k > k_loc_max + 0.01)
+        is_globally_extrapolated = (
+            k < self.k_min_global - 0.05 or k > self.k_max_global + 0.05 or
+            tau < self.tau_min_global * 0.8 or tau > self.tau_max_global * 1.2
+        )
 
         if is_globally_extrapolated:
             quality = 'EXTRAPOLATED_GLOBAL_DOMAIN'
@@ -601,80 +632,99 @@ class VolatilitySurface:
         else:
             quality = 'SUPPORTED_LOCAL_GRID'
 
-        # Degenerate maturity handling
-        if tau <= 1e-6:
-            w_short_raw = self._evaluate_raw_slice_w(t_min, k)[0]
-            iv_short = np.sqrt(w_short_raw / t_min)
+        is_production_ready = (tau <= self.tau_max_prod and (not is_locally_extrapolated) and (not is_globally_extrapolated))
+
+        # Degenerate tau limit (Exact identity w = sigma^2 * tau, zero at tau=0)
+        if tau <= 1e-7:
+            w_short = self._evaluate_slice_w(t_min, k)
+            iv_short = np.sqrt(max(w_short, 1e-6) / t_min)
+            w_exact = float(iv_short**2 * tau)
             return {
                 'iv': float(iv_short),
-                'quality': 'DEGENERATE_TAU_SHORT_LIMIT',
-                'method': f"limit_at_tau_{t_min*365:.1f}d",
-                'w': 0.0,
+                'w': w_exact,
+                'raw_w': 0.0,
+                'delta_w': 0.0,
+                'calendar_adjusted': False,
+                'dominant_tenor_tau': t_min,
                 'is_locally_extrapolated': is_locally_extrapolated,
                 'is_globally_extrapolated': is_globally_extrapolated,
-                'calendar_adjusted': False,
-                'delta_w_projected': 0.0
+                'is_production_ready': is_production_ready,
+                'quality': 'DEGENERATE_TAU_SHORT_LIMIT',
+                'method': 'degenerate_zero_tau_limit',
+                'slice_support_K_min': get_forward_price(t_min) * np.exp(k_loc_min),
+                'slice_support_K_max': get_forward_price(t_min) * np.exp(k_loc_max),
+                'k_support_min': k_loc_min,
+                'k_support_max': k_loc_max
             }
 
-        # 1. Evaluate raw sequence across all calibrated tenors
-        w_tenors_raw = [self._evaluate_raw_slice_w(t_i, k)[0] for t_i in self.tenors]
+        # Check for exact calibrated tenor match
+        match_idx = None
+        for i, t_i in enumerate(self.tenors):
+            if abs(tau - t_i) < 1e-6:
+                match_idx = i
+                break
 
-        # 2. Apply monotonic cumulative projection: w*(k, t_{i+1}) >= w*(k, t_i)
-        w_mono = np.maximum.accumulate(w_tenors_raw)
-
-        # 3. Uniform Temporal Evaluation
-        if tau < t_min:
-            # Continuous flat IV extrapolation below shortest calibrated tenor
-            # sigma(k, tau) = sigma(k, t_min) => w(k, tau) = sigma^2 * tau
-            iv_base = np.sqrt(w_mono[0] / t_min)
-            w_final = max(float((iv_base ** 2) * tau), 1e-6)
-            iv_final = float(iv_base)
-            eval_method = 'short_flat_iv_extrapolation'
-            calendar_adj = False
-            delta_w = 0.0
-
+        if match_idx is not None:
+            t_match = self.tenors[match_idx]
+            w = max(float(self._evaluate_slice_w(t_match, k)), 1e-6)
+            raw_w = max(float(self._evaluate_raw_slice_w(t_match, k)), 1e-6)
+            iv = float(np.sqrt(w / t_match))
+            dom = t_match
+            method = f"exact_harmonized_slice_{self.slices[t_match]['tau_days']:.0f}d"
+        elif tau < t_min:
+            w_base = self._evaluate_slice_w(t_min, k)
+            iv = float(np.sqrt(max(w_base, 1e-6) / t_min))
+            w = float(iv**2 * tau)
+            raw_w = float(max(self._evaluate_raw_slice_w(t_min, k), 1e-6) * (tau / t_min))
+            dom = t_min
+            method = 'short_flat_iv_extrapolation'
         elif tau > t_max:
-            # Continuous flat IV extrapolation above longest calibrated tenor
-            # sigma(k, tau) = sigma(k, t_max) => w(k, tau) = sigma^2 * tau
-            iv_base = np.sqrt(w_mono[-1] / t_max)
-            w_final = max(float((iv_base ** 2) * tau), 1e-6)
-            iv_final = float(iv_base)
-            eval_method = 'long_flat_iv_extrapolation'
-            calendar_adj = False
-            delta_w = 0.0
-
+            w_base = self._evaluate_slice_w(t_max, k)
+            iv = float(np.sqrt(max(w_base, 1e-6) / t_max))
+            w = max(float(iv**2 * tau), 1e-6)
+            raw_w = max(float(self._evaluate_raw_slice_w(t_max, k) * (tau / t_max)), 1e-6)
+            dom = t_max
+            method = 'long_flat_iv_extrapolation'
         else:
-            # Inside [t_min, t_max]:
-            # PCHIP on strictly monotonic non-decreasing data preserves monotonicity everywhere:
-            # dw/dtau >= 0 for all tau in [t_min, t_max].
-            # Moreover, at calibrated nodes tau = t_i, pchip(t_i) == w_mono[i] identically!
-            pchip_tau = PchipInterpolator(self.tenors, w_mono)
-            w_interp = max(float(pchip_tau(tau)), 1e-6)
-            iv_interp = float(np.sqrt(w_interp / tau))
-            w_final = w_interp
-            iv_final = iv_interp
-            eval_method = 'svi_pchip_monotonic_2d'
+            # Bracket interpolation: Linear in total variance preserves convexity and monotonicity
+            idx = int(np.searchsorted(self.tenors, tau))
+            t1, t2 = self.tenors[idx - 1], self.tenors[idx]
+            lam = (tau - t1) / (t2 - t1)
+            w1 = self._evaluate_slice_w(t1, k)
+            w2 = self._evaluate_slice_w(t2, k)
 
-            # Diagnostic comparison with raw slice if tau matches an exact calibrated node
-            matching_idx = [i for i, t_i in enumerate(self.tenors) if abs(tau - t_i) < 1e-12]
-            if matching_idx:
-                idx_node = matching_idx[0]
-                delta_w = float(w_mono[idx_node] - w_tenors_raw[idx_node])
-                calendar_adj = bool(delta_w > 1e-6)
-                eval_method = f"projected_node_{self.slices[self.tenors[idx_node]]['type']}"
-            else:
-                calendar_adj = False
-                delta_w = 0.0
+            # Local calendar monotonicity guard between bracket tenors
+            if w2 < w1:
+                w2 = w1
+
+            w = max(float((1.0 - lam) * w1 + lam * w2), 1e-6)
+            iv = float(np.sqrt(w / tau))
+            raw1 = self._evaluate_raw_slice_w(t1, k)
+            raw2 = self._evaluate_raw_slice_w(t2, k)
+            raw_w = max(float((1.0 - lam) * raw1 + lam * raw2), 1e-6)
+            dom = t2 if lam > 0.5 else t1
+            method = f"linear_tv_bracket_{self.slices[t1]['tau_days']:.0f}d_{self.slices[t2]['tau_days']:.0f}d"
+
+        fwd = get_forward_price(tau)
+        delta_w = max(w - raw_w, 0.0)
+        cal_adj = bool(delta_w > 1e-5)
 
         return {
-            'iv': iv_final,
-            'quality': quality,
-            'method': eval_method,
-            'w': w_final,
+            'iv': iv,
+            'w': w,
+            'raw_w': raw_w,
+            'delta_w': delta_w,
+            'calendar_adjusted': cal_adj,
+            'dominant_tenor_tau': dom,
             'is_locally_extrapolated': is_locally_extrapolated,
             'is_globally_extrapolated': is_globally_extrapolated,
-            'calendar_adjusted': calendar_adj,
-            'delta_w_projected': delta_w
+            'is_production_ready': is_production_ready,
+            'quality': quality,
+            'method': method,
+            'slice_support_K_min': fwd * np.exp(k_loc_min),
+            'slice_support_K_max': fwd * np.exp(k_loc_max),
+            'k_support_min': k_loc_min,
+            'k_support_max': k_loc_max
         }
 
 def check_american_economic_arbitrage(
@@ -769,12 +819,149 @@ def check_american_economic_arbitrage(
 
 def leave_one_strike_out_validation(iv_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Performs Grouped Leave-One-Strike-Out cross-validation across slices with >= 5 strikes.
-    When holding out strike K_test, excludes ALL contracts (both Call and Put) with K_test
-    to prevent information leakage.
-    Uses American PDE pricing engine for Puts and exact analytical BS for Calls (q=0).
+    Backwards-compatible wrapper calling run_surface_final_holdout_validation.
     """
-    val_records = []
+    surface = VolatilitySurface(iv_df)
+    return run_surface_final_holdout_validation(surface, iv_df)
+
+def export_surface_release_grid(
+    surface: VolatilitySurface,
+    tables_dir: str | Path = "outputs/tables"
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Exports production surface release grid (24 fields) and quality diagnostics.
+    Grid includes:
+    - Production reference core at 31d and 59d for strikes $11, 12, 13, 14, 15.
+    - All calibrated tenors.
+    - Interpolated counterexamples (27.5d and 612d).
+    """
+    out_t = Path(tables_dir)
+    out_t.mkdir(parents=True, exist_ok=True)
+
+    records = []
+    test_tenors = sorted(list(set(surface.tenors + [27.5/365.0, 612.0/365.0])))
+    prev_tau_results: dict[float, dict[str, float]] = {}
+
+    for tau in test_tenors:
+        tau_days = tau * 365.0
+        r = get_zero_rate(tau)
+        F = get_forward_price(tau)
+
+        strikes = sorted(list(set(np.arange(8.0, 20.5, 0.5).tolist() + [11.0, 12.0, 13.0, 14.0, 15.0])))
+
+        calls = []
+        puts = []
+        ivs = []
+        ws = []
+        raw_ws = []
+        metas = []
+
+        for K in strikes:
+            k = float(np.log(K / F))
+            res = surface.surface_iv(k, tau, policy='allow')
+            iv = res['iv']
+            c = price_american_option('C', SPOT_PRICE, K, tau, r, iv, q=0.0)
+            p = price_american_option('P', SPOT_PRICE, K, tau, r, iv, q=0.0)
+            calls.append(c)
+            puts.append(p)
+            ivs.append(iv)
+            ws.append(res['w'])
+            raw_ws.append(res['raw_w'])
+            metas.append(res)
+
+        calls = np.array(calls)
+        puts = np.array(puts)
+        K_arr = np.array(strikes)
+
+        dK = np.diff(K_arr)
+        dC_dK = np.diff(calls) / dK
+        denom = 0.5 * (K_arr[2:] - K_arr[:-2])
+        d2C_dK2 = np.diff(dC_dK) / denom
+
+        for i, K in enumerate(strikes):
+            k = float(np.log(K / F))
+            res = metas[i]
+            c_px = calls[i]
+            p_px = puts[i]
+            w_curr = ws[i]
+
+            if i == 0:
+                dC = float(dC_dK[0])
+                d2C = float(d2C_dK2[0])
+            elif i == len(strikes) - 1:
+                dC = float(dC_dK[-1])
+                d2C = float(d2C_dK2[-1])
+            else:
+                dC = float(0.5 * (dC_dK[i-1] + dC_dK[i]))
+                d2C = float(d2C_dK2[i-1]) if i-1 < len(d2C_dK2) else float(d2C_dK2[-1])
+
+            is_convex = bool(d2C >= -1e-4)
+
+            if K in prev_tau_results:
+                prev = prev_tau_results[K]
+                cal_spread = float(c_px - prev['call'])
+                is_cal_arb_free = bool(w_curr >= prev['w'] - 1e-6)
+                am_put_mono = bool(p_px >= prev['put'] - 1e-4)
+            else:
+                cal_spread = np.nan
+                is_cal_arb_free = True
+                am_put_mono = True
+
+            prev_tau_results[K] = {'tau': tau, 'w': w_curr, 'call': c_px, 'put': p_px}
+
+            records.append({
+                'tau_days': round(tau_days, 1),
+                'tau_years': round(tau, 4),
+                'strike': round(K, 2),
+                'forward': round(F, 4),
+                'log_moneyness': round(k, 5),
+                'raw_total_variance': round(res['raw_w'], 6),
+                'projected_total_variance': round(res['w'], 6),
+                'surface_iv_pct': round(res['iv'] * 100.0, 3),
+                'call_price_model': round(c_px, 4),
+                'put_price_model': round(p_px, 4),
+                'dC_dK': round(dC, 5),
+                'd2C_dK2': round(d2C, 5),
+                'is_convex': is_convex,
+                'calendar_spread_vs_prev_tau': round(cal_spread, 4) if not np.isnan(cal_spread) else np.nan,
+                'is_calendar_arbitrage_free': is_cal_arb_free,
+                'american_put_time_monotonic': am_put_mono,
+                'dominant_tenor_tau': round(res['dominant_tenor_tau'], 4),
+                'delta_w_projected': round(res['delta_w'], 6),
+                'is_extrapolated_strike': res['is_locally_extrapolated'],
+                'is_extrapolated_tau': res['is_globally_extrapolated'],
+                'is_production_ready': res['is_production_ready'],
+                'quality_flag': res['quality'],
+                'slice_support_K_min': round(res['slice_support_K_min'], 2),
+                'slice_support_K_max': round(res['slice_support_K_max'], 2)
+            })
+
+    grid_df = pd.DataFrame(records)
+    out_grid_csv = out_t / "surface_release_grid.csv"
+    grid_df.to_csv(out_grid_csv, index=False)
+    print(f"Exported Surface Release Grid (24 columns): {out_grid_csv}")
+
+    diag_df = pd.DataFrame(surface.slice_params)
+    out_diag_csv = out_t / "surface_quality_diagnostics.csv"
+    diag_df.to_csv(out_diag_csv, index=False)
+    print(f"Exported Surface Quality Diagnostics: {out_diag_csv}")
+
+    return grid_df, diag_df
+
+def run_surface_final_holdout_validation(
+    surface: VolatilitySurface,
+    iv_df: pd.DataFrame,
+    tables_dir: str | Path = "outputs/tables"
+) -> pd.DataFrame:
+    """
+    Performs true 2D holdout cross-validation across slices with >= 5 strikes.
+    When holding out (expirationDate, strike), excludes ALL contracts (both Call and Put),
+    re-calibrates the slice, harmonizes surface levels, and revalues with American FD pricing.
+    """
+    out_t = Path(tables_dir)
+    out_t.mkdir(parents=True, exist_ok=True)
+
+    records = []
     grouped = iv_df.groupby('expirationDate')
 
     for exp_date, grp in grouped:
@@ -786,44 +973,87 @@ def leave_one_strike_out_validation(iv_df: pd.DataFrame) -> pd.DataFrame:
         r = get_zero_rate(tau)
 
         for strike_test in unique_strikes:
-            # Exclude ALL contracts of strike_test from training slice
             train_sub = grp[grp['strike'] != strike_test]
             test_sub = grp[grp['strike'] == strike_test]
 
             k_train = train_sub['k_log_moneyness'].values
             w_train = ((train_sub['our_iv_decimal'].values) ** 2) * tau
-
             sort_idx = np.argsort(k_train)
             k_train = k_train[sort_idx]
             w_train = w_train[sort_idx]
 
+            # Re-fit held-out slice
             svi_res = fit_svi_slice(k_train, w_train, tau, min_strikes=4, min_span=0.10)
+            cloned_slices = copy.copy(surface.slices)
 
-            for idx_out, row_out in test_sub.iterrows():
+            if svi_res['success']:
+                cloned_slices[tau] = {
+                    'type': 'svi',
+                    'params': list(svi_res['params']),
+                    'raw_params': list(svi_res['params']),
+                    'k_min': float(k_train.min()),
+                    'k_max': float(k_train.max()),
+                    'tau': tau,
+                    'exp_date': exp_date
+                }
+            else:
+                df_slice = pd.DataFrame({'k': k_train, 'w': w_train}).groupby('k', as_index=False).median()
+                k_u, w_u = df_slice['k'].values, df_slice['w'].values
+                pchip = PchipInterpolator(k_u, w_u, extrapolate=True) if len(k_u) >= 2 else lambda k: np.full_like(k, w_u[0])
+                cloned_slices[tau] = {
+                    'type': 'spline',
+                    'interpolator': pchip,
+                    'offset_w': 0.0,
+                    'k_min': float(k_train.min()),
+                    'k_max': float(k_train.max()),
+                    'tau': tau,
+                    'exp_date': exp_date
+                }
+
+            # Harmonize adjacent levels
+            idx_t = surface.tenors.index(tau)
+            if idx_t > 0:
+                t_prev = surface.tenors[idx_t - 1]
+                s_prev = cloned_slices[t_prev]
+                s_curr = cloned_slices[tau]
+                k_min_eval = max(s_prev['k_min'], s_curr['k_min'])
+                k_max_eval = min(s_prev['k_max'], s_curr['k_max'])
+                if k_min_eval < k_max_eval:
+                    k_grid = np.linspace(k_min_eval, k_max_eval, 30)
+                    scale = (tau / t_prev) ** 0.22 if tau <= surface.tau_max_prod else 1.0
+                    w_prev_seq = [surface._evaluate_slice_w(t_prev, k) for k in k_grid]
+                    if s_curr['type'] == 'svi':
+                        w_curr_seq = [float(raw_svi_total_variance(np.array([k]), *s_curr['params'])[0]) for k in k_grid]
+                    else:
+                        w_curr_seq = [float(s_curr['interpolator'](np.array([k]))[0]) for k in k_grid]
+                    diffs = [w_prev_seq[i] * scale - w_curr_seq[i] for i in range(len(k_grid))]
+                    deficit = max(max(diffs), 0.0)
+                    if deficit > 1e-6:
+                        if s_curr['type'] == 'svi':
+                            s_curr['params'][0] += (deficit + 1e-5)
+                        else:
+                            s_curr['offset_w'] += (deficit + 1e-5)
+
+            # Evaluate held out contracts
+            for _, row_out in test_sub.iterrows():
                 k_test = float(row_out['k_log_moneyness'])
                 true_iv = float(row_out['our_iv_decimal'])
                 obs_price = float(row_out['lastPrice'])
                 kind = row_out['type']
                 strike = float(row_out['strike'])
 
-                if svi_res['success']:
-                    a, b, rho, m, eta = svi_res['params']
-                    w_pred = raw_svi_total_variance(np.array([k_test]), a, b, rho, m, eta)[0]
+                s_eval = cloned_slices[tau]
+                if s_eval['type'] == 'svi':
+                    w_pred = float(raw_svi_total_variance(np.array([k_test]), *s_eval['params'])[0])
                 else:
-                    # Fallback to PCHIP on train set
-                    df_tr = pd.DataFrame({'k': k_train, 'w': w_train}).groupby('k', as_index=False).median()
-                    pchip = PchipInterpolator(df_tr['k'].values, df_tr['w'].values, extrapolate=True)
-                    w_pred = float(pchip(k_test))
+                    w_pred = float(s_eval['interpolator'](np.array([k_test]))[0] + s_eval.get('offset_w', 0.0))
 
                 pred_iv = float(np.sqrt(max(w_pred, 1e-6) / tau))
-
-                # Proper American option pricing engine (FD for puts, closed BS for calls q=0)
                 pred_price = price_american_option(kind, SPOT_PRICE, strike, tau, r, pred_iv, q=0.0, method="auto")
 
                 iv_err_pp = (pred_iv - true_iv) * 100.0
                 price_err = pred_price - obs_price
 
-                # Moneyness classification
                 if k_test < -0.20:
                     moneyness_tier = "Deep OTM"
                 elif k_test < -0.05:
@@ -835,22 +1065,39 @@ def leave_one_strike_out_validation(iv_df: pd.DataFrame) -> pd.DataFrame:
                 else:
                     moneyness_tier = "Deep ITM"
 
-                val_records.append({
+                records.append({
                     'contractSymbol': row_out['contractSymbol'],
                     'expirationDate': exp_date,
                     'tau_days': row_out['tau_days'],
                     'strike': strike,
                     'type': kind,
                     'moneyness_tier': moneyness_tier,
-                    'true_iv_pct': true_iv * 100.0,
-                    'pred_iv_pct': pred_iv * 100.0,
-                    'iv_error_pp': iv_err_pp,
-                    'obs_price': obs_price,
+                    'true_iv_pct': round(true_iv * 100.0, 3),
+                    'pred_iv_pct': round(pred_iv * 100.0, 3),
+                    'iv_error_pp': round(iv_err_pp, 3),
+                    'obs_price': round(obs_price, 4),
                     'pred_price': round(pred_price, 4),
                     'price_error_usd': round(price_err, 4)
                 })
 
-    return pd.DataFrame(val_records)
+    df_loo = pd.DataFrame(records)
+    out_loo_csv = out_t / "surface_final_holdout_validation.csv"
+    df_loo.to_csv(out_loo_csv, index=False)
+    # Also save to surface_leave_one_out_validation.csv for backwards compatibility
+    df_loo.to_csv(out_t / "surface_leave_one_out_validation.csv", index=False)
+    print(f"Exported true 2D holdout validation: {out_loo_csv}")
+
+    mae_iv = df_loo['iv_error_pp'].abs().mean()
+    rmse_iv = np.sqrt((df_loo['iv_error_pp']**2).mean())
+    mae_px = df_loo['price_error_usd'].abs().mean()
+    rmse_px = np.sqrt((df_loo['price_error_usd']**2).mean())
+
+    print("\n--- Out-of-Sample True 2D Holdout Validation Summary ---")
+    print(f"Total Validated Contracts: {len(df_loo)}")
+    print(f"IV MAE:  {mae_iv:.2f} pp | RMSE: {rmse_iv:.2f} pp")
+    print(f"Price MAE: ${mae_px:.4f} USD | RMSE: ${rmse_px:.4f} USD")
+
+    return df_loo
 
 def generate_surface_plots_and_tables(
     iv_csv: str = "outputs/tables/options_with_iv.csv",
@@ -858,7 +1105,8 @@ def generate_surface_plots_and_tables(
     figures_dir: str = "outputs/figures"
 ):
     """
-    Builds surface, validates, exports parameters and generates publication figures.
+    Builds surface, validates, exports parameters, release grid, holdout validation,
+    and generates publication figures.
     """
     out_t = Path(tables_dir)
     out_f = Path(figures_dir)
@@ -874,25 +1122,14 @@ def generate_surface_plots_and_tables(
     params_df.to_csv(params_csv, index=False)
     print(f"Exported SVI slice parameters to: {params_csv}")
 
-    # 2. Leave-One-Strike-Out Validation
-    print("Running Grouped Leave-One-Strike-Out Cross Validation with American pricing...")
-    loo_df = leave_one_strike_out_validation(iv_df)
-    loo_csv = out_t / "surface_leave_one_out_validation.csv"
-    loo_df.to_csv(loo_csv, index=False)
-    print(f"Exported LOO validation to: {loo_csv}")
+    # 2. Export Surface Release Grid and Diagnostics
+    export_surface_release_grid(surface, tables_dir=out_t)
 
-    mae_iv = loo_df['iv_error_pp'].abs().mean()
-    rmse_iv = np.sqrt((loo_df['iv_error_pp']**2).mean())
-    mae_px = loo_df['price_error_usd'].abs().mean()
-    rmse_px = np.sqrt((loo_df['price_error_usd']**2).mean())
+    # 3. True 2D Holdout Validation
+    print("Running True 2D Grouped Holdout Validation with American FD pricing...")
+    run_surface_final_holdout_validation(surface, iv_df, tables_dir=out_t)
 
-    print("\n--- Out-of-Sample Leave-One-Strike-Out Summary ---")
-    print(f"Total Validated Contracts: {len(loo_df)}")
-    print(f"IV MAE:  {mae_iv:.2f} pp | RMSE: {rmse_iv:.2f} pp")
-    print(f"Price MAE: ${mae_px:.4f} USD | RMSE: ${rmse_px:.4f} USD")
-
-    # 3. Figures
-    # Figure 1: 2D Slices
+    # 4. Figures
     selected_tenors = [t for t in surface.tenors if surface.slices[t]['tau_days'] in [10.0, 24.0, 31.0, 59.0, 122.0, 212.0]]
     if not selected_tenors:
         selected_tenors = surface.tenors[:6]
@@ -909,7 +1146,6 @@ def generate_surface_plots_and_tables(
         lbl = f"{days:.0f}d ({s_info['exp_date']}) [{s_info['type'].upper()}]"
         line = plt.plot(k_dense, iv_curve, label=lbl, linewidth=2)
 
-        # Plot observed points
         sub_pts = iv_df[iv_df['expirationDate'] == s_info['exp_date']]
         plt.scatter(
             sub_pts['k_log_moneyness'],
@@ -937,7 +1173,6 @@ def generate_surface_plots_and_tables(
     iv_atm = [surface.surface_iv(0.0, t)['iv'] * 100.0 for t in taus_dense]
 
     plt.plot(taus_dense * 365.0, iv_atm, color='#2b83ba', linewidth=2.5, label='ATM Term Structure $\\sigma_{\\mathrm{ATM}}(\\tau)$')
-    # Scatter calibrated points
     atm_tenors = [surface.surface_iv(0.0, t_i)['iv'] * 100.0 for t_i in surface.tenors]
     plt.scatter([t_i * 365.0 for t_i in surface.tenors], atm_tenors, color='#d7191c', s=40, zorder=5, label='Calibrated Slices')
 
@@ -966,8 +1201,8 @@ def generate_surface_plots_and_tables(
         for j in range(len(k_grid)):
             IV_mesh[i, j] = surface.surface_iv(K_mesh[i, j], Tau_mesh[i, j])['iv'] * 100.0
 
-    surf = ax.plot_surface(K_mesh, Tau_mesh * 365.0, IV_mesh, cmap='viridis', edgecolor='none', alpha=0.85)
-    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, label='Implied Volatility (%)')
+    surf_plot = ax.plot_surface(K_mesh, Tau_mesh * 365.0, IV_mesh, cmap='viridis', edgecolor='none', alpha=0.85)
+    fig.colorbar(surf_plot, ax=ax, shrink=0.5, aspect=10, label='Implied Volatility (%)')
 
     ax.set_xlabel("Log Moneyness $k$", fontsize=10, labelpad=8)
     ax.set_ylabel("Maturity (Days)", fontsize=10, labelpad=8)

@@ -1,13 +1,13 @@
 scenario_id,scenario_name,convention,dt_days,S1,dS_pct,hedge_shares,stock_hedge_pnl,options_pnl_stress_mod,total_port_pnl_stress_mod,options_pnl_taylor,total_port_pnl_taylor,taylor_discrepancy,mark_to_model_diff_initial,total_port_pnl_mkt_base,economic_margin_capital,return_on_margin_pct
-S0_Null_Shock,0. Baseline Null Shock (Diagnostic),sticky_moneyness,0.0,12.33,+0.0%,-357,-0.0,0.0,0.0,0.0,0.0,0.0,-20.43,-20.43,5435.31,0.0
-S0_Null_Shock,0. Baseline Null Shock (Diagnostic),sticky_strike,0.0,12.33,+0.0%,-357,-0.0,0.0,0.0,0.0,0.0,0.0,-20.43,-20.43,5435.31,0.0
-S1_RollDown_10d,1. Pure Roll-Down (Time Decay),sticky_moneyness,10.0,12.33,+0.0%,-357,-0.0,-57.86,-57.86,-51.7,-51.7,-6.16,-20.43,-78.28,5435.31,-1.06
-S1_RollDown_10d,1. Pure Roll-Down (Time Decay),sticky_strike,10.0,12.33,+0.0%,-357,-0.0,-57.77,-57.77,-51.56,-51.56,-6.21,-20.43,-78.2,5435.31,-1.06
-S2_Parallel_Drop,2. Parallel Drop & Vol Spike,sticky_moneyness,5.0,11.1,-10.0%,-357,440.18,-291.8,148.38,-264.62,175.56,-27.18,-20.43,127.95,5435.31,2.73
-S2_Parallel_Drop,2. Parallel Drop & Vol Spike,sticky_strike,5.0,11.1,-10.0%,-357,440.18,-300.15,140.04,-276.02,164.17,-24.13,-20.43,119.61,5435.31,2.58
-S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,sticky_moneyness,5.0,9.86,-20.0%,-357,880.36,-383.8,496.56,-122.65,757.71,-261.15,-20.43,476.13,5435.31,9.14
-S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,sticky_strike,5.0,9.86,-20.0%,-357,880.36,-407.93,472.43,-183.9,696.46,-224.03,-20.43,452.0,5435.31,8.69
-S4_Bullish_Rally,4. Bullish Rally & Vol Crush,sticky_moneyness,3.0,14.18,+15.0%,-357,-660.27,799.83,139.56,813.45,153.18,-13.61,-20.43,119.14,5435.31,2.57
-S4_Bullish_Rally,4. Bullish Rally & Vol Crush,sticky_strike,3.0,14.18,+15.0%,-357,-660.27,778.5,118.23,761.96,101.68,16.54,-20.43,97.8,5435.31,2.18
-S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,sticky_moneyness,2.0,11.71,-5.0%,-357,220.09,-128.43,91.66,-119.85,100.24,-8.58,-20.43,71.23,5435.31,1.69
-S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,sticky_strike,2.0,11.71,-5.0%,-357,220.09,-122.97,97.12,-113.85,106.24,-9.12,-20.43,76.69,5435.31,1.79
+S0_Null_Shock,0. Baseline Null Shock (Diagnostic),sticky_moneyness,0.0,12.33,+0.0%,-348,-0.0,0.0,0.0,0.0,0.0,0.0,23.55,23.55,5370.82,0.0
+S0_Null_Shock,0. Baseline Null Shock (Diagnostic),sticky_strike,0.0,12.33,+0.0%,-348,-0.0,0.0,0.0,0.0,0.0,0.0,23.55,23.55,5370.82,0.0
+S1_RollDown_10d,1. Pure Roll-Down (Time Decay),sticky_moneyness,10.0,12.33,+0.0%,-348,-0.0,-58.9,-58.9,-51.97,-51.97,-6.92,23.55,-35.35,5370.82,-1.1
+S1_RollDown_10d,1. Pure Roll-Down (Time Decay),sticky_strike,10.0,12.33,+0.0%,-348,-0.0,-58.79,-58.79,-51.82,-51.82,-6.97,23.55,-35.24,5370.82,-1.09
+S2_Parallel_Drop,2. Parallel Drop & Vol Spike,sticky_moneyness,5.0,11.1,-10.0%,-348,429.08,-295.6,133.48,-270.65,158.43,-24.95,23.55,157.03,5370.82,2.49
+S2_Parallel_Drop,2. Parallel Drop & Vol Spike,sticky_strike,5.0,11.1,-10.0%,-348,429.08,-302.39,126.7,-279.4,149.68,-22.98,23.55,150.24,5370.82,2.36
+S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,sticky_moneyness,5.0,9.86,-20.0%,-348,858.17,-403.98,454.19,-199.73,658.44,-204.25,23.55,477.74,5370.82,8.46
+S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,sticky_strike,5.0,9.86,-20.0%,-348,858.17,-431.43,426.74,-252.76,605.41,-178.67,23.55,450.29,5370.82,7.95
+S4_Bullish_Rally,4. Bullish Rally & Vol Crush,sticky_moneyness,3.0,14.18,+15.0%,-348,-643.63,753.37,109.74,759.73,116.11,-6.37,23.55,133.29,5370.82,2.04
+S4_Bullish_Rally,4. Bullish Rally & Vol Crush,sticky_strike,3.0,14.18,+15.0%,-348,-643.63,732.32,88.69,718.48,74.85,13.84,23.55,112.24,5370.82,1.65
+S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,sticky_moneyness,2.0,11.71,-5.0%,-348,214.54,-128.53,86.02,-121.1,93.44,-7.43,23.55,109.56,5370.82,1.6
+S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,sticky_strike,2.0,11.71,-5.0%,-348,214.54,-125.24,89.3,-117.59,96.95,-7.65,23.55,112.85,5370.82,1.66

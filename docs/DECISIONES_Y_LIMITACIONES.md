@@ -118,6 +118,46 @@ Este documento registra formalmente cada decisión de diseño cuantitativo, fina
 * **Motivo de la elección:** Un pipeline financiero en producción cuantitativa no puede reportar éxito si existen pruebas unitarias fallidas o artefactos incompletos.
 * **Evidencia:** Suite de pruebas en `tests/test_pipeline_error_propagation.py`.
 
+### DEC-014: Armonización Global de Cortes y Eliminación de Convexidad Artificial por Proyección Puntual (Tercera Ronda)
+* **Decisión:** Reemplazar la proyección monótona puntual `maximum.accumulate` en $k$ —la cual introducía pliegues de pendiente $C^0$ que desestabilizaban la curvatura transversal al interpolar temporalmente— por una armonización global del parámetro de nivel $a_i \leftarrow a_i + \Delta a_i$ entre cortes adyacentes sobre su soporte empírico compartido, combinada con interpolación lineal en varianza total por tramos entre vencimientos calibrados contiguos ($w(k, \tau) = (1-\lambda)w_1(k) + \lambda w_2(k)$).
+* **Alternativas evaluadas:**
+  1. Mantener PCHIP cúbico temporal con clipping puntual ad-hoc sobre precios.
+  2. Interpolación afín en precios normalizados respecto al forward.
+* **Motivo de la elección:** La interpolación lineal en varianza total entre cortes armonizados convexos preserva analíticamente la monotonía temporal estricta ($\frac{\partial w}{\partial \tau} \ge 0$), garantiza la convexidad estricta de precios de calls ($\frac{\partial^2 C}{\partial K^2} \ge 0$) al ser una combinación convexa de sonrisas libres de arbitraje, elimina por completo las concavidades demostradas en los contraejemplos de 27.5d y 612d, y preserva la suavidad $C^\infty$ en $k$.
+* **Evidencia:** 100% de convexidad de precios verificada en `tests/test_surface_convexity_and_extrapolation.py` sobre mallas de 121, 241 y 481 strikes.
+
+### DEC-015: Cuarentena Formal de Opciones LEAPS (Enero 2029) y Límite del Horizonte de Producción (Tercera Ronda)
+* **Decisión:** Establecer el horizonte de producción de la superficie en $\tau \le 430.0$ días (21 de enero de 2028). Calibrar el corte LEAPS de enero de 2029 (794d) excluyendo la cotización anómala y asíncrona de la Call $K=3.0$ (volumen 1, IV 103.88% vs Put 52.31%), lo cual permite un ajuste SVI con RMSE de 1.00% y 100% libre de arbitraje mariposa, pero clasificar formalmente dicho corte como `QUARANTINED_LEAPS_EXPLORATORY_ONLY` (`is_production_ready: False`). Consultas en modo estricto (`policy='strict'`) que superen los 430 días son bloqueadas con excepción explícita.
+* **Alternativas evaluadas:**
+  1. Mantener el corte de 2029 dentro del núcleo de producción a pesar de la iliquidez de cotizaciones de LEAPS.
+  2. Eliminar completamente el vencimiento de 2029 del dataset.
+* **Motivo de la elección:** Permite conservar la información para análisis exploratorio y descriptivo sin arriesgar la integridad de la valoración del portafolio o de las estrategias de producción.
+* **Evidencia:** Prueba `test_h2_jan_2029_svi_calibration_clean_and_quarantine_status`.
+
+### DEC-016: Preservación de la Monotonicidad Temporal en Puts Americanas mediante Piso de Continuación (Tercera Ronda)
+* **Decisión:** Incorporar una restricción de crecimiento mínimo de varianza total entre vencimientos adyacentes de producción ($w_2(k) \ge w_1(k) \cdot (\tau_2 / \tau_1)^{0.22}$) en regiones compartidas donde la varianza total casi plana inducía una caída artificial en el valor de continuación del put americano ($P(37\text{d}) < P(31\text{d})$ a $K=14.75$).
+* **Alternativas evaluadas:**
+  1. No intervenir la varianza total y atribuir la caída al efecto de tasas de interés o dividendos.
+  2. Forzar un salto discreto solo en el strike $K=14.75$.
+* **Motivo de la elección:** Con dividendo cero ($q=0$) y tasas constantes o moderadas, una opción americana debe ser monótona no decreciente respecto al plazo de vencimiento ($P(\tau_2) \ge P(\tau_1)$) debido al derecho de ejercicio anticipado. La amortiguación suave de nivel garantiza $P(37\text{d}) \ge P(31\text{d})$ sin introducir discontinuidades ni violaciones mariposa.
+* **Evidencia:** Prueba `test_h5_american_put_time_monotonicity_31d_to_37d`.
+
+### DEC-017: Aislamiento de Artefactos de Prueba y Contratos de Datos Formales (Tercera Ronda)
+* **Decisión:** Implementar el parámetro `export_artifacts: bool = True` en los módulos de estrategias comerciales y aislar completamente la ejecución de pruebas unitarias y de estrés, impidiendo que corridas contrafactuales de pytest sobrescriban los archivos CSV y figuras de producción. Asimismo, implementar en `run_all.py` el diccionario `DATA_CONTRACTS` con validaciones de esquema, columnas requeridas, filas mínimas y finitud numérica para las 16 tablas del proyecto.
+* **Alternativas evaluadas:**
+  1. Restaurar los archivos de producción re-ejecutando etapas al final de la suite de pruebas.
+  2. Validar únicamente la existencia de los archivos sin comprobar esquemas de columnas.
+* **Motivo de la elección:** Las pruebas nunca deben contaminar el estado de producción de los artefactos publicados.
+* **Evidencia:** Pruebas `test_production_artifacts_hash_invariance_codex_h4` y suite `test_pipeline_error_propagation.py`.
+
+### DEC-018: Validación Cruzada Holdout 2D Integral (Tercera Ronda)
+* **Decisión:** Reemplazar el estimador unidimensional de corte aislado por una validación cruzada Leave-One-Strike-Out verdaderamente bidimensional (`surface_final_holdout_validation.csv`): para cada par $(K_{\text{test}}, \tau_{\text{test}})$, se excluyen simultáneamente tanto la Call como la Put, se recalibra el corte, se armonizan los niveles de la superficie 2D, se evalúa en el motor de superficie bidimensional final y se valoran las opciones con el motor EDP americano (puts) y Black-Scholes cerrado (calls).
+* **Alternativas evaluadas:**
+  1. Conservar el LOO 1D por corte independiente.
+  2. Realizar validación solo in-sample.
+* **Motivo de la elección:** Atiende directamente al hallazgo H3 de Codex, proporcionando una métrica rigurosa y defendible fuera de muestra sobre la superficie 2D final utilizada por los consumidores del modelo.
+* **Evidencia:** Tabla `outputs/tables/surface_final_holdout_validation.csv` y prueba `test_2d_final_holdout_validation_accuracy`.
+
 ---
 
 ## 2. Limitaciones Identificadas y Mitigaciones Metodológicas

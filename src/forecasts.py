@@ -86,7 +86,10 @@ def fit_har_rv_walk_forward(
         # Observation s has target realized between s+1 and s+horizon.
         # It is known at day t if and only if s + horizon <= t <=> s <= t - horizon.
         purge_cutoff = t - horizon_days + 1
-        train_sub = clean_data.iloc[:max(purge_cutoff, 50)]
+        if purge_cutoff < 50:
+            # Insufficient mature causal history to fit 3-factor HAR-RV regression
+            continue
+        train_sub = clean_data.iloc[:purge_cutoff]
         current_row = clean_data.iloc[t]
         date_t = current_row.name
 

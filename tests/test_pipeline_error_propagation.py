@@ -64,8 +64,16 @@ def test_intentional_test_failure_returns_nonzero():
     """
     Mandatory Check 4.3: When pytest reports test failures,
     the pipeline must propagate a non-zero exit code (never 0).
+    Patches stage worker functions to prevent redundant full pipeline recalculation during testing.
     """
-    # Force pytest to run with arguments that produce an exit code != 0
-    # E.g. targeting a non-existent test file produces exit code 4 (usage error)
-    exit_code = run_pipeline(raise_on_error=False, run_tests=True, pytest_args=["tests/non_existent_test_file.py"])
-    assert exit_code != 0, f"Pipeline returned {exit_code} despite test failure!"
+    with patch("src.data_cleaning.clean_and_audit_options"), \
+         patch("src.iv_inversion.invert_clean_dataset"), \
+         patch("src.surface.generate_surface_plots_and_tables"), \
+         patch("src.model_comparison.run_model_comparison"), \
+         patch("src.portfolio.build_hypothetical_portfolio"), \
+         patch("src.stress_testing.run_stress_testing"), \
+         patch("src.strategies.run_strategies_analysis"):
+        # Force pytest to run with arguments that produce an exit code != 0
+        # E.g. targeting a non-existent test file produces exit code 4 (usage error)
+        exit_code = run_pipeline(raise_on_error=False, run_tests=True, pytest_args=["tests/non_existent_test_file.py"])
+        assert exit_code != 0, f"Pipeline returned {exit_code} despite test failure!"
