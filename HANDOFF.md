@@ -1,6 +1,6 @@
 # Estado para reanudar
 
-Estado de preparación documental LOCAL_READY, pendiente de publicación y confirmación de lectura de Gemini. Fase siguiente autorizada PHASE_0. Migración Heston aún NOT_STARTED.
+Estado PHASE_CONTEXT_SETUP_APPROVED. Gemini confirm? CONTEXT_READ_OK para fa2a1b2ea837cfcd8d0d6822fe5e293086a05382. Fase activa PHASE_0, IN_PROGRESS. Especificaci?n publicada en docs/orchestration/PHASE_0_START.md.
 
 - Referencia SVI congelada `3d81ff18cae3a9f8dc74c174015fed17031a8da8`, rama fix/quant-audit-2026-11, PR #1 abierto al inspeccionar.
 - Último SHA de implementación Heston aprobado y SHA pendiente de auditoría inexistentes.
