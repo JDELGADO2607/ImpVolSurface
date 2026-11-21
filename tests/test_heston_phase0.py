@@ -2,11 +2,12 @@
 Comprehensive unit and integration test suite for Heston Phase 0.
 
 Tests:
-1. Treasury CMT rate provenance, bootstrap discount factors, and bond repricing.
-2. Forensic option audit, 272 puts classification, lower bound enforcement, and tenor support.
-3. Deterministic leakage-free data partition (train, strike holdout, tenor holdout, calls contrast).
-4. Baseline pricing properties (American >= European, American >= Intrinsic, finite positive prices).
-5. Protection of raw source data and historical official directories (zero unintended writes).
+1. Treasury CMT rate provenance, exact coupon bootstrap discount factors, and machine-zero bond repricing (F0-01).
+2. QuantLib term structure integration and dynamic version check (F0-01, F0-03).
+3. Forensic option audit, 272 puts classification, lower bound enforcement, and tenor support.
+4. Deterministic leakage-free data partition (train, strike holdout, tenor holdout, calls contrast).
+5. Baseline pricing properties, clean curve ablation, and engine discrepancy isolation (F0-02).
+6. Protection of raw source data and historical official directories (zero unintended writes, M-R3-2).
 """
 
 import sys
@@ -39,7 +40,8 @@ from src.heston.baseline_pricing import (
     price_bs_european_put,
     price_american_put_quantlib,
     compute_baseline_benchmarks,
-    HAS_QUANTLIB
+    HAS_QUANTLIB,
+    QUANTLIB_VERSION
 )
 
 RAW_EXCEL_HASH = "306f8d3c1a52c7a67952d08881516bdc8632856e3abd6b33de373c4bc77ffb53"
@@ -61,34 +63,58 @@ def test_source_data_immutability():
     assert h_hist == HIST_CSV_HASH, f"Historical CSV modified! Hash: {h_hist}"
 
 
-def test_treasury_rates_and_bootstrap():
-    """Validates official Treasury CMT rates and exact coupon-bond bootstrap."""
+def test_treasury_rates_and_exact_bootstrap():
+    """
+    Validates official Treasury CMT rates and exact coupon-bond bootstrap (F0-01).
+    Guarantees machine-zero repricing across ALL benchmark maturities up to 30Y.
+    """
     curve = get_official_yield_curve(method="bootstrap")
 
-    # 1. Check boundary conditions
+    # 1. Boundary conditions
     assert curve.get_discount_factor(0.0) == 1.0
     r0 = curve.get_zero_rate(0.0)
-    assert 0.035 < r0 < 0.045 # Around 4.09%
+    assert 0.035 < r0 < 0.045 # ~4.09%
 
-    # 2. Check monotonicity of discount factors
-    taus = np.linspace(0.05, 5.0, 50)
+    # 2. Monotonicity of discount factors
+    taus = np.linspace(0.05, 30.0, 100)
     dfs = [curve.get_discount_factor(t) for t in taus]
     assert all(dfs[i] > dfs[i + 1] for i in range(len(dfs) - 1)), "Discount factor not strictly decreasing!"
 
-    # 3. Check exact par bond repricing
+    # 3. Exact Par Bond Repricing check across ALL 14 maturities (1M to 30Y)
     reprice_df = curve.reprice_par_bonds()
     assert len(reprice_df) == len(OFFICIAL_TREASURY_CMT_2026_11_17)
-    # Check that coupon notes (> 0.5y up to 10y) reprice within 0.05 USD of 100.00
-    for _, row in reprice_df[reprice_df["tenor_yr"] <= 10.0].iterrows():
+
+    for _, row in reprice_df.iterrows():
         pv = row["repriced_pv"]
-        assert abs(pv - 100.0) < 0.05, f"Bond {row['label']} repriced at {pv}, expected 100.00"
+        res = abs(row["residual_usd"])
+        # All benchmark bonds must reprice with residual < 1e-6 USD
+        assert res < 1e-6, f"Bond {row['label']} ({row['tenor_yr']}y) residual {res} exceeds 1e-6 USD!"
+        assert abs(pv - 100.0) < 1e-6
 
     # 4. Check forward prices
-    for tau in [0.1, 0.5, 1.0, 2.0]:
+    for tau in [0.1, 0.5, 1.0, 2.0, 5.0]:
         F = curve.get_forward_price(tau)
         D = curve.get_discount_factor(tau)
         assert abs(F - SPOT_PRICE / D) < 1e-8
         assert F > SPOT_PRICE, "Forward should exceed spot under positive rates and zero dividends"
+
+
+def test_quantlib_term_structure_integration():
+    """Validates that QuantLib can construct a unified DiscountCurve from bootstrap (F0-01)."""
+    assert HAS_QUANTLIB, "QuantLib must be available"
+    assert QUANTLIB_VERSION is not None, "QuantLib version must be detectable"
+
+    curve = get_official_yield_curve(method="bootstrap")
+    ts_handle = curve.to_quantlib_term_structure()
+    assert ts_handle is not None
+
+    # Check that QuantLib discount matches Python discount at key tenors
+    import QuantLib as ql
+    eval_date = ql.Date(17, 11, 2026)
+    for test_days in [3, 10, 31, 59, 94, 182, 365, 730]:
+        d_py = curve.get_discount_factor(test_days / 365.0)
+        d_ql = ts_handle.discount(eval_date + test_days)
+        assert abs(d_py - d_ql) < 1e-4, f"Mismatch at day {test_days}: py={d_py}, ql={d_ql}"
 
 
 def test_occ_parsing():
@@ -122,13 +148,12 @@ def test_option_audit_and_selection(tmp_path):
     assert n_bounds == 25, f"Expected 25 bounds-violating puts, got {n_bounds}"
 
     # Selected clean puts checks
-    assert len(puts_clean) > 0
+    assert len(puts_clean) == 97, f"Expected 97 clean puts, got {len(puts_clean)}"
     for _, row in puts_clean.iterrows():
         assert row["is_trade_17nov"], "Selected put not traded on 11/17!"
         assert row["bounds_ok"], "Selected put violates bounds!"
         assert row["lastPrice"] >= 0.02, "Selected put price < 0.02!"
         assert row["time_value"] >= 0.01, "Selected put time value < 0.01!"
-        # Lower bound check
         assert row["lastPrice"] >= (row["strike"] - SPOT_PRICE) - 1e-4
 
     # Common R3 puts checks
@@ -189,11 +214,10 @@ def test_deterministic_data_split(tmp_path):
     assert set(split2["tenor_holdout"]["contractSymbol"]) == syms_tho
 
 
-def test_baseline_pricing_engine(tmp_path):
-    """Validates baseline option pricing and no-arbitrage relationships."""
+def test_baseline_pricing_engine_and_ablation(tmp_path):
+    """Validates baseline option pricing and clean curve/engine ablation (F0-02)."""
     curve = get_official_yield_curve(method="bootstrap")
 
-    # Sample puts across strikes and tenors (integer days for exact ACT/365 alignment)
     sample_cases = [
         {"K": 10.0, "tau": 36.0 / 365.0, "market": 0.05},
         {"K": 12.0, "tau": 94.0 / 365.0, "market": 0.55},
@@ -208,7 +232,6 @@ def test_baseline_pricing_engine(tmp_path):
         p_eu = price_bs_european_put(SPOT_PRICE, K, tau, r, sigma=0.45)
         p_am = price_american_put_quantlib(SPOT_PRICE, K, tau, r, sigma=0.45)
 
-        # Economic bounds
         intrinsic = max(K - SPOT_PRICE, 0.0)
         assert p_am >= intrinsic - 1e-6, f"American put below intrinsic: {p_am} < {intrinsic}"
         assert p_am >= p_eu - 1e-4, f"American put below European put: {p_am} < {p_eu}"
@@ -223,14 +246,11 @@ def test_no_writes_to_official_directories(tmp_path):
     """
     p_tables = Path("outputs/tables")
     if p_tables.exists():
-        # Record mtimes
         mtimes_before = {f.name: f.stat().st_mtime for f in p_tables.glob("*.csv")}
 
-        # Run pipeline in tmp_path
         from src.heston.pipeline_phase0 import run_phase0_pipeline
         run_phase0_pipeline(output_dir=str(tmp_path))
 
-        # Check mtimes unchanged
         mtimes_after = {f.name: f.stat().st_mtime for f in p_tables.glob("*.csv")}
         for name, mt in mtimes_before.items():
             assert mtimes_after[name] == mt, f"Official file {name} was modified by pipeline!"

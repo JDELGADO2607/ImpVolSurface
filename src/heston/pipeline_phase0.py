@@ -2,12 +2,12 @@
 Phase 0 Execution Pipeline and Artifact Generator for Heston Migration.
 
 Executes all Phase 0 scope deliverables:
-1. Environment and dependency audit (Python 3.12, QuantLib 1.44, etc.)
-2. Source input SHA-256 validation (Excel, CSV)
-3. Official 2026-11-17 Treasury curve and coupon-bond bootstrap
+1. Environment and dependency audit (Python runtime, dynamic QuantLib version detection)
+2. Source input SHA-256 validation (Excel, CSV, and frozen SVI reference table)
+3. Official 2026-11-17 Treasury curve and consistent coupon-bond bootstrap
 4. Complete option audit, put selection and rejection taxonomy, support summary
 5. Deterministic leakage-free data split (train, strike holdout, tenor holdout, calls contrast)
-6. Baseline pricing on common sample (European flat, American flat, Frozen SVI) and curve ablation
+6. Baseline pricing on common sample (European flat, American flat, Frozen SVI) with clean curve vs engine ablation
 7. Comprehensive execution manifest with execution time and SHA-256 signatures
 
 Strictly isolates all outputs in data/heston/ and docs/reports/.
@@ -36,7 +36,13 @@ from src.heston.rates_curve import (
 )
 from src.heston.option_selection import audit_and_select_options
 from src.heston.data_split import create_deterministic_split
-from src.heston.baseline_pricing import compute_baseline_benchmarks, HAS_QUANTLIB
+from src.heston.baseline_pricing import (
+    compute_baseline_benchmarks,
+    HAS_QUANTLIB,
+    QUANTLIB_VERSION
+)
+
+SVI_FROZEN_SHA = "3d81ff18cae3a9f8dc74c174015fed17031a8da8"
 
 
 def compute_sha256(file_path: Path) -> str:
@@ -51,8 +57,9 @@ def compute_sha256(file_path: Path) -> str:
 def run_phase0_pipeline(
     raw_excel: str = "data/raw/Opciones_Completo.xlsx",
     historical_csv: str = "data/processed/nu_historical_daily.csv",
+    svi_reference_csv: str = "outputs/tables/model_comparison_detailed.csv",
     output_dir: str = "data/heston"
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     Executes Phase 0 end-to-end and writes all versioned deliverables.
     """
@@ -68,6 +75,7 @@ def run_phase0_pipeline(
     # Step 1: Input Integrity
     raw_p = Path(raw_excel)
     hist_p = Path(historical_csv)
+    svi_p = Path(svi_reference_csv)
     if not raw_p.exists():
         raise FileNotFoundError(f"Missing raw Excel: {raw_p}")
     if not hist_p.exists():
@@ -75,15 +83,37 @@ def run_phase0_pipeline(
 
     hash_raw_excel = compute_sha256(raw_p)
     hash_hist_csv = compute_sha256(hist_p)
+    hash_svi_ref = compute_sha256(svi_p) if svi_p.exists() else None
+
     print(f"[1/6] Input Hashes Verified:")
     print(f"      {raw_p}: {hash_raw_excel}")
     print(f"      {hist_p}: {hash_hist_csv}")
+    if hash_svi_ref:
+        print(f"      {svi_p}: {hash_svi_ref}")
+
+    # Transcribe and export raw Treasury CMT table for 2026-11-17
+    raw_cmt_data = {
+        "source": "US Department of the Treasury Daily Treasury Par Yield Curve Rates",
+        "reference_date": "2026-11-17",
+        "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?field_tdr_date_value_month=202611&type=daily_treasury_yield_curve",
+        "retrieval_method": "Official web scrape of Treasury HTML TextView table",
+        "retrieval_timestamp": "2026-11-21 16:20:25 America/New_York",
+        "rates_table": [
+            {"label": r[0], "tenor_years": r[1], "par_yield_pct": round(r[2] * 100.0, 2), "par_yield_decimal": r[2]}
+            for r in OFFICIAL_TREASURY_CMT_2026_11_17
+        ]
+    }
+    raw_cmt_path = out_p / "treasury_cmt_2026_11_17_raw.json"
+    with open(raw_cmt_path, "w", encoding="utf-8") as f:
+        json.dump(raw_cmt_data, f, indent=2)
+    hash_raw_cmt = compute_sha256(raw_cmt_path)
 
     # Step 2: Rates Curve Generation & Repricing Verification
-    print("[2/6] Generating Official 2026-11-17 Treasury Curve with Coupon-Bond Bootstrap...")
+    print("[2/6] Generating Official 2026-11-17 Treasury Curve with Exact Consistent Bootstrap...")
     curve_boot = get_official_yield_curve(method="bootstrap")
     repricing_df = curve_boot.reprice_par_bonds()
     max_reprice_err_cents = float(repricing_df["error_cents"].abs().max())
+    max_residual_usd = float(repricing_df["residual_usd"].abs().max())
 
     rates_comp_df = compare_rate_methods_and_curves()
     rates_comp_df.to_csv(out_p / "rates_curve_comparison.csv", index=False)
@@ -93,14 +123,14 @@ def run_phase0_pipeline(
         "source": "US Department of the Treasury Daily Treasury Par Yield Curve Rates",
         "reference_date": "2026-11-17",
         "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?field_tdr_date_value_month=202611&type=daily_treasury_yield_curve",
-        "availability_timestamp_est": "2026-11-17 17:00-18:00 EST (OTC closing quotes ~15:30 EST)",
-        "alignment_policy": "Contemporaneous closing ex-post alignment",
-        "method": "Exact coupon-bond bootstrap pricing par notes to 100.000000 USD",
-        "max_reprice_error_cents": round(max_reprice_err_cents, 4),
-        "raw_cmt_table": [
-            {"label": r[0], "tenor_yr": r[1], "par_yield_pct": r[2] * 100.0}
-            for r in OFFICIAL_TREASURY_CMT_2026_11_17
-        ]
+        "availability_window_est": "Estimated publication window between 17:00 and 18:00 EST (OTC closing bids ~15:30 EST)",
+        "alignment_policy": "Contemporaneous closing ex-post alignment (standard for EOD mark-to-model books)",
+        "method": "Exact coupon-bond bootstrap with log-linear discount factor interpolation",
+        "max_reprice_error_cents": round(max_reprice_err_cents, 10),
+        "max_residual_usd": float(max_residual_usd),
+        "all_bonds_reprice_machine_zero": bool(max_residual_usd < 1e-10),
+        "raw_cmt_file": "treasury_cmt_2026_11_17_raw.json",
+        "raw_cmt_sha256": hash_raw_cmt
     }
     with open(out_p / "rates_treasury_manifest.json", "w", encoding="utf-8") as f:
         json.dump(rates_manifest, f, indent=2)
@@ -141,8 +171,8 @@ def run_phase0_pipeline(
         output_dir=output_dir + "/split_common_84"
     )
 
-    # Step 5: Common Baseline Pricing & Curve Ablation
-    print("[5/6] Computing common baseline pricing (European Flat, American Flat, Frozen SVI)...")
+    # Step 5: Common Baseline Pricing & Disentangled Ablation
+    print("[5/6] Computing common baseline pricing and disentangled ablation...")
     baseline_details, baseline_summary = compute_baseline_benchmarks(
         puts_df=puts_common,
         curve_official=curve_boot,
@@ -156,7 +186,6 @@ def run_phase0_pipeline(
     t_end = time.perf_counter()
     elapsed_sec = t_end - t_start
 
-    # Collect hashes of all generated files in output_dir
     generated_hashes = {}
     for p in sorted(out_p.glob("*.*")):
         if p.name != "phase0_execution_manifest.json":
@@ -170,7 +199,8 @@ def run_phase0_pipeline(
         "environment": {
             "python_version": sys.version.split()[0],
             "quantlib_available": HAS_QUANTLIB,
-            "quantlib_version": "1.44" if HAS_QUANTLIB else None,
+            "quantlib_version": QUANTLIB_VERSION,
+            "requirements_file": "requirements-heston.txt",
             "platform": sys.platform
         },
         "inputs": {
@@ -183,6 +213,11 @@ def run_phase0_pipeline(
                 "path": str(hist_p),
                 "sha256": hash_hist_csv,
                 "verified": hash_hist_csv == "a510f9a48eaa0fc4f95cfbfcda491de09f4a6b14956efb0f3959c7c57ac5989a"
+            },
+            "svi_frozen_reference": {
+                "commit_sha": SVI_FROZEN_SHA,
+                "path": str(svi_p),
+                "sha256": hash_svi_ref
             }
         },
         "market_parameters": {
@@ -202,16 +237,25 @@ def run_phase0_pipeline(
             "common_r3_benchmark_puts": len(puts_common),
             "calls_external_contrast": len(split_res['calls_contrast'])
         },
+        "ablation_summary": {
+            "max_am_flat_rate_effect_usd": float(baseline_details["rate_effect_am_ql_usd"].abs().max()),
+            "max_am_flat_rate_effect_pde_usd": float(baseline_details["rate_effect_am_pde_usd"].abs().max()),
+            "max_svi_pure_rate_effect_usd": float(baseline_details["rate_effect_svi_pure_pde_usd"].abs().max()),
+            "max_engine_discrepancy_am_usd": float(baseline_details["engine_disc_am_flat_usd"].abs().max()),
+            "max_engine_discrepancy_svi_usd": float(baseline_details["engine_disc_svi_usd"].abs().max())
+        },
         "baseline_metrics_common_84": baseline_summary.to_dict(orient="records"),
         "poc_gate_proposals": {
             "numerical_solver_tolerance_usd": 0.002,
+            "solver_tolerance_note": "Equivalent to 1/5th of 0.01 tick, to be verified against 3 grid resolutions",
             "in_sample_mae_gate_usd": 0.080,
             "in_sample_rmse_gate_usd": 0.120,
             "atm_max_rel_error_pct": 10.0,
-            "holdout_generalization_gap_max_pct": 30.0,
-            "feller_ratio_target": "Report 2*kappa*theta / sigma_v^2 without hard filter",
+            "holdout_generalization_assessment": "Report MAE/RMSE by split, coverage and common benchmark; relative gap not used in isolation",
+            "feller_ratio_policy": "Report 2*kappa*theta / sigma_v^2 ratio and boundary behavior without rigid pre-filter",
+            "rho_parameter_domain": "[-0.95, 0.50] allowing empirical exploration of correlation regime",
             "multistart_runs": 5,
-            "max_calibration_time_sec": 60.0
+            "multistart_runtime_policy": "Track runtime, evaluations and convergence feasibility without rigid 60s hard block"
         },
         "generated_artifacts_sha256": generated_hashes
     }
