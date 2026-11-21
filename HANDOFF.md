@@ -1,12 +1,12 @@
 # Estado para reanudar
 
 PHASE_CONTEXT_SETUP_APPROVED. PHASE_0 APPROVED en 0fb87583c6f4023049a4e6f4ae5c36c7aad247d3.
-PHASE_1 REJECTED en af105d1b221d4b096695b979fb72bc55834cf47e, PR#5.
-Reparacion2/3 autorizada: cache de calibracion sin vinculo verificable y documentacion incorrecta. Precios/gates numericos favorables reproducidos.
-[Informe](docs/audits/HESTON_PHASE_1_af105d1.md). [Criterios](docs/context/ACCEPTANCE_CRITERIA.md).
+PHASE_1 REJECTED en 3a294af73f0215e0435223d20015545245164bdf, PR#5.
+Reparacion3/3 autorizada: replay excluye candidatos status2 que luego pueden seleccionarse con SSE falsa. Precio y PoC sin cambios. Ultimo intento ordinario de esta fase.
+[Informe](docs/audits/HESTON_PHASE_1_3a294af.md). [Criterios](docs/context/ACCEPTANCE_CRITERIA.md).
 Coordinacion JDELGADO2607/heston-coordination, PR#4, worktree heston-coordination.
 Implementacion Gemini JDELGADO2607/heston-implementation, worktree heston-implementation.
-Run run_0891738e9cf5. Reparacion2 activa: dispatch ctx_42d5b8fbc60c, task task_07b7236ff519. Informe/evidencias publicados en commit389f40f366d3c1da2787d0bec590d49e9f1016a3, PR4 abierto.
+Run run_0891738e9cf5. Ultima entrega ctx_42d5b8fbc60c completada. Registrar nuevo dispatch de reparacion3 tras asignacion.
 Siguiente accion recibir PHASE_READY_FOR_AUDIT con nuevo SHA y auditar antes de solver propio fase2.
 SVI congelado 3d81ff1, auditoria R3 externa en PR#3.
 Enunciado original no encontrado, mapeo secundario46-56 identificado.

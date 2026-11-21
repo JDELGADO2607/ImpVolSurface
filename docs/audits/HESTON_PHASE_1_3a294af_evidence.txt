@@ -1,0 +1,25 @@
+===== audit_forgery_probe.log =====
+PROBE: status2 candidate3 with forged SSE=0 and consistent RMSE=0; all inputs hashes unchanged
+INVALID_CACHE_ACCEPTED 3 selected_sse 0.0 parameters {'v0': 0.0255615114321117, 'kappa': 0.1141038315861711, 'theta': 0.0225043223751618, 'xi': 2.930937862854284, 'rho': -0.9403950618149712, 'feller_ratio': 0.0005978372089714964, 'feller_satisfied': False, 'spot_vol': 0.15987967798351266, 'long_term_vol': 0.1500144072253122}
+ACTUAL_FINE_SSE_SELECTED 21.46878391010828
+BEST_FINE_START 2
+DEMONSTRATED
+
+
+===== audit_coarse_endpoint.txt =====
+ACTUAL_COARSE_SSE_SELECTED 0.5861874690884654
+
+===== audit_tests.log =====
+......................                                                   [100%]
+22 passed in 20.98s
+
+HASH_CHANGES []
+
+===== audit_artifact_diff.log =====
+PUBLISHED_NUMERIC_DELTA heston_pricing_train.csv 0.0
+PUBLISHED_NUMERIC_DELTA heston_pricing_strike_holdout.csv 0.0
+PUBLISHED_NUMERIC_DELTA heston_pricing_tenor_holdout.csv 0.0
+PUBLISHED_NUMERIC_DELTA heston_pricing_full_puts.csv 0.0
+FINE_SSE_RECONCILIATION_MAX 9.71445146547012e-17
+INPUT_HASHES_OK True
+MANIFEST_TIMESTAMP 2026-11-21T23:41:08.481201+00:00
