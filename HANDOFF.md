@@ -6,7 +6,7 @@ Reparacion1/3 autorizada. PoC ajuste favorable, pendiente control numerico, docu
 [Informe](docs/audits/HESTON_PHASE_1_d6a369c.md). [Criterios](docs/context/ACCEPTANCE_CRITERIA.md).
 Coordinacion JDELGADO2607/heston-coordination, PR#4, worktree heston-coordination.
 Implementacion Gemini JDELGADO2607/heston-implementation, worktree heston-implementation.
-Run run_0891738e9cf5. Contactar dispatch ctx_bf80e6c500af hasta recibir el nuevo dispatch de reparacion.
+Run run_0891738e9cf5. Reparacion activa en dispatch ctx_832d10838ae2, task task_28a87a828c82; Gemini confirmado live por Orca.
 Siguiente accion recibir PHASE_READY_FOR_AUDIT con nuevo SHA y auditar antes de solver propio fase2.
 SVI congelado 3d81ff1, auditoria R3 externa en PR#3.
 Enunciado original no encontrado, mapeo secundario46-56 identificado.

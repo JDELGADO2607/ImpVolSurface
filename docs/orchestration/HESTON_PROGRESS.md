@@ -7,3 +7,4 @@ Ajuste y holdouts reproducidos favorables, viabilidad del PoC pendiente del gate
 [Informe](../audits/HESTON_PHASE_1_d6a369c.md).
 Siguiente accion recibir reparacion, auditar nuevo SHA. Fase2 no autorizada.
 Run run_0891738e9cf5. Cuota restante no expuesta.
+Reparacion1 asignada a Gemini: dispatch ctx_832d10838ae2, task task_28a87a828c82; estado Orca in_progress/live.
