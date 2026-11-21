@@ -4,7 +4,7 @@ Estados permitidos NOT_STARTED, IN_PROGRESS, READY_FOR_AUDIT, APPROVED, REJECTED
 
 | Fase | Entregable | Dependencia | Estado | Reparaciones |
 | --- | --- | --- | --- | --- |
-| CONTEXT_SETUP | Contexto publicado y accesible a ambos agentes | Ninguna | IN_PROGRESS | 0 |
+| CONTEXT_SETUP | Contexto publicado y accesible a ambos agentes | Ninguna | APPROVED | 0 |
 | 0 | Congelación, datos, tasas, dependencias y baseline | Ninguna | NOT_STARTED | 0 |
 | 1 | PoC QuantLib con puts americanas, multistart y holdout | 0 | NOT_STARTED | 0 |
 | 2 | Solver propio 2D, ADI y obstáculo | 1 | NOT_STARTED | 0 |
