@@ -83,3 +83,21 @@ def test_fd_grid_convergence():
     # Price difference between medium and fine is well under 1/10th of a cent ($0.001)
     assert diff_med_fine < 0.001
     assert diff_coarse_med < 0.001
+
+@pytest.mark.parametrize("dS", [0.005, 0.01, 0.02, 0.05])
+def test_american_put_gamma_stability_sweep(dS):
+    """
+    Verifies that American put Gamma is stable across bump sizes without numerical blowup.
+    """
+    from src.greeks import calculate_option_greeks
+    S0 = 12.33
+    K = 12.0
+    tau = 31.0 / 365.0
+    r = 0.043
+    sigma = 0.452
+
+    g = calculate_option_greeks('P', S0, K, tau, r, sigma, is_american=True, dS=dS)
+    gamma = g['gamma']
+    # Must be close to ~0.237 and strictly within [0.20, 0.28]
+    assert 0.20 <= gamma <= 0.28, f"Gamma unstable for dS={dS}: {gamma}"
+
