@@ -1,0 +1,4 @@
+Model,OOS MAE (pp),OOS RMSE (pp),QLIKE Loss
+Rolling 21d Hist,11.82,14.12,0.2512
+EWMA (lambda=0.94),11.08,13.5,0.2099
+HAR-RV (Corsi),12.6,14.85,0.1813

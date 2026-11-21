@@ -1,0 +1,26 @@
+scenario_id,scenario_name,contractSymbol,kind,strike,quantity,S0,S1,tau0_days,tau1_days,iv0_pct,iv1_pct,p0,p1,leg_pnl_full,leg_pnl_taylor,discrepancy
+S1_RollDown_10d,1. Pure Roll-Down (Time Decay),NU261218C00012000,C,12.0,5,12.33,12.33,31.0,21.0,45.27,45.42,0.86,0.7261,-66.94,-52.84,-14.1
+S1_RollDown_10d,1. Pure Roll-Down (Time Decay),NU261218C00014000,C,14.0,-5,12.33,12.33,31.0,21.0,45.12,47.37,0.15,0.1028,23.6,25.55,-1.96
+S1_RollDown_10d,1. Pure Roll-Down (Time Decay),NU261218P00012000,P,12.0,3,12.33,12.33,31.0,21.0,45.27,45.42,0.47,0.368,-30.61,-27.95,-2.66
+S1_RollDown_10d,1. Pure Roll-Down (Time Decay),NU270115C00013000,C,13.0,4,12.33,12.33,59.0,49.0,42.12,43.75,0.6,0.5432,-22.71,-17.25,-5.46
+S1_RollDown_10d,1. Pure Roll-Down (Time Decay),NU270115P00011000,P,11.0,-4,12.33,12.33,59.0,49.0,44.39,44.16,0.3,0.2508,19.66,22.33,-2.66
+S2_Parallel_Drop,2. Parallel Drop & Vol Spike,NU261218C00012000,C,12.0,5,12.33,11.097,31.0,26.0,45.27,56.01,0.86,0.3381,-260.93,-234.91,-26.01
+S2_Parallel_Drop,2. Parallel Drop & Vol Spike,NU261218C00014000,C,14.0,-5,12.33,11.097,31.0,26.0,45.12,60.0,0.15,0.0678,41.1,44.69,-3.59
+S2_Parallel_Drop,2. Parallel Drop & Vol Spike,NU261218P00012000,P,12.0,3,12.33,11.097,31.0,26.0,45.27,56.01,0.47,1.2101,222.02,942.46,-720.43
+S2_Parallel_Drop,2. Parallel Drop & Vol Spike,NU270115C00013000,C,13.0,4,12.33,11.097,59.0,54.0,42.12,53.61,0.6,0.3302,-107.93,-96.51,-11.42
+S2_Parallel_Drop,2. Parallel Drop & Vol Spike,NU270115P00011000,P,11.0,-4,12.33,11.097,59.0,54.0,44.39,52.93,0.3,0.8167,-206.68,-166.22,-40.45
+S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,NU261218C00012000,C,12.0,5,12.33,9.864,31.0,26.0,45.27,72.69,0.86,0.1766,-341.7,-193.08,-148.62
+S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,NU261218C00014000,C,14.0,-5,12.33,9.864,31.0,26.0,45.12,80.6,0.15,0.0565,46.76,30.57,16.19
+S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,NU261218P00012000,P,12.0,3,12.33,9.864,31.0,26.0,45.27,72.69,0.47,2.2855,544.65,3472.18,-2927.53
+S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,NU270115C00013000,C,13.0,4,12.33,9.864,59.0,54.0,42.12,69.5,0.6,0.2457,-141.74,-78.76,-62.98
+S3_Severe_Crisis,3. Severe Crisis & Skew Steepening,NU270115P00011000,P,11.0,-4,12.33,9.864,59.0,54.0,44.39,63.2,0.3,1.6361,-534.46,-404.35,-130.11
+S4_Bullish_Rally,4. Bullish Rally & Vol Crush,NU261218C00012000,C,12.0,5,12.33,14.179,31.0,28.0,45.27,35.52,0.86,2.239,689.48,701.32,-11.84
+S4_Bullish_Rally,4. Bullish Rally & Vol Crush,NU261218C00014000,C,14.0,-5,12.33,14.179,31.0,28.0,45.12,33.24,0.15,0.6359,-242.93,-191.27,-51.66
+S4_Bullish_Rally,4. Bullish Rally & Vol Crush,NU261218P00012000,P,12.0,3,12.33,14.179,31.0,28.0,45.27,35.52,0.47,0.0222,-134.33,1467.94,-1602.27
+S4_Bullish_Rally,4. Bullish Rally & Vol Crush,NU270115C00013000,C,13.0,4,12.33,14.179,59.0,56.0,42.12,31.79,0.6,1.4848,353.9,329.4,24.5
+S4_Bullish_Rally,4. Bullish Rally & Vol Crush,NU270115P00011000,P,11.0,-4,12.33,14.179,59.0,56.0,44.39,34.41,0.3,0.0172,113.1,185.81,-72.7
+S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,NU261218C00012000,C,12.0,5,12.33,11.713,31.0,29.0,45.27,58.42,0.86,0.6592,-100.4,-82.23,-18.17
+S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,NU261218C00014000,C,14.0,-5,12.33,11.713,31.0,29.0,45.12,62.6,0.15,0.1903,-20.16,-17.09,-3.08
+S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,NU261218P00012000,P,12.0,3,12.33,11.713,31.0,29.0,45.27,58.42,0.47,0.909,131.69,314.33,-182.64
+S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,NU270115C00013000,C,13.0,4,12.33,11.713,59.0,57.0,42.12,54.45,0.6,0.5608,-15.68,-10.05,-5.63
+S5_Short_Tenor_Inversion,5. Short-Tenor Inversion Shock,NU270115P00011000,P,11.0,-4,12.33,11.713,59.0,57.0,44.39,55.58,0.3,0.6487,-139.48,-129.91,-9.57

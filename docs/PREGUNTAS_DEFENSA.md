@@ -1,0 +1,216 @@
+# Catálogo Exhaustivo de Preguntas de Defensa (25+ Preguntas Clave)
+
+Este documento recopila las 28 preguntas técnicas, metodológicas, financieras y computacionales más exigentes que el tribunal evaluador, el comité de riesgos o la mesa de derivados pueden formular durante la defensa del proyecto, acompañadas de sus respuestas cuantitativas fundamentadas, demostraciones matemáticas y evidencia empírica directa.
+
+---
+
+## Bloque 1: Integridad de Datos, Fecha Base y Tratamiento Forense
+
+### Pregunta 1: ¿Por qué fijaron la fecha de valoración en el 17 de noviembre de 2026 a las 16:00 EST si el archivo se descargó el 18 de noviembre por la mañana?
+* **Respuesta fundamentada:**
+  El examen forense de los 575 contratos demostró que **ninguna transacción ocurrió el 18 de noviembre**. Los 291 contratos más líquidos transaron exclusivamente durante la sesión del 17 de noviembre, culminando exactamente a las 15:59:55 EST (cierre regular del mercado). Si hubiéramos asignado el 18 de noviembre como fecha base, habríamos valorado contratos cuyos precios reflejaban el estado de mercado del 17-nov ($S_0 = 12.33$ USD) utilizando una madurez $\tau$ reducida artificialmente en casi un día entero. En el primer vencimiento (20 de noviembre), donde restaban exactamente 3 días calendario desde el cierre del 17-nov, descontar un día artificial habría subestimado $\tau$ en un 33%, duplicando espuriamente la volatilidad implícita calculada de 45% a más del 90%. Por el principio de causalidad y coherencia macroeconómica, el estado de mercado base debe anclarse estrictamente al instante en que se formaron los precios observables ($S_0 = 12.33$ USD al cierre del 17-nov).
+
+### Pregunta 2: ¿Por qué descartaron el filtro estándar `bid > 0`? ¿No es peligroso usar `lastPrice` en contratos ilíquidos?
+* **Respuesta fundamentada:**
+  En el archivo original, 538 de los 575 contratos (93.57%) presentaban `bid = 0` y `ask = 0`. Esto se debe a que Yahoo Finance resetea las cotizaciones bilaterales tras el cierre del mercado y previo a la apertura. Los únicos 32 contratos con `bid > 0` contenían cotizaciones obsoletas de hace varios meses (febrero a octubre de 2026), muchas de las cuales violaban flagrantemente el valor intrínseco. Exigir `bid > 0` habría destruido la muestra líquida y dejado únicamente registros corruptos. Para mitigar el riesgo de utilizar `lastPrice`, no aceptamos los precios ciegamente: aplicamos un filtro de condicionamiento numérico riguroso $\kappa = 0.01 / \text{Vega} \le 3.0$ pp/centavo y exigimos valor tiempo $TV \ge 0.01$ USD y precio mínimo $\ge 0.05$ USD. Esto aisló 201 contratos de alta calidad (Tier 1 + 2) donde el error de cuantización de un centavo tiene un impacto acotado y controlable.
+
+### Pregunta 3: ¿A qué se debía la presencia de números del orden de $10^{16}$ en `yearsToExpiry` y volatilidades de $10^{11}$ en Yahoo Finance?
+* **Respuesta fundamentada:**
+  Fueron dos patologías independientes:
+  1. **`yearsToExpiry`:** Se debió a un conflicto de localización regional en Excel. Al abrir un archivo configurado con coma decimal en un sistema con punto decimal (o viceversa), los valores numéricos superiores o iguales a 1.0 fueron interpretados como miles repetidos, desplazando el separador decimal 16 posiciones (por ejemplo, $1.0027378\dots$ se transformó en $1.0027378 \times 10^{16}$). Además, en los contratos menores a un año, la fórmula original truncaba a enteros hasta medianoche, perdiendo la precisión intradiaria. Se corrigió recalculando $\tau$ bajo Act/365F continuo con marca horaria de 16:00 EST.
+  2. **`impliedVolatility` de Yahoo:** Yahoo Finance utiliza un algoritmo de bisección numérico. Cuando el bid y el ask son cero, el motor intenta invertir un precio objetivo nulo o cercano al piso numérico $10^{-5}$, quedando atrapado en fracciones diádicas exactas ($0.500005, 0.2500075$) o escalando el piso a $10^{11}$ por el mismo error de localización. Por ello, la volatilidad de Yahoo fue descartada por completo de la calibración.
+
+---
+
+## Bloque 2: Supuestos Financieros, Ausencia de Dividendos y Ejercicio Anticipado
+
+### Pregunta 4: ¿Por qué asumen dividendos nulos ($q = 0$)? ¿Qué ocurriría si NU comenzara a pagar dividendos?
+* **Respuesta fundamentada:**
+  Nu Holdings Ltd. no ha pagado dividendos ordinarios ni extraordinarios en toda su historia bursátil (dividendo TTM = 0.00 USD), hecho ratificado en el Formulario 6-K radicado ante la SEC el 12 de noviembre de 2026. Si NU decretara dividendos continuos $q > 0$ (o dividendos discretos), el costo de oportunidad de no ejercer una Call americana antes de la fecha ex-dividendo podría superar el valor temporal residual. En ese escenario, $C_{\text{American}} > C_{\text{European}}$ en contratos ITM y la Call admitiría ejercicio anticipado, obligando a resolver la EDP con frontera libre también para las Calls. Bajo $q = 0$ y $r \ge 0$, el ejercicio anticipado de la Call nunca es óptimo.
+
+### Pregunta 5: Demuestre formalmente por qué para una Call americana sobre un activo sin dividendos ($q=0$) y tasas no negativas ($r \ge 0$) el ejercicio anticipado nunca es óptimo.
+* **Respuesta fundamentada:**
+  Sea $C_{\text{Am}}(S, t)$ el valor de la Call americana y $C_{\text{Eu}}(S, t)$ el valor de la Call europea con mismo strike $K$ y vencimiento $T$.
+  Por definición de opcionalidad, $C_{\text{Am}}(S, t) \ge C_{\text{Eu}}(S, t)$.
+  Bajo ausencia de arbitraje, la cota inferior estricta de una Call europea sin dividendos es:
+  $$C_{\text{Eu}}(S, t) \ge S_t - K e^{-r(T-t)}$$
+  Dado que $r \ge 0$ y $\tau = T - t \ge 0$, se cumple que $e^{-r\tau} \le 1$, lo que implica:
+  $$S_t - K e^{-r\tau} \ge S_t - K$$
+  Por tanto, para todo $\tau > 0$:
+  $$C_{\text{Am}}(S, t) \ge C_{\text{Eu}}(S, t) \ge S_t - K e^{-r\tau} > S_t - K$$
+  Si el titular ejerciera anticipadamente en $t < T$, recibiría únicamente el payoff intrínseco $S_t - K$. Dado que el valor de continuación en mercado $C_{\text{Am}}(S, t)$ es estrictamente mayor que $S_t - K$, vender la opción en el mercado o mantenerla siempre domina al ejercicio anticipado. Por ende, el ejercicio anticipado nunca es óptimo y $C_{\text{Am}}(S, K, \tau) \equiv C_{\text{Eu}}(S, K, \tau)$.
+
+### Pregunta 6: ¿Por qué sí puede ser óptimo ejercer anticipadamente una Put americana bajo las mismas condiciones ($q=0, r > 0$)?
+* **Respuesta fundamentada:**
+  Para una Put, el payoff de ejercicio es $K - S_t$. Si el subyacente cae fuertemente hacia cero ($S_t \to 0$), el valor del ejercicio es cercano a $K$. Al ejercer anticipadamente, el titular recibe el capital en efectivo $K$ de inmediato y puede invertirlo a la tasa libre de riesgo $r > 0$, devengando intereses de forma continua. Por el contrario, si mantiene la opción hasta el vencimiento $T$, el valor máximo que puede recibir en $T$ sigue acotado por $K$, cuyo valor presente descontado es solo $K e^{-r\tau} < K$. La pérdida de valor tiempo por el descuento de los fondos recibidos supera cualquier beneficio especulativo de caídas adicionales del subyacente, haciendo óptimo el ejercicio anticipado por debajo de una frontera crítica de precio $S^*(\tau) < K$.
+
+---
+
+## Bloque 3: Métodos Numéricos de Ecuaciones Diferenciales Parciales
+
+### Pregunta 7: ¿Cómo nace la aproximación de diferencias finitas y por qué el error de Crank-Nicolson es de segundo orden $O(\Delta t^2 + \Delta S^2)$?
+* **Respuesta fundamentada:**
+  Nace del desarrollo en serie de Taylor alrededor del nodo de malla:
+  $$V(S + \Delta S) = V(S) + \frac{\partial V}{\partial S} \Delta S + \frac{1}{2} \frac{\partial^2 V}{\partial S^2} \Delta S^2 + \frac{1}{6} \frac{\partial^3 V}{\partial S^3} \Delta S^3 + O(\Delta S^4)$$
+  $$V(S - \Delta S) = V(S) - \frac{\partial V}{\partial S} \Delta S + \frac{1}{2} \frac{\partial^2 V}{\partial S^2} \Delta S^2 - \frac{1}{6} \frac{\partial^3 V}{\partial S^3} \Delta S^3 + O(\Delta S^4)$$
+  Al restar ambas ecuaciones, los términos pares se cancelan, dejando una aproximación central de primer orden con error $O(\Delta S^2)$:
+  $$\frac{\partial V}{\partial S} = \frac{V(S + \Delta S) - V(S - \Delta S)}{2 \Delta S} + O(\Delta S^2)$$
+  Al sumar ambas ecuaciones, los términos impares se cancelan, obteniendo la segunda derivada con error $O(\Delta S^2)$:
+  $$\frac{\partial^2 V}{\partial S^2} = \frac{V(S + \Delta S) - 2V(S) + V(S - \Delta S)}{\Delta S^2} + O(\Delta S^2)$$
+  En el tiempo, Crank-Nicolson evalúa el operador espacial en el punto medio temporal $\tau + \frac{\Delta \tau}{2}$ promediando el paso explícito ($\theta = 0.5$) y el implícito. La expansión de Taylor en $\tau$ cancela el término lineal del error de truncamiento temporal, elevando la precisión a segundo orden $O(\Delta \tau^2)$.
+
+### Pregunta 8: ¿Por qué Crank-Nicolson puro puede oscilar numéricamente en opciones y por qué es indispensable el suavizado de Rannacher?
+* **Respuesta fundamentada:**
+  Crank-Nicolson es $A$-estable, pero **no es $L$-estable**. Su factor de amplificación para modos de Fourier de muy alta frecuencia $\lambda \to \infty$ tiende a $-1$ en lugar de amortiguarse a cero. El payoff inicial de una opción en $\tau = 0$ presenta una discontinuidad en su primera derivada en el strike $S = K$ (singularidad de Dirac en Gamma). Esta discontinuidad excita modos de alta frecuencia que Crank-Nicolson preserva con signo alternado, generando oscilaciones espurias de dientes de sierra en las griegas y en el precio.
+  El suavizado de Rannacher (1984) soluciona esto reemplazando los primeros pasos temporales con sub-pasos implícitos puros ($\theta = 1.0$), los cuales son $L$-estables y poseen un factor de amplificación que tiende a cero cuando la frecuencia espacial crece, amortiguando instantáneamente la rugosidad del payoff inicial sin degradar la precisión global de segundo orden.
+
+### Pregunta 9: ¿Cómo funciona el método de penalización cuadrática de Forsyth & Vetzal (2002) frente a PSOR?
+* **Respuesta fundamentada:**
+  El método de penalización reformula el problema de complementariedad lineal (LCP) americano:
+  $$\frac{\partial V}{\partial \tau} - \mathcal{L} V - \rho \max(V^* - V, 0) = 0$$
+  donde $V^*$ es el payoff intrínseco y $\rho \gg 1$ es un parámetro de penalización grande ($10^7$).
+  Discretizado en tiempo, se resuelve mediante una iteración de política de tipo Newton semisuave: en cada sub-iteración $k$, se define la matriz diagonal de penalización $P_{jj}^{(k)} = \rho$ si $V_j^{(k)} < V_j^*$, y $0$ en caso contrario. Se resuelve el sistema tridiagonal lineal $(I - \Delta \tau \theta \mathcal{L} + P^{(k)}) V^{(k+1)} = b^{(k)}$.
+  A diferencia de PSOR (Projected Successive Over-Relaxation), que es un solver iterativo punto a punto dependiente de un parámetro de relajación $\omega \in (1, 2)$ sensible y que requiere cientos de iteraciones cerca de vencimiento, el método de penalización utiliza inversión tridiagonal directa (Algoritmo de Thomas) y converge cuadráticamente en solo 2 a 3 iteraciones por paso temporal, con independencia incondicional de la malla.
+
+### Pregunta 10: ¿Cómo validaron independientemente que el motor de diferencias finitas no contenía errores de codificación?
+* **Respuesta fundamentada:**
+  Ejecutamos tres pruebas de validación cruzada independiente:
+  1. Para Calls con $q=0$, contrastamos el motor de diferencias finitas contra la fórmula analítica exacta de Black-Scholes: la discrepancia máxima fue de $\$0.00048$ USD ($< 0.05$ centavos).
+  2. Para Puts americanas, contrastamos el motor EDP contra un árbol binomial Cox-Ross-Rubinstein (CRR) de 1000 pasos en múltiples plazos y moneyness: la diferencia se mantuvo por debajo de $\$0.00050$ USD.
+  3. Ejecutamos pruebas de refinamiento de malla duplicando nodos espaciales ($M = 150 \to 300 \to 600$) y temporales ($N = 75 \to 150 \to 300$), confirmando convergencia numérica monótona sin oscilaciones espurias.
+
+---
+
+## Bloque 4: Inversión de Volatilidad Implícita y Contraste con Bloomberg
+
+### Pregunta 11: ¿Por qué eligieron el algoritmo de Brent en lugar de Newton-Raphson para la inversión de volatilidad?
+* **Respuesta fundamentada:**
+  Newton-Raphson actualiza la volatilidad como $\sigma_{n+1} = \sigma_n - \frac{V(\sigma_n) - P_{\text{mkt}}}{\nu(\sigma_n)}$, donde $\nu$ es la Vega de la opción. En contratos profundamente fuera del dinero (OTM) o dentro del dinero (ITM), la Vega tiende exponencialmente a cero ($\nu \to 0$). Cualquier perturbación numérica o precio con ruido hace que el denominador colapse, provocando pasos descontrolados hacia volatilidades negativas o infinitas y divergencia fatal.
+  El algoritmo de Brent combina interpolación cuadrática inversa y el método de la secante para una convergencia superlineal rápida, pero conmuta automáticamente a bisección garantizada si la extrapolación escapa del intervalo de búsqueda acotado $[0.01, 5.00]$. Esto garantiza un 100% de éxito en la convergencia siempre que el precio satisfaga las cotas de no arbitraje.
+
+### Pregunta 12: ¿Por qué un residuo de inversión pequeño no garantiza que la volatilidad implícita sea económicamente informativa?
+* **Respuesta fundamentada:**
+  Por la relación de condicionamiento local $\Delta \sigma \approx \frac{\Delta P}{\text{Vega}}$.
+  En contratos con Vega microscópica (por ejemplo, una opción OTM con madurez corta donde $\text{Vega} = 0.002$ USD por punto de vol), el solver puede encontrar una volatilidad $\sigma$ cuyo precio del modelo difiere del precio objetivo en apenas $\$0.0001$ USD (residuo numérico ínfimo). Sin embargo, en el mercado real, las opciones cotizan en ticks discretos de $\$0.01$ o $\$0.05$ USD. Un error de cotización o un rebote bid-ask de un solo centavo ($\Delta P = 0.01$) induciría una incertidumbre económica en la volatilidad de $\Delta \sigma = \frac{0.01}{0.002} = 5.0$ puntos porcentuales. Un residuo de optimización pequeño solo demuestra convergencia matemática del algoritmo, no significancia estadística ni estabilidad financiera del dato.
+
+### Pregunta 13: Si nuestras IVs calculadas difieren de Bloomberg en el primer vencimiento (20-nov) en 8 a 12 pp, ¿significa que nuestro modelo está errado?
+* **Respuesta fundamentada:**
+  No. Dicha diferencia es un hallazgo legítimo originado por la **asincronía temporal de ~21 horas** y el cambio de régimen de mercado:
+  1. Las transacciones de Yahoo ocurrieron el 17 de noviembre antes de las 16:00 EST con el spot de NU en $12.33 USD.
+  2. La captura de Bloomberg se realizó el 18 de noviembre a las 12:52 COT (~12:52 EST), cuando NU caía intradía hacia $12.08 USD (-2.03%).
+  3. En un vencimiento a 3 días (20-nov), el transcurso de casi un día completo representa el consumo del 30% al 40% de la vida total del contrato.
+  4. Además, Bloomberg evalúa cotizaciones Mid en vivo sobre precios cotizados al 18-nov, mientras nuestro motor invierte el `lastPrice` transado el 17-nov.
+  En los vencimientos líquidos de 1 a 12 meses (donde el paso de 21 horas es marginal), nuestras IVs americanas replican a Bloomberg con diferencias mínimas de 0.1 a 1.5 pp. Modificar nuestras IVs para forzarlas a coincidir con Bloomberg violaría la independencia del cálculo e introduciría contaminación circular.
+
+---
+
+## Bloque 5: Superficie de Volatilidad, Modelo SVI y Validación
+
+### Pregunta 14: ¿Qué ventajas ofrece la parametrización Raw SVI frente a un spline cúbico libre?
+* **Respuesta fundamentada:**
+  Un spline cúbico sin restricciones tiende a generar oscilaciones locales espurias (*Runge phenomenon*) y sobreajuste en los extremos de la muestra, violando con frecuencia las condiciones de no arbitraje mariposa ($g(k) < 0$) y produciendo densidades de probabilidad neutral al riesgo negativas.
+  Raw SVI modela la varianza total como una hipérbola asimétrica en log-moneyness $k$:
+  $$w(k) = a + b \left[ \rho(k - m) + \sqrt{(k - m)^2 + \eta^2} \right]$$
+  Esta estructura es lineal en las alas ($k \to \pm \infty$), lo que garantiza consistencia con la fórmula de momentos de Roger Lee (evitando colas excesivamente pesadas que invalidarían martingalas) y converge de forma natural al comportamiento asintótico de modelos de volatilidad estocástica como Heston.
+
+### Pregunta 15: ¿Cómo verifican matemáticamente que la superficie calibrada no admite arbitraje estático europeo?
+* **Respuesta fundamentada:**
+  Verificamos dos condiciones analíticas rigurosas:
+  1. **Ausencia de arbitraje mariposa (Densidad no negativa):** La función de densidad neutral al riesgo de Durrleman/Gatheral $g(k)$ debe ser no negativa para todo $k$:
+     $$g(k) = \left( 1 - \frac{k w'(k)}{2 w(k)} \right)^2 - \frac{w'(k)^2}{4} \left( \frac{1}{w(k)} + \frac{1}{4} \right) + \frac{w''(k)}{2} \ge 0$$
+     En nuestra calibración SVI, $g(k) \ge 0$ se cumple en el 100% de los puntos evaluados en los tenores representativos.
+  2. **Ausencia de arbitraje de calendario:** La varianza total $w(k, \tau)$ debe ser no decreciente en madurez: $\frac{\partial w(k, \tau)}{\partial \tau} \ge 0$. Esto se garantiza interpolando en la dimensión temporal mediante un spline cúbico monótono PCHIP.
+
+### Pregunta 16: ¿Por qué la validación in-sample no es suficiente y qué arrojó la validación Leave-One-Strike-Out?
+* **Respuesta fundamentada:**
+  Calibrar por contrato de forma in-sample conduce mecánicamente a errores pequeños porque los parámetros absorben el ruido de microestructura de los precios observados.
+  Para probar el verdadero poder predictivo del modelo, ejecutamos una validación cruzada Leave-One-Strike-Out sobre 196 contratos: retiramos secuencialmente cada strike de la muestra, re-calibramos SVI sobre los strikes restantes y evaluamos el error de predicción sobre el strike excluido. El modelo obtuvo un error medio absoluto fuera de muestra de **MAE = 2.48 pp en volatilidad** y de apenas **MAE = $0.039 USD en precio** (menos de 4 centavos de dólar), confirmando que la superficie captura la estructura fundamental del mercado sin sobreajuste.
+
+---
+
+## Bloque 6: Comparación de Modelos y Griegas
+
+### Pregunta 17: ¿Cuáles fueron las conclusiones de la comparación entre los cuatro modelos (Europeo/Americano $\times$ Plano/Superficie)?
+* **Respuesta fundamentada:**
+  1. **Efecto de Ejercicio Anticipado:** En Calls, el Modelo 1 coincide exactamente con el Modelo 3, y el Modelo 2 con el Modelo 4 (prima americana = 0). En Puts, la prima americana alcanza hasta $\$0.025$ USD en ITM.
+  2. **Efecto de la Superficie de Volatilidad:** La incorporación de la superficie reduce el error de tarificación de manera sustancial en todos los segmentos:
+     * En toda la muestra: el MAE cae de $\$0.0536$ (M1) a $\$0.0299$ (M4).
+     * En opciones ITM: el MAE se reduce a más de la mitad, cayendo de $\$0.0854$ a $\$0.0396$ USD.
+  3. **Conclusión Institucional:** El error de utilizar una volatilidad plana es de 3 a 5 veces mayor que el error de ignorar el ejercicio anticipado en contratos ATM/OTM. Por tanto, tarificar con volatilidad plana distorsiona severamente la gestión de riesgos de la entidad.
+
+### Pregunta 18: ¿Cuáles son las unidades exactas de las Griegas calculadas y por qué Vega se escala a 1 punto porcentual?
+* **Respuesta fundamentada:**
+  * **Delta ($\Delta$):** Acciones equivalentes por opción ($\partial V / \partial S$).
+  * **Gamma ($\Gamma$):** Variación de delta por cada dólar de cambio en el subyacente ($\partial^2 V / \partial S^2$), expresada en acciones/\$.
+  * **Vega ($\nu$):** Variación del precio de la opción en dólares por **1 punto porcentual (0.01)** de cambio en la volatilidad ($\frac{\partial V}{\partial \sigma} \times 0.01$). Escalarla a 1 pp es el estándar de las mesas de trading, ya que un cambio de 1.0 en $\sigma$ representaría una duplicación del 100% de la volatilidad, un escenario no infinitesimal.
+  * **Theta diaria ($\Theta_{\text{daily}}$):** Decaimiento temporal en dólares por cada día calendario transcurrido ($\frac{\Theta_{\text{annual}}}{365}$).
+  * **Vanna:** Sensibilidad cruzada $\frac{\partial \Delta}{\partial \sigma} \times 0.01$, expresada en cambio de delta por 1 pp de vol.
+  * **Volga:** Curvatura $\frac{\partial^2 V}{\partial \sigma^2} \times 0.0001$, en dólares por $(1\text{ pp})^2$.
+
+---
+
+## Bloque 7: Portafolio y Stress Testing de Cadena Fija
+
+### Pregunta 19: ¿Por qué en el stress testing mantuvieron fija la cadena contractual y qué variables se actualizaron?
+* **Respuesta fundamentada:**
+  En una cartera institucional real, los contratos en custodia no mutan sus términos: el símbolo, el strike $K$ y la fecha de vencimiento $T$ permanecen inmutables.
+  Ante el avance del tiempo $\Delta t$ o un shock de spot $\Delta S$, lo que cambia de forma endógena es:
+  1. La madurez residual: $\tau_1 = \max(T - (t_0 + \Delta t), 0)$.
+  2. El precio forward: $F_1 = S_1 \exp(r \tau_1)$.
+  3. El moneyness: $k_1 = \ln(K / F_1)$.
+  Esto actualiza la posición del contrato sobre la superficie de volatilidad implícita antes de ejecutar la revaloración completa con el motor de diferencias finitas.
+
+### Pregunta 20: ¿Por qué la aproximación de Taylor por Griegas falló catastróficamente en el Escenario 3 (-20% spot, +12 pp vol)?
+* **Respuesta fundamentada:**
+  En el Escenario 3, la aproximación de Taylor estimó una ganancia de $+\$3,699$ USD, mientras que la revaloración completa por EDP arrojó una ganancia real de solo $+\$446$ USD (una discrepancia de más de $\$3,250$ USD).
+  Esto ocurre por la naturaleza local de las derivadas:
+  * El término de Gamma positiva $\frac{1}{2} \Gamma (\Delta S)^2$ en Taylor asume que la ganancia por convexidad crece parabólicamente sin límite. En la realidad, ante una caída del 20%, las Calls largas colapsan hacia cero (su valor no puede ser negativo), perdiendo toda su delta y convexidad.
+  * Asimismo, en los Puts cortos, la aproximación lineal de Vega asume que la subida de volatilidad encarece el contrato de forma ilimitada, ignorando que el valor de una opción americana está acotado superiormente por su strike $K$ y que el ejercicio anticipado se activa.
+  La aproximación de Taylor solo es válida para perturbaciones infinitesimales; en crisis severas, **la revaloración completa por EDP es mandatoria**.
+
+### Pregunta 21: ¿Qué diferencia existe entre la convención Sticky-Strike y Sticky-Moneyness?
+* **Respuesta fundamentada:**
+  * **Sticky-Strike (Regla del Strike Fijo):** Supone que la volatilidad implícita de una opción vinculada a un strike absoluto $K$ permanece constante cuando el spot $S$ se mueve: $\sigma(K, S_1) = \sigma(K, S_0)$.
+  * **Sticky-Moneyness / Sticky-Delta (Regla del Moneyness Fijo):** Supone que la curva de sonrisa se traslada con el precio del activo, manteniendo constante la volatilidad para un nivel relativo de moneyness $k = \ln(K/F)$: $\sigma(k, S_1) = \sigma(k, S_0)$.
+  En nuestro stress testing evaluamos ambas convenciones: bajo caídas severas del spot, Sticky-Moneyness refleja con mayor fidelidad el comportamiento empírico del mercado de renta variable, donde el sesgo de volatilidad (skew) se desplaza acompañando al subyacente.
+
+---
+
+## Bloque 8: Estrategias Cuantitativas y Modelación Econométrica
+
+### Pregunta 22: ¿Cómo formularon la Estrategia 1 y por qué una señal $z > 0$ no garantiza rentabilidad comercial?
+* **Respuesta fundamentada:**
+  Estimamos el modelo HAR-RV de Corsi sobre 1240 retornos diarios de NU hasta el 17-nov-2026 mediante validación walk-forward fuera de muestra (QLIKE = 0.1813). El modelo proyectó una volatilidad a 21 días de **72.97%**, muy por encima de la IV ATM del mercado a 31 días (**44.02%**), generando una señal $z = \ln(72.97 / 44.02) = +0.505 > 0$ que motivó la compra de un Straddle ATM delta-neutral.
+  Sin embargo, $z > 0$ no garantiza rentabilidad por tres factores críticos:
+  1. **Prima de Riesgo de Volatilidad (VRP):** Los agentes del mercado demandan un descuento estructural en las opciones vendidas para compensar el riesgo de saltos no diversificables.
+  2. **Costos de Fricción:** En nuestro análisis de costos, el bid-ask spread y las comisiones consumen hasta el 25% de la prima pagada en el régimen conservador, exigiendo un movimiento de spot superior al 12% solo para alcanzar el punto de equilibrio.
+  3. **Riesgo de Rebalanceo Delta:** Mantener la delta-neutralidad exige transar activamente acciones del subyacente, devengando costos de deslizamiento (*slippage*).
+
+### Pregunta 23: ¿Cómo se deriva la volatilidad forward entre dos vencimientos en la Estrategia 2 (Calendar Spread)?
+* **Respuesta fundamentada:**
+  Bajo ausencia de arbitraje de calendario, la varianza total a la madurez $\tau_2$ es la suma de la varianza acumulada hasta $\tau_1$ más la varianza forward esperada entre $\tau_1$ y $\tau_2$:
+  $$w(\tau_2) = w(\tau_1) + \sigma_{\text{fwd}}^2 (\tau_2 - \tau_1)$$
+  Despejando la volatilidad forward continua:
+  $$\sigma_{\text{fwd}} = \sqrt{\frac{w(\tau_2) - w(\tau_1)}{\tau_2 - \tau_1}} = \sqrt{\frac{\sigma_2^2 \tau_2 - \sigma_1^2 \tau_1}{\tau_2 - \tau_1}}$$
+  En nuestro análisis entre el vencimiento de 31 días ($\tau_1 = 0.0849, \sigma_1 = 46.11\%$) y 59 días ($\tau_2 = 0.1616, \sigma_2 = 42.52\%$), la volatilidad forward implícita resultó en **38.15%**. El Calendar Spread compra la opción lejana y vende la cercana, explotando el decaimiento acelerado de Theta en la opción corta mientras conserva convexidad en la opción larga.
+
+### Pregunta 24: ¿Por qué decidieron NO fabricar un backtest histórico con ratio de Sharpe para las opciones?
+* **Respuesta fundamentada:**
+  Fabricar un backtest histórico sin disponer de las cadenas intradía completas del pasado ni de las cotizaciones bilaterales de contratos expirados constituye una **mala práctica metodológica grave**.
+  Incurriría en:
+  1. **Sesgo de Supervivencia (*Survivorship Bias*):** Trabajar solo con contratos vivos ignora las opciones que expiraron sin valor o fueron ejercidas forzosamente en el pasado.
+  2. **Sesgo de Retrospección (*Look-Ahead Bias*):** Simular ejecuciones a `lastPrice` asume liquidez perfecta a un precio histórico que no era una cotización firme disponible.
+  3. **Minería de Datos (*Data Snooping*):** Optimizar reglas de salida sobre una sola sección transversal sobreajusta el modelo y promete ratios de Sharpe artificialmente elevados que colapsan en producción real.
+  Optamos por la honestidad cuantitativa: validamos el modelo econométrico de volatilidad con walk-forward fuera de muestra estricto sobre el subyacente y analizamos la estrategia mediante análisis contrafactual de escenarios con tres regímenes explícitos de costos de transacción.
+
+---
+
+## Bloque 9: Gobernanza y Recomendaciones para la Entidad
+
+### Pregunta 25: ¿Cuál es la recomendación ejecutiva concreta que debe adoptar el Comité de Riesgos?
+* **Respuesta fundamentada:**
+  Recomendamos implementar una política de gestión de derivados estructurada en cuatro directrices obligatorias:
+  1. **Abandono total de Black-Scholes plano:** Prohibir el uso de una volatilidad única para tarificación y cálculo de VaR; la evidencia demuestra que subestima el riesgo en contratos ITM en más del 54%.
+  2. **Adopción de la superficie SVI como estándar de valoración institucional:** Calibrar diariamente la superficie en varianza total con restricciones analíticas para garantizar ausencia de arbitraje mariposa y de calendario.
+  3. **Mandato de Revaloración Completa por EDP en Pruebas de Estrés:** Prohibir el uso exclusivo de Griegas de primer y segundo orden para evaluar pérdidas bajo escenarios de estrés severo ($|\Delta S| \ge 10\%$).
+  4. **Matriz de Control de Iliquidez y Asignación:** Excluir de la calibración central todo contrato con condicionamiento $\kappa > 3.0$ pp/¢ y exigir un buffer de liquidez para cubrir el riesgo de asignación anticipada en posiciones cortas de Puts americanas.

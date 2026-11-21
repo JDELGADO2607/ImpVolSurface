@@ -1,0 +1,5 @@
+maturity_bucket,contracts_evaluated,mean_bias_pp,mae_pp,rmse_pp,min_diff_pp,max_diff_pp
+15-90d (Liquid Term),89,-0.91,3.03,6.09,-40.57,9.18
+90-365d (Medium Term),57,0.19,1.48,2.13,-6.93,5.43
+< 15d (Short / Asynchronous),15,2.49,4.77,5.51,-4.6,9.13
+> 365d (LEAPS),38,3.24,3.52,8.24,-2.24,47.34

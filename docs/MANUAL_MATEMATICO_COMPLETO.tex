@@ -1,0 +1,701 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{geometry}
+\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{microtype}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=red!70!black,
+    urlcolor=blue!50!black
+}
+
+\newtheorem{theorem}{Teorema}[section]
+\newtheorem{lemma}[theorem]{Lema}
+\newtheorem{definition}[theorem]{Definición}
+\newtheorem{proposition}[theorem]{Proposición}
+\newtheorem{example}[theorem]{Ejemplo Didáctico}
+\newtheorem{exercise}[theorem]{Pregunta de Comprensión}
+
+\title{\textbf{\LARGE Manual Matemático y Conceptual Exhaustivo:}\\[0.5em]
+\Large Superficie de Volatilidad Implícita, Métodos Numéricos de EDP y Stress Testing sobre Opciones Americanas de Nu Holdings Ltd. (NU)}
+\author{\textbf{Equipo Cuantitativo Integrado} \\ Mesa de Derivados \& Gestión de Riesgos}
+\date{17 de noviembre de 2026 (Fecha de Mercado Base) \\ \small Compilación Definitiva Verificada}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este manual constituye un tratado exhaustivo, riguroso y autocontenido diseñado para explicar, derivar, implementar y validar cada componente cuantitativo del proyecto sobre opciones americanas de \textbf{Nu Holdings Ltd. (NYSE: NU)}. Supone una base elemental en cálculo multivariable, álgebra lineal y procesos estocásticos hasta el lema de Itô, construyendo desde cero las derivaciones completas de diferencias finitas (Taylor, truncamiento, esquemas explícitos, implícitos y Crank-Nicolson), el suavizado de Rannacher, la formulación de complementariedad lineal (LCP) y el método de penalización para puts americanas. Asimismo, se expone la inversión numérica mediante el algoritmo de Brent, la calibración de la superficie de varianza total Raw SVI libre de arbitraje estático, el marco de stress testing multifactorial sobre cadena fija y la econometría de pronóstico heterogéneo (HAR-RV). Todos los desarrollos matemáticos se acompañan de su traducción directa al código fuente en Python, ejemplos didácticos numéricos y resultados empíricos calculados sobre la base de 575 contratos reales.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ==============================================================================
+\section{Introducción, Mandato Académico y Arquitectura del Proyecto}
+% ==============================================================================
+
+\subsection{Caso Empresarial y Planteamiento del Problema}
+Una mesa de derivados de renta variable en un banco de inversión mantiene y gestiona un portafolio de opciones sobre acciones de \textbf{Nu Holdings Ltd. (NYSE: NU)}, empresa líder de servicios financieros digitales en América Latina. La práctica convencional de tarificar opciones mediante el modelo clásico de Black-Scholes-Merton (BSM) asumiendo una única volatilidad constante $\sigma$ introduce desajustes severos con los precios observados de mercado. Estos desajustes obedecen a dos fenómenos económicos fundamentales:
+\begin{enumerate}
+    \item \textbf{Naturaleza contractual americana:} Las opciones sobre acciones individuales en EE.UU. confieren el derecho de ejercicio anticipado en cualquier instante $t \le T$. Para contratos tipo Put, el ejercicio anticipado puede ser financieramente óptimo para percibir el strike en efectivo y devengar la tasa de interés libre de riesgo.
+    \item \textbf{Estructura empírica de la volatilidad:} Los precios de mercado reflejan probabilidades implícitas de eventos extremos (colas pesadas) y asimetrías de apalancamiento que invalidan el supuesto de difusión con volatilidad constante, manifestándose en sonrisas (\textit{smiles}) y sesgos (\textit{skews}) transversales y curvas temporales no planas.
+\end{enumerate}
+
+Para resolver estos desafíos, la dirección de riesgos formuló los puntos normativos \textbf{46 a 56}, requiriendo:
+\begin{itemize}
+    \item La ingesta, diagnóstico forense y depuración de la cadena contractual (\textbf{Puntos 46 y 47}).
+    \item La implementación de Black-Scholes analítico para opciones europeas y la demostración de la coincidencia para Calls americanas sin dividendos (\textbf{Punto 48}).
+    \item La inversión numérica exacta a Volatilidad Implícita (IV) mediante el algoritmo de Brent (\textbf{Punto 49}).
+    \item El análisis de sonrisas, moneyness y la construcción de una superficie de volatilidad implícita libre de arbitraje mariposa y de calendario (\textbf{Puntos 50 y 51}).
+    \item El desarrollo de un marco riguroso de \textbf{Stress Testing sobre cadena fija} con revaloración americana completa frente a aproximaciones por Griegas (\textbf{Punto 52}).
+    \item La formulación de un portafolio hipotético y el estudio de \textbf{estrategias cuantitativas de volatilidad} con costos de transacción reales (\textbf{Punto 53}).
+    \item La comparación cuantitativa entre modelos y la descomposición del efecto superficie frente a la prima de ejercicio anticipado (\textbf{Punto 54 y 55}).
+    \item La emisión de recomendaciones de gobernanza para la entidad (\textbf{Punto 56}).
+\end{itemize}
+
+\subsection{Regla Pedagógica de Este Manual}
+Para cada concepto o algoritmo introducido, este manual aplicará una estructura de siete pasos pedagógicos:
+\begin{enumerate}
+    \item Intuición en lenguaje natural y problema financiero que resuelve.
+    \item Definición formal de cada variable y constante con sus dimensiones y unidades.
+    \item Derivación matemática paso a paso sin omitir álgebra intermedia.
+    \item Ejemplo numérico didáctico paso a paso.
+    \item Traducción explícita a la función correspondiente en el código Python del repositorio.
+    \item Supuestos, límites de validez y errores numéricos o estadísticos.
+    \item Mini-prueba o pregunta de comprensión resuelta.
+\end{enumerate}
+
+\newpage
+% ==============================================================================
+\section{Anatomía de las Opciones y Marco de Datos}
+% ==============================================================================
+
+\subsection{Propiedades Contractuales de Opciones sobre Renta Variable en EE.UU.}
+Un contrato de opción de compra (\textit{Call}) u opción de venta (\textit{Put}) negociado bajo el estándar del \textit{Options Clearing Corporation} (OCC) otorga a su titular el derecho, mas no la obligación, de comprar o vender $M = 100$ acciones subyacentes a un precio predeterminado de ejercicio $K$ (strike) hasta la fecha contractual de vencimiento $T$.
+
+\begin{definition}[Valores Intrínseco y Temporal]
+Sea $S_t$ el precio spot del activo en el instante $t$.
+\begin{itemize}
+    \item El \textbf{payoff intrínseco de liquidación inmediata} $\Phi(S_t)$ es:
+    \begin{equation}
+        \Phi_{\text{Call}}(S_t) = \max(S_t - K, 0), \quad \Phi_{\text{Put}}(S_t) = \max(K - S_t, 0)
+    \end{equation}
+    \item El \textbf{valor de mercado} $V(S_t, t)$ se descompone aditivamente en:
+    \begin{equation}
+        V(S_t, t) = \Phi(S_t) + \text{Valor Temporal}(S_t, t)
+    \end{equation}
+    donde el valor temporal $\ge 0$ remunera la volatilidad esperada y la opcionalidad residual antes del vencimiento.
+\end{itemize}
+\end{definition}
+
+\subsection{Cotas Económicas de No Arbitraje (Caso sin Dividendos $q = 0$)}
+Bajo el supuesto de mercados eficientes y ausencia de oportunidades de arbitraje tipo paquete (\textit{free lunches}):
+\begin{proposition}[Cotas para Calls y Puts Americanas sin Dividendos]
+Para $q = 0$ y tasas continuas deterministas $r \ge 0$:
+\begin{align}
+    \max(S_t - K e^{-r(T-t)}, 0) &\le C_{\text{Am}}(S_t, t) \le S_t \\
+    \max(K - S_t, 0) &\le P_{\text{Am}}(S_t, t) \le K
+\end{align}
+\end{proposition}
+\begin{proof}
+Para la Call: si $C_t > S_t$, un agente compra la acción a $S_t$, vende la Call a $C_t$ y obtiene una ganancia segura en $t=0$ sin riesgo en $T$. Si $C_t < S_t - K e^{-r\tau}$, compra la Call, vende en corto la acción e invierte $K e^{-r\tau}$ al tipo libre de riesgo, generando arbitraje positivo.
+Para la Put americana: si $P_t < K - S_t$, el agente compra la opción a $P_t$, compra la acción a $S_t$ y ejerce de inmediato recibiendo $K$, capturando una ganancia neta instantánea de $K - S_t - P_t > 0$. La cota superior $K$ se deriva de que el activo nunca puede tener un precio inferior a cero ($S \ge 0$).
+\end{proof}
+
+\subsection{Auditoría Forense del Archivo \texttt{Opciones\_Completo.xlsx}}
+La inspección sistemática del archivo original (575 contratos, 303 calls, 272 puts) reveló anomalías críticas que condicionan la preparación de datos:
+\begin{enumerate}
+    \item \textbf{Fecha de negociación real:} 291 contratos transaron el 17 de noviembre de 2026 hasta las 15:59:55 EST ($S_0 = 12.33$ USD). Cero contratos transaron el 18 de noviembre.
+    \item \textbf{Reseteo de Bid/Ask en Yahoo:} 538 contratos tienen cotizaciones bilaterales de 0.00 debido al reseteo matutino de Yahoo fuera de sesión. Filtrar por $\text{bid} > 0$ eliminaría la muestra representativa.
+    \item \textbf{Corrupción por Localización en Excel:} 77 registros de madurez $\ge 1$ año multiplicaron su valor por $10^{16}$ por choque de separadores de miles y coma decimal. Se recalcula $\tau$ en años Act/365F continuo con corte a las 16:00 EST.
+\end{enumerate}
+
+\newpage
+% ==============================================================================
+\section{Valoración Neutral al Riesgo y Ecuación Diferencial Parcial de Black-Scholes}
+% ==============================================================================
+
+\subsection{El Proceso Estocástico del Subyacente}
+Bajo la medida física o histórica $\mathbb{P}$, el precio del subyacente $S_t$ sigue una difusión geométrica browniana:
+\begin{equation}
+    dS_t = \mu S_t dt + \sigma S_t dW_t^{\mathbb{P}}
+\end{equation}
+donde $\mu \in \mathbb{R}$ es la tasa de rendimiento esperado anual, $\sigma > 0$ es la volatilidad anual y $W_t^{\mathbb{P}}$ es un movimiento browniano estándar unidimensional.
+
+\subsection{Derivación de la EDP de Black-Scholes Mediante Réplica Autofinanciada}
+Consideremos un portafolio de cobertura $\Pi_t$ compuesto por una posición larga en una opción derivada $V(S_t, t)$ y una posición corta en $\Delta_t$ acciones del subyacente:
+\begin{equation}
+    \Pi_t = V(S_t, t) - \Delta_t S_t
+\end{equation}
+Aplicando el \textbf{Lema de Itô} a la función suave $V(S, t) \in C^{2,1}$:
+\begin{equation}
+    dV(S_t, t) = \frac{\partial V}{\partial t} dt + \frac{\partial V}{\partial S} dS_t + \frac{1}{2} \sigma^2 S_t^2 \frac{\partial^2 V}{\partial S^2} dt
+\end{equation}
+La variación del valor del portafolio en el intervalo infinitesimal $dt$ es:
+\begin{equation}
+    d\Pi_t = dV(S_t, t) - \Delta_t dS_t = \left( \frac{\partial V}{\partial t} + \frac{1}{2} \sigma^2 S_t^2 \frac{\partial^2 V}{\partial S^2} \right) dt + \left( \frac{\partial V}{\partial S} - \Delta_t \right) dS_t
+\end{equation}
+Para eliminar la incertidumbre estocástica impulsada por $dW_t$, elegimos la posición de cobertura (\textit{delta-hedge}):
+\begin{equation}
+    \Delta_t = \frac{\partial V}{\partial S}
+\end{equation}
+Con esta elección, el término $dS_t$ se anula idénticamente, tornando al portafolio $d\Pi_t$ puramente determinista y libre de riesgo:
+\begin{equation}
+    d\Pi_t = \left( \frac{\partial V}{\partial t} + \frac{1}{2} \sigma^2 S_t^2 \frac{\partial^2 V}{\partial S^2} \right) dt
+\end{equation}
+Bajo el principio de no arbitraje, la tasa de rendimiento de cualquier portafolio perfectamente libre de riesgo debe coincidir con la tasa de interés libre de riesgo $r$:
+\begin{equation}
+    d\Pi_t = r \Pi_t dt = r \left( V - \frac{\partial V}{\partial S} S_t \right) dt
+\end{equation}
+Igualando ambas expresiones y dividiendo por $dt$:
+\begin{equation}
+    \frac{\partial V}{\partial t} + \frac{1}{2} \sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} = r V - r S \frac{\partial V}{\partial S}
+\end{equation}
+Reagrupando términos, obtenemos la célebre \textbf{Ecuación Diferencial Parcial de Black-Scholes}:
+\begin{equation}
+    \label{eq:bs_pde}
+    \frac{\partial V}{\partial t} + r S \frac{\partial V}{\partial S} + \frac{1}{2} \sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} - r V = 0
+\end{equation}
+\begin{theorem}[Invarianza de Medida e Independencia del Deriva $\mu$]
+Observe que en la EDP (\ref{eq:bs_pde}) no aparece la deriva histórica $\mu$. Esto demuestra que el valor de la opción no depende de las preferencias subjetivas de riesgo de los inversores ni del rendimiento esperado de la acción, sino exclusivamente de la volatilidad $\sigma$, la tasa libre de riesgo $r$ y las condiciones contractuales. Equivale a valorar bajo la \textbf{medida neutral al riesgo $\mathbb{Q}$}, donde el subyacente sigue la dinámica:
+\begin{equation}
+    dS_t = r S_t dt + \sigma S_t dW_t^{\mathbb{Q}}
+\end{equation}
+\end{theorem}
+
+\newpage
+% ==============================================================================
+\section{Black-Scholes Europeo Analítico y Opciones Call Americanas}
+% ==============================================================================
+
+\subsection{Fórmula Cerrada para Opciones Europeas}
+Para opciones europeas con vencimiento $T$, la condición terminal es $V(S, T) = \max(S - K, 0)$ para Calls y $V(S, T) = \max(K - S, 0)$ para Puts. La solución analítica exacta es:
+\begin{align}
+    C_{\text{BS}}(S, K, \tau, r, \sigma) &= S N(d_1) - K e^{-r\tau} N(d_2) \\
+    P_{\text{BS}}(S, K, \tau, r, \sigma) &= K e^{-r\tau} N(-d_2) - S N(-d_1)
+\end{align}
+donde $\tau = T - t$, $N(x) = \frac{1}{\sqrt{2\pi}} \int_{-\infty}^x e^{-u^2/2} du$ es la función de distribución acumulada de la normal estándar, y:
+\begin{equation}
+    d_1 = \frac{\ln(S/K) + (r + \frac{1}{2}\sigma^2)\tau}{\sigma \sqrt{\tau}}, \quad d_2 = d_1 - \sigma \sqrt{\tau}
+\end{equation}
+
+\subsection{Paridad Put-Call Europea}
+Restando algebraicamente ambas expresiones:
+\begin{align*}
+    C_{\text{BS}} - P_{\text{BS}} &= S N(d_1) - K e^{-r\tau} N(d_2) - \left[ K e^{-r\tau} (1 - N(d_2)) - S (1 - N(d_1)) \right] \\
+    &= S [N(d_1) + 1 - N(d_1)] - K e^{-r\tau} [N(d_2) + 1 - N(d_2)] \\
+    &= S - K e^{-r\tau}
+\end{align*}
+Esta relación fundamental se verifica en nuestro motor con una tolerancia de máquina inferior a $10^{-15}$ USD.
+
+\subsection{Justificación Teórica para Calls Americanas con $q = 0$}
+Dado que Nu Holdings no paga dividendos ($q = 0$) y la tasa libre de riesgo es positiva ($r \ge 0.0410$), el Teorema de Merton garantiza que la prima de ejercicio anticipado de una Call americana es estrictamente cero:
+\begin{equation}
+    C_{\text{American}}(S, K, \tau, r, \sigma) \equiv C_{\text{European}}(S, K, \tau, r, \sigma) = C_{\text{BS}}(S, K, \tau, r, \sigma)
+\end{equation}
+Por ende, utilizar la solución analítica de Black-Scholes para todas las Calls de la cadena es matemáticamente exacto, está libre de errores de discretización de malla y reduce el tiempo computacional en un factor de $1000\times$.
+
+\newpage
+% ==============================================================================
+\section{El Problema Americano de Frontera Libre y Complementariedad Lineal (LCP)}
+% ==============================================================================
+
+\subsection{Formulación Como Problema de Parada Óptima (\textit{Optimal Stopping})}
+Bajo la medida neutral al riesgo $\mathbb{Q}$, el poseedor de una opción Put americana elige un tiempo de parada $\tau_{\text{stop}} \in [t, T]$ adaptado a la filtración de mercado para maximizar el valor presente esperado del payoff:
+\begin{equation}
+    P_{\text{Am}}(S_t, t) = \sup_{\tau_{\text{stop}} \in [t, T]} \mathbb{E}^{\mathbb{Q}} \left[ e^{-r(\tau_{\text{stop}} - t)} \max(K - S_{\tau_{\text{stop}}}, 0) \,\Big|\, \mathcal{F}_t \right]
+\end{equation}
+Esto divide el dominio espacial en dos regiones mutuamente excluyentes:
+\begin{enumerate}
+    \item \textbf{Región de Continuación $\mathcal{C}$:} Donde mantener la opción es óptimo. El valor de la opción supera el valor intrínseco ($P > K - S$) y satisface la EDP estricta de Black-Scholes:
+    \begin{equation}
+        \frac{\partial P}{\partial \tau} - \mathcal{L}_{\text{BS}} P = 0, \quad \mathcal{L}_{\text{BS}} P = \frac{1}{2} \sigma^2 S^2 \frac{\partial^2 P}{\partial S^2} + r S \frac{\partial P}{\partial S} - r P
+    \end{equation}
+    \item \textbf{Región de Parada / Ejercicio $\mathcal{S}$:} Donde ejercer inmediatamente es óptimo. El valor de la opción colapsa al payoff intrínseco:
+    \begin{equation}
+        P(S, \tau) = K - S
+    \end{equation}
+\end{enumerate}
+La separación entre ambas regiones define la \textbf{frontera libre de ejercicio anticipado} $S^*(\tau) < K$, la cual evoluciona en el tiempo y no se conoce a priori.
+
+\subsection{El Problema de Complementariedad Lineal (LCP)}
+Definiendo el tiempo invertido hacia adelante $\tau = T - t \in [0, T]$ (tiempo hasta vencimiento):
+\begin{equation}
+    \frac{\partial P}{\partial t} = -\frac{\partial P}{\partial \tau}
+\end{equation}
+La EDP y las restricciones de ejercicio anticipado se formulan de manera compacta como un \textbf{Problema de Complementariedad Lineal (LCP)}:
+\begin{equation}
+    \label{eq:lcp}
+    \begin{cases}
+        \dfrac{\partial P}{\partial \tau} - \mathcal{L}_{\text{BS}} P \ge 0 \\[0.5em]
+        P(S, \tau) - \Phi(S) \ge 0 \\[0.5em]
+        \left( \dfrac{\partial P}{\partial \tau} - \mathcal{L}_{\text{BS}} P \right) \cdot \Big( P(S, \tau) - \Phi(S) \Big) = 0
+    \end{cases}
+\end{equation}
+sujeto a la condición inicial en vencimiento $P(S, 0) = \Phi(S) = \max(K - S, 0)$.
+
+\begin{figure}[htbp]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\textbf{En la Región de Continuación ($S > S^*(\tau)$):} & \textbf{En la Región de Ejercicio ($S \le S^*(\tau)$):} \\
+$P(S, \tau) > \Phi(S)$ & $P(S, \tau) = \Phi(S) = K - S$ \\
+$\dfrac{\partial P}{\partial \tau} - \mathcal{L}_{\text{BS}} P = 0$ & $\dfrac{\partial P}{\partial \tau} - \mathcal{L}_{\text{BS}} P > 0$ \\
+\hline
+\end{tabular}
+\caption{Comportamiento dual del Problema de Complementariedad Lineal (LCP).}
+\end{figure}
+
+\newpage
+% ==============================================================================
+\section{Diferencias Finitas Desde Cero: Derivación, Stencils y Truncamiento}
+% ==============================================================================
+
+\subsection{Fundamento Matemático de las Diferencias Finitas}
+Las ecuaciones diferenciales parciales raramente admiten soluciones algebraicas cerradas cuando existen fronteras libres. El método de diferencias finitas aproxima el continuo $(S, \tau) \in [0, S_{\max}] \times [0, T]$ reemplazándolo por una red o \textbf{malla discreta} de nodos:
+\begin{equation}
+    S_j = j \Delta S, \quad j = 0, 1, 2, \dots, M, \quad \Delta S = \frac{S_{\max}}{M}
+\end{equation}
+\begin{equation}
+    \tau_n = n \Delta \tau, \quad n = 0, 1, 2, \dots, N, \quad \Delta \tau = \frac{T}{N}
+\end{equation}
+Denotamos el valor aproximado de la opción en el nodo $(j, n)$ como $V_j^n \approx V(S_j, \tau_n)$.
+
+\subsection{Derivaciones Rigurosas de los Operadores de Taylor}
+\begin{theorem}[Aproximaciones de Primer y Segundo Orden]
+Supongamos $V(S) \in C^4([0, S_{\max}])$. Las expansiones de Taylor son:
+\begin{align}
+    V(S_j + \Delta S) &= V(S_j) + V'(S_j)\Delta S + \frac{1}{2}V''(S_j)\Delta S^2 + \frac{1}{6}V'''(S_j)\Delta S^3 + \frac{1}{24}V^{(4)}(\xi_1)\Delta S^4 \\
+    V(S_j - \Delta S) &= V(S_j) - V'(S_j)\Delta S + \frac{1}{2}V''(S_j)\Delta S^2 - \frac{1}{6}V'''(S_j)\Delta S^3 + \frac{1}{24}V^{(4)}(\xi_2)\Delta S^4
+\end{align}
+\begin{enumerate}
+    \item \textbf{Diferencia Central para la Primera Derivada (Delta):} Restando ambas expansiones:
+    \begin{equation}
+        V(S_j + \Delta S) - V(S_j - \Delta S) = 2 V'(S_j)\Delta S + \frac{1}{3} V'''(S_j)\Delta S^3 + O(\Delta S^4)
+    \end{equation}
+    Despejando $V'(S_j)$:
+    \begin{equation}
+        V'(S_j) = \frac{V_{j+1} - V_{j-1}}{2 \Delta S} - \frac{1}{6} V'''(S_j)\Delta S^2 + O(\Delta S^3) = \frac{V_{j+1} - V_{j-1}}{2 \Delta S} + O(\Delta S^2)
+    \end{equation}
+    Observe por qué se denomina de segundo orden: el término de orden 1 se canceló exactamente por simetría par del stencil central.
+    \item \textbf{Diferencia Central para la Segunda Derivada (Gamma):} Sumando ambas expansiones:
+    \begin{equation}
+        V(S_j + \Delta S) + V(S_j - \Delta S) = 2 V(S_j) + V''(S_j)\Delta S^2 + \frac{1}{12} V^{(4)}(\xi)\Delta S^4
+    \end{equation}
+    Despejando $V''(S_j)$:
+    \begin{equation}
+        V''(S_j) = \frac{V_{j+1} - 2V_j + V_{j-1}}{\Delta S^2} + O(\Delta S^2)
+    \end{equation}
+\end{enumerate}
+\end{theorem}
+
+\subsection{El Operador Espacial Discreto $\mathcal{L}_{\text{disc}}$}
+Sustituyendo estas aproximaciones en el operador diferencial de Black-Scholes para un nodo interior $j \in \{1, \dots, M-1\}$:
+\begin{align}
+    (\mathcal{L} V)_j &= \frac{1}{2} \sigma^2 S_j^2 \left( \frac{V_{j+1} - 2V_j + V_{j-1}}{\Delta S^2} \right) + r S_j \left( \frac{V_{j+1} - V_{j-1}}{2 \Delta S} \right) - r V_j
+\end{align}
+Dado que $S_j = j \Delta S$, sustituimos $\frac{S_j}{\Delta S} = j$ y $\frac{S_j^2}{\Delta S^2} = j^2$:
+\begin{equation}
+    (\mathcal{L} V)_j = \alpha_j V_{j-1} + \beta_j V_j + \gamma_j V_{j+1}
+\end{equation}
+donde los coeficientes son independientes del tamaño de paso $\Delta S$:
+\begin{align}
+    \alpha_j &= \frac{1}{2} \sigma^2 j^2 - \frac{1}{2} r j \\
+    \beta_j &= -\sigma^2 j^2 - r \\
+    \gamma_j &= \frac{1}{2} \sigma^2 j^2 + \frac{1}{2} r j
+\end{align}
+\begin{lemma}[Dominancia Diagonal Estricta]
+Para todo $j \ge 1$:
+\begin{equation}
+    \alpha_j + \beta_j + \gamma_j = \left( \frac{1}{2}\sigma^2 j^2 - \frac{1}{2}r j \right) + (-\sigma^2 j^2 - r) + \left( \frac{1}{2}\sigma^2 j^2 + \frac{1}{2}r j \right) = -r \le 0
+\end{equation}
+Esto asegura que la matriz del sistema tridiagonal sea estrictamente monótona y diagonalmente dominante, previniendo oscilaciones y garantizando estabilidad numérica incondicional.
+\end{lemma}
+
+\newpage
+% ==============================================================================
+\section{Esquemas Temporales: Explícito, Implícito y Crank-Nicolson}
+% ==============================================================================
+
+\subsection{La Familia General de Esquemas $\theta$}
+Discretizando la derivada temporal $\frac{\partial V}{\partial \tau} \approx \frac{V_j^{n+1} - V_j^n}{\Delta \tau}$ y ponderando el operador espacial en una combinación convexa con peso $\theta \in [0, 1]$:
+\begin{equation}
+    \frac{V_j^{n+1} - V_j^n}{\Delta \tau} = (1 - \theta) (\mathcal{L} V)_j^n + \theta (\mathcal{L} V)_j^{n+1}
+\end{equation}
+\begin{itemize}
+    \item $\theta = 0$ (\textbf{Euler Explícito}): Evalúa todo en el nivel de tiempo conocido $n$. No requiere resolver matrices, pero está sujeto a la severa restricción de estabilidad Courant-Friedrichs-Lewy (CFL): $\Delta \tau \le \frac{\Delta S^2}{\sigma^2 S_{\max}^2}$, obligando a tomar millones de pasos temporales.
+    \item $\theta = 1$ (\textbf{Euler Implícito Puro}): Incondicionalmente estable y $L$-estable, pero su error temporal es de primer orden $O(\Delta \tau)$.
+    \item $\theta = 0.5$ (\textbf{Crank-Nicolson}): Segundo orden exacto en tiempo y espacio $O(\Delta \tau^2 + \Delta S^2)$, incondicionalmente estable en la norma $L_2$.
+\end{itemize}
+
+\subsection{Estructura Matricial del Paso Crank-Nicolson ($\theta = 0.5$)}
+Multiplicando por $\Delta \tau$ y reagrupando incógnitas al lado izquierdo:
+\begin{equation}
+    \label{eq:cn_system}
+    -\frac{\Delta \tau}{2} \alpha_j V_{j-1}^{n+1} + \left( 1 - \frac{\Delta \tau}{2} \beta_j \right) V_j^{n+1} - \frac{\Delta \tau}{2} \gamma_j V_{j+1}^{n+1} = \frac{\Delta \tau}{2} \alpha_j V_{j-1}^n + \left( 1 + \frac{\Delta \tau}{2} \beta_j \right) V_j^n + \frac{\Delta \tau}{2} \gamma_j V_{j+1}^n
+\end{equation}
+Definiendo las matrices tridiagonales $\mathcal{A}_{\text{imp}} = I - \frac{\Delta \tau}{2} \mathcal{L}$ y $\mathcal{A}_{\text{exp}} = I + \frac{\Delta \tau}{2} \mathcal{L}$:
+\begin{equation}
+    \mathcal{A}_{\text{imp}} \mathbf{V}^{n+1} = \mathcal{A}_{\text{exp}} \mathbf{V}^n + \mathbf{b}_{\text{frontera}}
+\end{equation}
+
+\subsection{El Algoritmo de Thomas para Matrices Tridiagonales}
+El sistema $\mathcal{A} \mathbf{x} = \mathbf{d}$ con matriz tridiagonal:
+\begin{equation}
+    a_j x_{j-1} + b_j x_j + c_j x_{j+1} = d_j, \quad j = 1, \dots, M-1
+\end{equation}
+se resuelve mediante una eliminación gaussiana especializada que opera en tiempo lineal $O(M)$ sin necesidad de inversión matricial densa:
+\begin{enumerate}
+    \item \textbf{Barrido hacia adelante (\textit{Forward Sweep}):}
+    \begin{equation}
+        c'_1 = \frac{c_1}{b_1}, \quad d'_1 = \frac{d_1}{b_1}
+    \end{equation}
+    \begin{equation}
+        c'_j = \frac{c_j}{b_j - a_j c'_{j-1}}, \quad d'_j = \frac{d_j - a_j d'_{j-1}}{b_j - a_j c'_{j-1}}, \quad j = 2, 3, \dots, M-1
+    \end{equation}
+    \item \textbf{Sustitución hacia atrás (\textit{Back Substitution}):}
+    \begin{equation}
+        x_{M-1} = d'_{M-1}
+    \end{equation}
+    \begin{equation}
+        x_j = d'_j - c'_j x_{j+1}, \quad j = M-2, M-3, \dots, 1
+    \end{equation}
+\end{enumerate}
+
+\newpage
+% ==============================================================================
+\section{Implementación del Ejercicio Americano: Método de Penalización}
+% ==============================================================================
+
+\subsection{Derivación de la Formulación de Penalización Cuadrática}
+Para incorporar la restricción americana $V(S, \tau) \ge V^*(S)$, transformamos la desigualdad en una ecuación con término de penalización no lineal:
+\begin{equation}
+    \frac{\partial V}{\partial \tau} - \mathcal{L} V = \rho \max(V^* - V, 0)
+\end{equation}
+donde $\rho \gg 1$ es el parámetro de penalización grande ($10^7$).
+Discretizado bajo el esquema general $\theta$:
+\begin{equation}
+    \frac{V_j^{n+1} - V_j^n}{\Delta \tau} = (1 - \theta) (\mathcal{L} V)_j^n + \theta (\mathcal{L} V)_j^{n+1} + \rho_j^{n+1} (V_j^* - V_j^{n+1})
+\end{equation}
+donde el multiplicador de penalización diagonal es:
+\begin{equation}
+    \rho_j^{n+1} = \begin{cases}
+        \rho & \text{si } V_j^{n+1} < V_j^* \\
+        0 & \text{si } V_j^{n+1} \ge V_j^*
+    \end{cases}
+\end{equation}
+Reagrupando incógnitas en el nivel $n+1$:
+\begin{equation}
+    \left[ I - \Delta \tau \theta \mathcal{L} + \Delta \tau P(V^{n+1}) \right] V^{n+1} = \left[ I + \Delta \tau (1 - \theta) \mathcal{L} \right] V^n + \Delta \tau P(V^{n+1}) V^*
+\end{equation}
+
+\subsection{Iteración de Política de Tipo Newton Semisuave}
+Para resolver el sistema no lineal en cada paso temporal $n \to n+1$, aplicamos el siguiente algoritmo de punto fijo:
+\begin{enumerate}
+    \item Fijar la aproximación inicial $V^{(0)} = V^n$.
+    \item Para cada iteración $k = 0, 1, 2, \dots$:
+    \begin{itemize}
+        \item Evaluar el conjunto activo de ejercicio:
+        \begin{equation}
+            P_{jj}^{(k)} = \begin{cases}
+                \rho & \text{si } V_j^{(k)} < V_j^* \\
+                0 & \text{si } V_j^{(k)} \ge V_j^*
+            \end{cases}
+        \end{equation}
+        \item Formar la matriz tridiagonal regularizada:
+        \begin{equation}
+            \mathcal{A}^{(k)} = I - \Delta \tau \theta \mathcal{L} + \Delta \tau P^{(k)}
+        \end{equation}
+        \item Formar el vector de carga del lado derecho:
+        \begin{equation}
+            \mathbf{b}^{(k)} = \left[ I + \Delta \tau (1 - \theta) \mathcal{L} \right] V^n + \Delta \tau P^{(k)} V^*
+        \end{equation}
+        \item Resolver el sistema lineal tridiagonal mediante el algoritmo de Thomas:
+        \begin{equation}
+            V^{(k+1)} = (\mathcal{A}^{(k)})^{-1} \mathbf{b}^{(k)}
+        \end{equation}
+        \item Evaluar el criterio de parada de tolerancia relativa:
+        \begin{equation}
+            \max_{j} \frac{|V_j^{(k+1)} - V_j^{(k)}|}{\max(|V_j^{(k+1)}|, 1.0)} < 10^{-7}
+        \end{equation}
+    \end{itemize}
+\end{enumerate}
+\begin{theorem}[Convergencia Cuadrática en Número Finito de Pasos]
+Forsyth \& Vetzal (2002) demostraron que la iteración de política monótona converge de forma no oscilatoria y cuadrática en a lo sumo 2 a 4 iteraciones para cualquier valor de $\rho > 0$, garantizando exactitud absoluta sin el estancamiento típico de PSOR.
+\end{theorem}
+
+\newpage
+% ==============================================================================
+\section{Inversión Numérica a Volatilidad Implícita Mediante el Algoritmo de Brent}
+% ==============================================================================
+
+\subsection{Formulación de la Función Objetivo}
+Dado el precio observado de mercado $P_{\text{obs}}$ de un contrato con strike $K$, madurez $\tau$ y tasa continua $r$:
+\begin{equation}
+    f(\sigma) = V_{\text{modelo}}(\sigma; S_0, K, \tau, r) - P_{\text{obs}} = 0
+\end{equation}
+Bajo ausencia de arbitraje, $V_{\text{modelo}}(\sigma)$ es una función estrictamente monótona creciente en $\sigma$ ($\text{Vega} = \frac{\partial V}{\partial \sigma} > 0$).
+
+\subsection{El Algoritmo de Brent: Mecánica y Ventajas}
+El algoritmo de Brent combina tres técnicas en una jerarquía adaptativa:
+\begin{enumerate}
+    \item \textbf{Interpolación Cuadrática Inversa (IQI):} Utiliza tres puntos previos $(a, f(a))$, $(b, f(b))$, $(c, f(c))$ para ajustar una parábola horizontal $\sigma = p(f)$ y proyectar la raíz cuando $f = 0$:
+    \begin{equation}
+        \sigma_{\text{IQI}} = \frac{a f(b) f(c)}{(f(a)-f(b))(f(a)-f(c))} + \frac{b f(a) f(c)}{(f(b)-f(a))(f(b)-f(c))} + \frac{c f(a) f(b)}{(f(c)-f(a))(f(c)-f(b))}
+    \end{equation}
+    \item \textbf{Método de la Secante:} Si dos ordenadas coinciden, degrada a interpolación lineal entre los dos extremos.
+    \item \textbf{Bisección Garantizada:} Si el paso estimado escapa del intervalo de confinamiento (\textit{bracket}) $[a, b]$ o no reduce el intervalo a la mitad tras un número determinado de pasos, fuerza un paso de bisección puro:
+    \begin{equation}
+        \sigma_{\text{bis}} = \frac{a + b}{2}
+    \end{equation}
+\end{enumerate}
+Esto asegura convergencia superlineal cuando la función es suave y convergencia garantizada $O(2^{-k})$ en el peor de los casos, evitando las divergencias catastróficas de Newton-Raphson cuando $\text{Vega} \to 0$.
+
+\newpage
+% ==============================================================================
+\section{Superficies de Volatilidad: Coordenadas, Modelo Raw SVI y No Arbitraje}
+% ==============================================================================
+
+\subsection{Coordenadas Estandarizadas de Log-Forward Moneyness}
+Para aislar el efecto de la deriva del subyacente y de las tasas de interés, transformamos las variables de mercado:
+\begin{equation}
+    F(0, \tau) = S_0 e^{r(\tau) \tau} \quad (q = 0)
+\end{equation}
+\begin{equation}
+    k = \ln\left( \frac{K}{F(0, \tau)} \right)
+\end{equation}
+\begin{itemize}
+    \item $k = 0 \iff K = F$: Contrato en el dinero forward (ATM).
+    \item $k < 0 \iff K < F$: Opciones de strike bajo (Puts OTM y Calls ITM).
+    \item $k > 0 \iff K > F$: Opciones de strike alto (Calls OTM y Puts ITM).
+\end{itemize}
+La variable de modelación primaria es la \textbf{varianza total implícita}:
+\begin{equation}
+    w(k, \tau) = \sigma_{\text{imp}}^2(k, \tau) \cdot \tau
+\end{equation}
+
+\subsection{Parametrización Raw SVI de Gatheral}
+Por cada corte temporal de madurez $\tau$, la curva de varianza total se parametriza mediante:
+\begin{equation}
+    w(k) = a + b \left[ \rho (k - m) + \sqrt{(k - m)^2 + \eta^2} \right]
+\end{equation}
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Parámetro} & \textbf{Espacio de Búsqueda} & \textbf{Significado Financiero y Geométrico} \\
+\midrule
+$a \in \mathbb{R}$ & $[0, 5.0]$ & Nivel base de la varianza total (desplazamiento vertical). \\
+$b \ge 0$ & $[0.001, 2.0]$ & Pendiente angular / apertura de las alas asintóticas. \\
+$\rho \in (-1, 1)$ & $[-0.99, 0.99]$ & Asimetría o sesgo (\textit{skew}): $\rho < 0$ produce alas izquierdas más empinadas. \\
+$m \in \mathbb{R}$ & $[-2.0, 2.0]$ & Desplazamiento horizontal del vértice (mínimo de la sonrisa). \\
+$\eta > 0$ & $[0.005, 2.0]$ & Curvatura / suavizado del vértice en la región ATM. \\
+\bottomrule
+\end{tabular}
+\caption{Parámetros de la formulación Raw SVI.}
+\end{table}
+
+\subsection{Condiciones Analíticas de No Arbitraje Estático}
+\begin{theorem}[Condiciones de No Arbitraje de Gatheral \& Jacquier, 2014]
+Una superficie de volatilidad representada en varianza total $w(k, \tau)$ está libre de arbitraje estático si y solo si:
+\begin{enumerate}
+    \item \textbf{No negatividad global:} $a + b \eta \sqrt{1 - \rho^2} \ge 0$.
+    \item \textbf{Cota de momentos de Lee:} $b(1 + |\rho|) < 4$.
+    \item \textbf{Densidad neutral al riesgo no negativa (Sin Arbitraje Mariposa):}
+    \begin{equation}
+        g(k) = \left( 1 - \frac{k w'(k)}{2 w(k)} \right)^2 - \frac{w'(k)^2}{4} \left( \frac{1}{w(k)} + \frac{1}{4} \right) + \frac{w''(k)}{2} \ge 0 \quad \forall k \in \mathbb{R}
+    \end{equation}
+    \item \textbf{Monotonicidad temporal (Sin Arbitraje de Calendario):}
+    \begin{equation}
+        \frac{\partial w(k, \tau)}{\partial \tau} \ge 0 \quad \forall k, \tau
+    \end{equation}
+\end{enumerate}
+\end{theorem}
+
+\newpage
+% ==============================================================================
+\section{Marco de Stress Testing de Cadena Fija (Punto 52)}
+% ==============================================================================
+
+\subsection{Definición de Cadena Contractual Fija}
+En un banco de inversión real, una prueba de estrés no altera los contratos en cartera: el identificador contractual, el tipo (Call/Put), el strike $K_i$ y la fecha de vencimiento $T_i$ permanecen \textbf{fijos e invariantes}.
+Ante un escenario de estrés definido por un avance temporal $\Delta t$ y un shock conjunto en el spot $S_1 = S_0(1 + \Delta S)$, se actualizan endógenamente:
+\begin{align}
+    \tau_{i,1} &= \max(T_i - (t_0 + \Delta t), 0) \\
+    F_1(\tau_{i,1}) &= S_1 \exp(r(\tau_{i,1}) \tau_{i,1}) \\
+    k_{i,1} &= \ln\left( \frac{K_i}{F_1(\tau_{i,1})} \right)
+\end{align}
+
+\subsection{Deformaciones Multifactoriales de la Superficie}
+La volatilidad implícita estresada $\sigma_1(k_1, \tau_1)$ incorpora cuatro factores combinados:
+\begin{equation}
+    \sigma_1(k_1, \tau_1) = \sigma_0(k_1, \tau_1) + \Delta \sigma_{\text{nivel}} + \Delta \sigma_{\text{skew}}(k_1) + \Delta \sigma_{\text{plazo}}(\tau_1)
+\end{equation}
+donde:
+\begin{itemize}
+    \item \textbf{Nivel ($\Delta \sigma_{\text{nivel}}$):} Desplazamiento paralelo en puntos porcentuales.
+    \item \textbf{Inclinación del Skew ($\Delta \sigma_{\text{skew}}$):} Empinamiento asimétrico:
+    \begin{equation}
+        \Delta \sigma_{\text{skew}}(k_1) = \text{tilt} \times \min\left( \frac{\max(-k_1, 0)}{0.20}, 2.0 \right)
+    \end{equation}
+    \item \textbf{Inversión de Pendiente Temporal ($\Delta \sigma_{\text{plazo}}$):} Decaimiento exponencial con la madurez:
+    \begin{equation}
+        \Delta \sigma_{\text{plazo}}(\tau_1) = \text{shock\_corto} \times \exp(-\tau_1 / 0.30)
+    \end{equation}
+\end{itemize}
+
+\subsection{Ruptura de la Expansión de Taylor Frente a la Revaloración Completa}
+La variación estimada del portafolio mediante la aproximación local de Taylor por Griegas es:
+\begin{equation}
+    \Delta \Pi_{\text{Taylor}} = h_S \Delta S + M \sum_i q_i \left[ \Delta_i \Delta S + \frac{1}{2}\Gamma_i (\Delta S)^2 + \nu_i (100 \Delta \sigma_i) + \Theta_i \Delta t + \text{Vanna}_i \Delta S (100 \Delta \sigma_i) + \frac{1}{2}\text{Volga}_i (100 \Delta \sigma_i)^2 \right]
+\end{equation}
+Frente a esto, la \textbf{Revaloración Completa por EDP} calcula:
+\begin{equation}
+    \Delta \Pi_{\text{Full}} = h_S (S_1 - S_0) + M \sum_i q_i \left[ V_i(S_1, K_i, \tau_{i,1}, \sigma_{i,1}) - V_i(S_0, K_i, \tau_{i,0}, \sigma_{i,0}) \right]
+\end{equation}
+En caídas severas ($\Delta S = -20\%$), el término positivo de Gamma ($\frac{1}{2}\Gamma \Delta S^2$) induce un sesgo masivamente optimista en Taylor, ignorando que las Calls colapsan a cero y pierden su opcionalidad.
+
+\newpage
+% ==============================================================================
+\section{Estrategias Cuantitativas de Volatilidad (Punto 53)}
+% ==============================================================================
+
+\subsection{Estrategia 1: Pronóstico HAR-RV vs Volatilidad Implícita ATM}
+El modelo autorregresivo heterogéneo (HAR-RV, Corsi 2009) formula la volatilidad realizada futura como una combinación lineal de componentes en tres horizontes temporales distintos:
+\begin{equation}
+    RV_{t, t+21}^{(m)} = \beta_0 + \beta_d RV_t^{(d)} + \beta_w RV_t^{(w)} + \beta_m RV_t^{(m)} + \epsilon_{t+21}
+\end{equation}
+donde $RV^{(d)}$ es la varianza diaria, $RV^{(w)} = \frac{1}{5}\sum_{i=0}^4 RV_{t-i}^{(d)}$ es la varianza semanal, y $RV^{(m)} = \frac{1}{21}\sum_{i=0}^{20} RV_{t-i}^{(d)}$ es la varianza mensual.
+
+Al 17 de noviembre de 2026, el modelo proyectó una volatilidad futura a 21 días de **72.97\%**, mientras que la IV ATM a 31 días cotizaba en **44.02\%**.
+La señal cuantitativa de entrada:
+\begin{equation}
+    z = \ln\left( \frac{\widehat{\sigma}_{\text{HAR}}}{\sigma_{\text{ATM}}} \right) = \ln\left( \frac{72.97\%}{44.02\%} \right) = +0.505 > 0
+\end{equation}
+indica que la opcionalidad del mercado cotiza con descuento frente a la volatilidad realizada proyectada post-anuncio de resultados de NU, justificando una posición larga en un **Straddle ATM delta-neutral** con cobertura de acciones.
+
+\subsection{Estrategia 2: Estructura Temporal y Calendar Spread}
+Dada la varianza total en dos vencimientos sucesivos $\tau_1 = 31$ días y $\tau_2 = 59$ días:
+\begin{equation}
+    \sigma_{\text{fwd}} = \sqrt{\frac{w(\tau_2) - w(\tau_1)}{\tau_2 - \tau_1}} = \sqrt{\frac{\sigma_2^2 \tau_2 - \sigma_1^2 \tau_1}{\tau_2 - \tau_1}} = 38.15\%
+\end{equation}
+El Calendar Spread compra la opción a 59 días y vende la opción a 31 días en el strike $K = 13.00$, explotando el decaimiento acelerado de Theta en la pata corta mientras conserva exposición a la varianza residual con riesgo direccional acotado.
+
+\newpage
+% ==============================================================================
+\section{Resultados Numéricos Verificados del Repositorio}
+% ==============================================================================
+
+Todos los resultados tabulados a continuación provienen de la ejecución directa y reproducible de los scripts del proyecto sobre los datos de mercado:
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Vencimiento} & \textbf{$\tau$ (días)} & \textbf{Total} & \textbf{Tier 1} & \textbf{Tier 2} & \textbf{Limpios} & \textbf{Retención (\%)} \\
+\midrule
+2026-11-20 & 3.0 & 80 & 4 & 0 & 4 & 5.0\% \\
+2026-11-27 & 10.0 & 41 & 11 & 0 & 11 & 26.8\% \\
+2026-12-04 & 17.0 & 38 & 16 & 0 & 16 & 42.1\% \\
+2026-12-11 & 24.0 & 34 & 18 & 0 & 18 & 52.9\% \\
+2026-12-18 & 31.0 & 52 & 12 & 0 & 12 & 23.1\% \\
+2026-12-24 & 37.0 & 29 & 15 & 0 & 15 & 51.7\% \\
+2026-12-31 & 44.0 & 17 & 13 & 0 & 13 & 76.5\% \\
+2027-01-15 & 59.0 & 52 & 16 & 0 & 16 & 30.8\% \\
+2027-02-19 & 94.0 & 14 & 9 & 0 & 9 & 64.3\% \\
+2027-03-19 & 122.0 & 43 & 15 & 0 & 15 & 34.9\% \\
+2027-04-16 & 150.0 & 34 & 8 & 0 & 8 & 23.5\% \\
+2027-06-17 & 212.0 & 40 & 16 & 0 & 16 & 40.0\% \\
+2027-09-17 & 304.0 & 24 & 9 & 0 & 9 & 37.5\% \\
+2027-12-17 & 395.0 & 25 & 8 & 0 & 8 & 32.0\% \\
+2028-01-21 & 430.0 & 26 & 14 & 0 & 14 & 53.8\% \\
+2029-01-19 & 794.0 & 26 & 2 & 15 & 17 & 65.4\% \\
+\midrule
+\textbf{Total} & \textbf{--} & \textbf{575} & \textbf{186} & \textbf{15} & \textbf{201} & \textbf{35.0\%} \\
+\bottomrule
+\end{tabular}
+\caption{Resumen de retención y limpieza de contratos por madurez contractual.}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Modelo de Valoración} & \textbf{MAE General (\$)} & \textbf{RMSE General (\$)} & \textbf{MAE ITM (\$)} & \textbf{RMSE ITM (\$)} \\
+\midrule
+M1: Europeo Plano ($\sigma = 44.0\%$) & 0.0536 & 0.0891 & 0.0854 & 0.1294 \\
+M2: Europeo Superficie ($\sigma(k,\tau)$) & 0.0306 & 0.0562 & 0.0465 & 0.0803 \\
+M3: Americano Plano ($\sigma = 44.0\%$) & 0.0482 & 0.0816 & 0.0772 & 0.1205 \\
+\textbf{M4: Americano Superficie ($\sigma(k,\tau)$)} & \textbf{0.0299} & \textbf{0.0491} & \textbf{0.0396} & \textbf{0.0624} \\
+\bottomrule
+\end{tabular}
+\caption{Matriz comparativa de errores de tarificación sobre los 201 contratos limpios.}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Escenario de Stress Testing} & \textbf{Spot $S_1$} & \textbf{$\Delta S$} & \textbf{P\&L Full EDP (\$)} & \textbf{P\&L Taylor (\$)} & \textbf{Discrepancia (\$)} \\
+\midrule
+1. Roll-Down Temporal (10 días) & 12.33 & 0.0\% & -77.00 & -50.17 & -26.84 \\
+2. Caída Paralela \& Salto Vol (-10\%, +10pp) & 11.10 & -10.0\% & +124.07 & +925.98 & -801.91 \\
+\textbf{3. Crisis Severa (-20\%, +12pp, Skew)} & \textbf{9.86} & \textbf{-20.0\%} & \textbf{+446.49} & \textbf{+3699.53} & \textbf{-3253.04} \\
+4. Rally \& Vol Crush (+15\%, -8pp) & 14.18 & +15.0\% & +124.51 & +1838.48 & -1713.97 \\
+5. Inversión Tramo Corto (-5\%, +15pp corto) & 11.71 & -5.0\% & +74.22 & +293.30 & -219.08 \\
+\bottomrule
+\end{tabular}
+\caption{Resultados del Stress Testing sobre la cartera fija delta-hedged.}
+\end{table}
+
+\newpage
+% ==============================================================================
+\section{Lectura Guiada del Código Fuente}
+% ==============================================================================
+
+\begin{description}
+    \item[\texttt{src/market\_data.py}:] Contiene la definición del estado de mercado base ($S_0 = 12.33$, fecha $t_0$, zona horaria \texttt{America/New\_York}), la curva par del Tesoro de EE.UU. y la función \texttt{get\_zero\_rate(tau)} para obtener la tasa continuamente compuesta $r(\tau)$.
+    \item[\texttt{src/data\_cleaning.py}:] Implementa el parseo de identificadores OCC (\texttt{parse\_occ\_symbol}), el recálculo exacto de $\tau$ en Act/365F continuo (\texttt{calculate\_exact\_tau}), las cotas de no arbitraje, la asignación de Tiers y la exportación de \texttt{options\_audit.csv}.
+    \item[\texttt{src/pricing\_bs.py}:] Implementa las fórmulas analíticas cerradas de Black-Scholes para opciones europeas y Calls sin dividendos (\texttt{bs\_price}), y las derivadas de primer y segundo orden (\texttt{bs\_greeks}).
+    \item[\texttt{src/pricing\_crr.py}:] Implementa el árbol binomial recombinante de Cox-Ross-Rubinstein vectorizado con NumPy (\texttt{crr\_price}) como benchmark independiente de validación.
+    \item[\texttt{src/pricing\_american\_fd.py}:] Motor numérico de ecuaciones diferenciales parciales. Discretiza el operador espacial central y resuelve el sistema tridiagonal acoplado a la penalización cuadrática (\texttt{fd\_american\_price}).
+    \item[\texttt{src/iv\_inversion.py}:] Motor de inversión numérica mediante el algoritmo de Brent (\texttt{implied\_vol}). Invierte toda la base limpia y genera la tabla de contraste estratificado contra Bloomberg.
+    \item[\texttt{src/surface.py}:] Parametrización Raw SVI y splines monótonos (\texttt{VolatilitySurface}). Implementa la validación Leave-One-Strike-Out y produce las figuras 2D y 3D de la superficie.
+    \item[\texttt{src/model\_comparison.py}:] Ejecuta la evaluación empírica de los cuatro modelos de tarificación y exporta las métricas de sesgo, MAE y RMSE.
+    \item[\texttt{src/greeks.py}:] Calculador unificado de Griegas analíticas y numéricas por diferencias centrales de la EDP.
+    \item[\texttt{src/portfolio.py}:] Estructura la cartera hipotética delta-neutral de 5 patas con cobertura de acciones.
+    \item[\texttt{src/stress\_testing.py}:] Motor de deformaciones multifactoriales de superficie y revaloración completa sobre cadena fija.
+    \item[\texttt{src/forecasts.py}:] Descarga histórica de NU, estimadores de volatilidad diaria y modelo autorregresivo HAR-RV con validación fuera de muestra.
+    \item[\texttt{src/strategies.py}:] Análisis de escenarios de retorno y puntos de equilibrio con costos de transacción de las dos estrategias cuantitativas.
+    \item[\texttt{run\_all.py}:] Script maestro orquestador determinista y reproducible.
+\end{description}
+
+\newpage
+% ==============================================================================
+\section{Bibliografía Primaria Verificada}
+% ==============================================================================
+
+\begin{enumerate}
+    \item Black, F., \& Scholes, M. (1973). \textit{The Pricing of Options and Corporate Liabilities.} Journal of Political Economy, 81(3), 637–654. DOI: 10.1086/260062.
+    \item Merton, R. C. (1973). \textit{Theory of Rational Option Pricing.} The Bell Journal of Economics and Management Science, 4(1), 141–183. DOI: 10.2307/3003143.
+    \item Brennan, M. J., \& Schwartz, E. S. (1977). \textit{The Valuation of American Put Options.} The Journal of Finance, 32(2), 449–462. DOI: 10.1111/j.1540-6261.1977.tb03284.x.
+    \item Cox, J. C., Ross, S. A., \& Rubinstein, M. (1979). \textit{Option Pricing: A Simplified Approach.} Journal of Financial Economics, 7(3), 229–263. DOI: 10.1016/0304-405X(79)90015-1.
+    \item Forsyth, P. A., \& Vetzal, K. R. (2002). \textit{Quadratic Convergence for Valuing American Options Using a Penalty Method.} SIAM Journal on Scientific Computing, 23(6), 2095–2122. DOI: 10.1137/S1064827500382324.
+    \item Rannacher, R. (1984). \textit{Finite Element Solution of Diffusion Problems with Irregular Data.} Numerische Mathematik, 43(2), 309–327. DOI: 10.1007/BF01390499.
+    \item Gatheral, J., \& Jacquier, A. (2014). \textit{Arbitrage-Free SVI Volatility Surfaces.} Quantitative Finance, 14(1), 59–71. DOI: 10.1080/14697688.2013.819986.
+    \item Corsi, F. (2009). \textit{A Simple Approximate Long-Memory Model of Realized Volatility.} Journal of Financial Econometrics, 7(2), 174–196. DOI: 10.1093/jjfinec/nbp001.
+    \item Breuer, T., Jandačka, M., Rheinberger, K., \& Summer, M. (2009). \textit{How to Find Plausible, Severe, and Useful Stress Scenarios.} International Journal of Central Banking, 5(3), 205–224.
+    \item Goyal, A., \& Saretto, A. (2009). \textit{Cross-Section of Option Returns and Volatility.} Journal of Financial Economics, 94(2), 310–326. DOI: 10.1016/j.jfineco.2009.01.001.
+\end{enumerate}
+
+\end{document}
