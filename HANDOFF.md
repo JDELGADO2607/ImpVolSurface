@@ -19,3 +19,5 @@ Contexto base publicado cf6c99053946bb0f610a11463c46e43ccf6967ce. Gemini confirm
 Entrega 3344418 auditada. Informe docs/audits/HESTON_PHASE_0_3344418.md. Siguiente accion recibir reparacion de Gemini y auditar nuevo SHA antes de fase 1.
 
 Reparacion 1 en ejecucion mediante dispatch ctx_ecf514dd6836, task_7a75ffb83f6f. Recibo ready y reactivacion por evento confirmados. Usar este dispatch para seguimiento.
+
+Estado vigente PHASE_0 APPROVED en 0fb87583c6f4023049a4e6f4ae5c36c7aad247d3. Fase activa PHASE_1, especificacion docs/orchestration/PHASE_1_START.md. El estado previo REJECTED es historia. Siguiente recibir entrega PoC y auditar SHA congelado antes de fase2.

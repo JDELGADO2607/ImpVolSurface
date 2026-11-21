@@ -12,3 +12,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | PHASE_0 IN_PROGRESS, especificaci?n lista para worker supervisado | PHASE_0_START.md |
 | 2026-11-21 | PHASE_0 dispatch supervisado ready, worktree independiente | ctx_c044496997ad, task_ecc498140c18, base cf6c99053946bb0f610a11463c46e43ccf6967ce |
 | 2026-11-21 | PHASE_0 PHASE_REJECTED; reparacion 1 autorizada | 3344418, F0-01 HIGH, F0-02/F0-03 MEDIUM, HESTON_PHASE_0_3344418.md |
+| 2026-11-21 | PHASE_0 APPROVED en reparacion1 y PHASE_1 autorizada | 0fb8758, HESTON_PHASE_0_0fb8758.md y PHASE_1_START.md |

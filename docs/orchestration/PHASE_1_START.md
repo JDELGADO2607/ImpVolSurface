@@ -1,0 +1,15 @@
+PHASE_START PHASE_1 — PoC Heston QuantLib, autorizada tras PHASE_APPROVED de 0fb87583c6f4023049a4e6f4ae5c36c7aad247d3.
+Trabaja en tu misma rama JDELGADO2607/heston-implementation, sin tocar coordinacion ni fuentes SVI. Leer informe docs/audits/HESTON_PHASE_0_0fb8758.md por git show origin/JDELGADO2607/heston-coordination tras fetch. Ese informe contiene criterios predeclarados vinculantes y limites de aprobacion.
+
+Antes de calibrar:
+- Resolver conversion de tiempos a QuantLib: max diferencia D Python/QL=6,315e-5 por redondeo. Elegir curva temporal comun a motores; comprobar fechas de opciones e instantes intermedios y explicar convenciones. No prometer igualdad falsa. Corregir adaptador si hace falta y usar esa misma curva para baseline americano constante y Heston.
+- Preservar tabla Treasury transcrita como insumo versionado, separar timestamp de recuperacion historica de timestamp de ejecucion.
+- Mantener split 60/22/15 y calls externas sin usar holdouts para seleccionar parametros. Registrar limites, starts, semillas, mallas, criterios y presupuesto antes de ejecutar optimizacion.
+
+Implementacion PoC exclusivamente Heston clasico con cinco parametros globales Q (v0,kappa,theta,xi,rho). FdHestonVanillaEngine con AmericanExercise y curva temporal comun, dividendo cero, spot 12.33 y ACT365. No calibrador europeo para puts. SSE no ponderada de precios observados en train. Cinco starts dispersos y rho con ambos signos permitidos. Usar limites predeclarados del informe, reportar convergencia/fallos sin descartarlos.
+
+Entregables precios y errores USD por contrato y tenor; train y cada holdout separados; coverage/rechazos; calls como contraste externo; comparaciones sobre muestra comun con constante y SVI historico, explicando distintas curvas; sensibilidad/dispersion multistart y predicciones; ratio Feller sin filtro; costes y evaluaciones. Revisar con tres mallas representativas ATM/ITM/OTM y tenores cortos/intermedios/largos. Verificar finitud, cotas, americana>=europea comparable, monotonias y convexidad con tolerancia justificada. Europeo semianalitico como control de Heston europeo.
+
+Criterios gate train MAE<=0.080, RMSE<=0.120 USD, cada holdout MAE<=0.100, presupuesto numerico 0.002 USD. Brecha relativa 30% y ATM max relativo10% diagnosticos, interpretar distribucion de muestra. No exigir batir SVI in-sample ni acotar arbitrariamente tiempo a60s. Si falla modelo publicar limite y no forzarlo con clipping, nuevos filtros o parametros por tenor. Tolerancias no se relajan por resultados. Diagnosticar identificacion separada de estabilidad de precios.
+
+Mantener salidas nuevas aisladas data/heston/phase1 o equivalente. Tests con tmp_path, cero escrituras historicas. Requisitos y comandos reproducibles. No implementar solver propio en esta fase. Informe de implementacion con parametros, todos los starts, tiempos, errores, cobertura, dominio, limitaciones y conclusion de viabilidad. Publicar SHA nuevo PR#5 y PHASE_READY_FOR_AUDIT via worker_done segun preambulo Orca; esperar auditoria antes de fase2. No merge/force-push, gastos ni ampliaciones.

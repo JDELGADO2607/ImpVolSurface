@@ -22,3 +22,5 @@ La convergencia requiere al menos tres resoluciones y variación separada de esp
 No hay tolerancias numéricas definitivas aprobadas todavía. No ejecutar selección oportunista de resultados para fijarlas después. No aceptar un mínimo artificial de tamaño de muestra. Reducciones justificadas de dominio conservan cobertura y comparación común.
 
 Una limitación de modelo/datos puede documentarse y aceptarse si el objetivo académico continúa siendo viable. Bloqueos fundamentales detienen la siguiente fase. Máximo tres reparaciones razonables por fase.
+
+Gate PoC fijado antes de calibracion en [auditoria 0fb8758](../audits/HESTON_PHASE_0_0fb8758.md). MAE train 0,080/RMSE0,120 USD, holdout por split MAE0,100, presupuesto numerico0,002. Diagnosticos relativos no constituyen rechazo aislado. Ver informe para dominios y limitaciones.
