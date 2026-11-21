@@ -5,8 +5,8 @@
 **Fecha de Emisión:** 21 de noviembre de 2026  
 **Rama de Reparación:** `fix/quant-audit-2026-11`  
 **Commit Base Inicial:** `e871eab1d3bbf73184e2757448fbc7933acd56fa`  
-**Estado Final de la Suite de Pruebas:** 37 / 37 APROBADAS (100% de éxito, 0 fallos, 0 regresiones)  
-**Tiempo de Ejecución Integral (`run_all.py`):** 102.3 segundos (end-to-end determinista)
+**Estado Final de la Suite de Pruebas:** 48 / 48 APROBADAS (100% de éxito, 0 fallos, 0 regresiones)  
+**Tiempo de Ejecución Integral (`run_all.py`):** ~11 minutos (end-to-end determinista con 48 pruebas automatizadas)
 
 ---
 
@@ -42,6 +42,10 @@ A través de un enfoque riguroso de prueba de regresión previa antes de editar 
 | **H-11** | Merge de Bloomberg sin verificación de unicidad `1:1` ni auditoría de paridad Call-Put. | `src/data_cleaning.py`<br>`src/iv_inversion.py` | `fd11e10` | Riesgo de duplicación de contratos y opacidad sobre discrepancias Call-Put simultáneas. | Validación de cardinalidad `1:1`, exportación de auditoría de paridad y estatus de Brent. | Identificación de 68 pares Call-Put; dispersión de 4.26 pp explicada por asincronía de `lastPrice`. |
 | **H-12** | Estimador HAR-RV entrenaba con datos hasta $t$ sufriendo fuga de objetivo a 21 días (*leakage*). | `src/forecasts.py` | `7912e6b` | Fuga de información en los últimos 20 días de la ventana de estimación rodante. | Validación walk-forward purificada restringiendo el entrenamiento a $s \le t - 21$. | **QLIKE Purificado = $0.1855$** (bate a EWMA con $0.2099$ y a Histórico 21d con $0.2512$). |
 | **H-13** | Señal de Straddle desconectada del pronóstico y cobertura delta ignoraba delta americano. | `src/strategies.py` | `7912e6b` | Pronóstico de 72.97% hardcodeado; delta de put supuesto en -0.50 sin justificación. | Enlace dinámico directo al output de HAR-RV y delta de put americano exacto (-0.3839). | Cobertura dinámica de **$-23$ acciones** de NU para el Straddle ATM largo. |
+| **H-14** | Inconsistencia temporal: proyección monótona se saltaba en nodos exactos ($\tau \in \text{tenors}$). | `src/surface.py` | *Audit R2* | Decrementos de varianza total en nodos (Casos A y B) y discontinuidades artificiales al aproximarse a $\tau_i$. | Evaluación temporal unificada mediante proyección acumulativa monótona $w^*(\tau_i, k)$ en nodos e interpolador PCHIP $C^1$. | Arbitraje de calendario estrictamente eliminado ($\Delta w \ge 0$) y continuidad verificada ($|\text{salto}| < 10^{-6}$). |
+| **H-15** | Garantías ficticias en Fallback PCHIP (`pct_no_butterfly_arb = 100.0%`). | `src/surface.py` | *Audit R2* | Se atribuía $100\%$ de ausencia de arbitraje analítico mariposa a curvas PCHIP donde la fórmula $g(k)$ no aplica. | Supresión de garantía ficticia (`NaN` en $g(k)$ SVI), validación de convexidad por diferencias divididas y metadatos explícitos. | Diagnóstico transparente de convexidad real ($100\%$ en 3d/395d; $89.5\%$ en 794d por anomalía empírica en $K=3$). |
+| **H-16** | Desconexión entre señales de trading y posiciones efectivamente simuladas. | `src/strategies.py` | *Audit R2* | La simulación calculaba siempre el P&L de un straddle largo aunque la señal fuera `NO_TRADE` o `SHORT_VOLATILITY`. | Separación de señales y ejecución estricta: `NO_TRADE` produce 0 contratos, $\$0.00$ fricción y $\$0.00$ P&L. | Comprobación paramétrica de portafolios y resultados ante pronósticos alcistas, neutros y bajistas. |
+| **H-17** | Ocultación de errores en el orquestador (`run_all.py` retornaba 0 ante fallos de pytest). | `run_all.py` | *Audit R2* | Pytest fallido imprimía un warning y continuaba anunciando éxito del pipeline con exit code 0. | Validación post-etapa obligatoria y propagación estricta de códigos no nulos (`sys.exit(code)`). | Pipeline falla inmediatamente ante excepciones o tests no superados; verificado con 5 pruebas unitarias. |
 
 ---
 

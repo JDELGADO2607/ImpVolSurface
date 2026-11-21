@@ -7,7 +7,7 @@
 **Tasa de Dividendos ($q$):** 0.00 % anual ($q = 0$, verificado en Formulario SEC 6-K del 12-nov-2026)  
 **Curva Libre de Riesgo:** Curva Par del Tesoro de EE.UU. (4.10% a 4.84% compuesta continua)  
 **Entorno de Ejecución:** Python 3.12.6, NumPy 2.1.1, SciPy 1.18.0, Pandas 2.2.2, OpenPyXL 3.1.5, Pytest 9.2.0, MiKTeX (pdflatex)  
-**Rama de Auditoría y Reparación:** `fix/quant-audit-2026-11` (100% verificada, 37/37 tests passing)
+**Rama de Auditoría y Reparación:** `fix/quant-audit-2026-11` (100% verificada, 48/48 tests passing)
 
 ---
 
@@ -17,10 +17,10 @@ Este repositorio contiene la implementación cuantitativa completa, verificada, 
 1. **Auditoría Forense y Depuración (Puntos 46 y 47):** Importación de 575 contratos reales (303 calls, 272 puts, 16 vencimientos), corrección de truncamientos intradiarios de $\tau$, detección del reseteo a cero de bid/ask en Yahoo, y clasificación en Tiers mediante cotas de no arbitraje y condicionamiento $\kappa = 0.01 / \text{Vega} \le 3.0$ pp/centavo (201 contratos limpios). Auditoría de 68 pares Call-Put idénticos (dispersión media de 4.26 pp explicada por asincronía de `lastPrice`).
 2. **Motores de Valoración Americanos y Estabilidad de Griegas (Puntos 48 y P0-A):** Implementación de Black-Scholes analítico para Calls sin dividendos (Merton, 1973) y diferencias finitas Crank-Nicolson con suavizado de Rannacher y penalización cuadrática (Forsyth & Vetzal, 2002) para Puts americanas. **Estabilización de Griegas Numéricas:** Dominio espacial común e invariante $S_{\max} = 4.0 \cdot \max(S_0, K)$ y evaluación sobre malla compartida con interpolación PCHIP local, estabilizando el Gamma de la Put $K=12$ de $3.3547$ a **$0.2375$** (consistente con Gamma europeo de $0.2346$).
 3. **Inversión Numérica a Volatilidad Implícita (Punto 49):** Algoritmo de Brent sobre intervalo bracket $[0.01, 5.00]$ y contraste estratificado con Bloomberg mediante merge `1:1` estricto, reportando estados de convergencia transparentes (`CONVERGED_PRICE_TOL` vs `CONVERGED_VOL_TOL`).
-4. **Construcción y No Arbitraje de la Superficie SVI (Puntos 50, 51 y P0-C):** Proyección en log-forward moneyness $k = \ln(K/F)$ y calibración de la parametrización Raw SVI de Gatheral imponiendo estrictamente la condición de alas de Roger Lee ($b(1+|\rho|) \le 1.95 < 2.0$), densidad mariposa no negativa $g(k) \ge 0$ al **100.0%** en la malla empírica, y proyección monótona acumulativa de calendario ($\partial w / \partial \tau \ge 0$). Validación cruzada Leave-One-Strike-Out agrupada sobre 197 contratos fuera de muestra con pricing americano en puts: **MAE = $\$0.0389$ USD**, **RMSE = $\$0.0649$ USD**.
+4. **Construcción y No Arbitraje de la Superficie SVI/PCHIP (Puntos 50, 51 y P0-C):** Proyección en log-forward moneyness $k = \ln(K/F)$ y calibración de la parametrización Raw SVI de Gatheral imponiendo estrictamente la condición de alas de Roger Lee ($b(1+|\rho|) \le 1.95 < 2.0$), densidad mariposa no negativa $g(k) \ge 0$ al **100.0%** en la malla empírica de cortes SVI, y **evaluación temporal unificada mediante proyección acumulativa monótona** que elimina definitivamente el arbitraje de calendario ($\partial w / \partial \tau \ge 0$) tanto en nodos exactos como intermedios sin discontinuidades de interpolación. **Validación de Fallback PCHIP:** Supresión de garantías ficticias (`NaN` en fórmula SVI analítica) y verificación mediante diferencias divididas de convexidad de precios. Validación cruzada Leave-One-Strike-Out agrupada sobre 197 contratos fuera de muestra con pricing americano en puts: **MAE = $\$0.0389$ USD**, **RMSE = $\$0.0649$ USD**.
 5. **Comparación de los Cuatro Modelos (Puntos 54 y 55):** Matriz $2 \times 2$ (Europeo/Americano $\times$ Plano/Superficie) distinguiendo formalmente ajuste In-Sample ($N=201$) y validación Out-of-Sample LOO ($N=197$). La superficie SVI reduce el error MAE en un 40.9% general y en un 48.4% en opciones ITM (de $\$0.0854$ a $\$0.0398$ USD).
 6. **Stress Testing de Cadena Fija Unificado (Puntos 52 y P0-B):** Cartera hipotética delta-neutral de 5 patas con cobertura dinámica de **-357 acciones de NU** ($\Delta_{\text{neto}} = +0.11$). Marco de contabilidad dual que incorpora el Escenario Nulo ($\text{P\&L} \equiv \$0.00$), aísla la diferencia inicial de marca a modelo ($-\$20.43$ USD) y calcula el capital económico mediante margen regulatorio (Reg T / FINRA 4210, $\$5\,435.31$ USD). **Desmitificación de Taylor:** La discrepancia anterior de $-\$3\,253$ USD se corrige a **$-\$261.15$ USD** (Full EDP $= +\$496.56$ USD vs Taylor $= +\$757.71$ USD), demostrando que la brecha histórica obedecía al Gamma numérico inflado ($3.3547$ vs $0.2375$) y a la mezcla de bases de precio inicial.
-7. **Estrategias Cuantitativas de Trading (Puntos 53 y P1-C):** Modelo HAR-RV (Corsi, 2009) con validación **walk-forward purificada** ($s \le t - 21$), eliminando cualquier sesgo de anticipación (QLIKE = **$0.1855$**, superior a EWMA con $0.2099$). Pronóstico a 21 días (72.97%) dinámicamente enlazado a la señal ($z = +0.505 > 0$) para estructurar un Straddle delta-neutral con cobertura de -23 acciones basada en el delta americano de la Put (-0.3839) y Calendar Spread a strike fijo $K=13.00$ ($\sigma_{\text{fwd}} = 38.15\%$).
+7. **Estrategias Cuantitativas de Trading y Vínculo Causal (Puntos 53 y P1-C):** Modelo HAR-RV (Corsi, 2009) con validación **walk-forward purificada** ($s \le t - 21$), eliminando cualquier sesgo de anticipación (QLIKE = **$0.1855$**, superior a EWMA con $0.2099$). **Vinculación estricta de señales:** El pronóstico causal a 21 días (72.97%) activa `LONG_VOLATILITY_STRADDLE`, abriendo $+1$ Call, $+1$ Put y $-23$ acciones de cobertura; ante señales neutrales (`NO_TRADE`), la simulación arroja estrictamente 0 contratos, 0 fricción y $\$0.00$ de P&L, erradicando ejecuciones automáticas desalineadas. Calendar Spread a strike fijo $K=13.00$ ($\sigma_{\text{fwd}} = 38.15\%$). Todos los escenarios son simulaciones académicas prospectivas.
 
 ---
 
@@ -48,14 +48,15 @@ rockling/
 │   ├── forecasts.py                           # Estimador HAR-RV walk-forward causal purificado
 │   └── strategies.py                          # Escenarios, enlace dinámico y costos de Estrategias 1 y 2
 ├── tests/
-│   ├── test_contracts_and_dates.py            # Tests de parseo, tau, tiers y paridad
-│   ├── test_pricing_bs.py                     # Tests de paridad, monotonicidad y griegas
-│   ├── test_pricing_american.py               # Tests de prima americana, FD vs CRR y penalización
-│   ├── test_pde_greeks_stability.py           # Tests de estabilidad de Gamma/Vanna y dominio fijo
-│   ├── test_iv_recovery.py                    # Tests de recuperación sintética Brent y estatus
-│   ├── test_surface_and_interpolation.py      # Tests de SVI, Lee wings, mariposa 100% y calendario
-│   ├── test_portfolio_and_stress.py           # Tests de delta-neutralidad, P&L nulo y reconciliación
-│   └── test_no_lookahead.py                   # Tests de walk-forward purificado e invariancia contrafactual
+│   ├── test_contracts_and_dates.py            # Tests de parseo, tau, tiers y paridad (4 tests)
+│   ├── test_pricing_bs.py                     # Tests de paridad, monotonicidad y griegas (3 tests)
+│   ├── test_pricing_american.py               # Tests de prima americana, FD vs CRR y penalización (8 tests)
+│   ├── test_pde_greeks_stability.py           # Tests de estabilidad de Gamma/Vanna y dominio fijo (4 tests)
+│   ├── test_iv_recovery.py                    # Tests de recuperación sintética Brent y estatus (3 tests)
+│   ├── test_surface_and_interpolation.py      # Tests de SVI, Lee wings, mariposa, calendario y PCHIP (10 tests)
+│   ├── test_portfolio_and_stress.py           # Tests de delta-neutralidad, P&L nulo y reconciliación (5 tests)
+│   ├── test_no_lookahead.py                   # Tests de walk-forward purificado y enlace señal-portafolio (6 tests)
+│   └── test_pipeline_error_propagation.py     # Tests de propagación estricta de errores del pipeline (5 tests)
 ├── outputs/
 │   ├── tables/                                # 15 tablas CSV auditables generadas
 │   ├── figures/                               # 9 gráficos de alta resolución
@@ -63,14 +64,15 @@ rockling/
 ├── docs/
 │   ├── AUDITORIA_REPARACION_BASELINE.md       # Auditoría de línea base pre-reparación
 │   ├── INFORME_FINAL_REPARACION.md            # Informe final de auditoría, cambios y defensa
-│   ├── DECISIONES_Y_LIMITACIONES.md           # Registro vivo de decisiones cuantitativas (DEC-001 a DEC-009)
+│   ├── SEGUNDA_AUDITORIA_PR1.md               # Informe de la Segunda Ronda de Auditoría Independiente
+│   ├── DECISIONES_Y_LIMITACIONES.md           # Registro vivo de decisiones cuantitativas (DEC-001 a DEC-013)
 │   ├── MANUAL_MATEMATICO_COMPLETO.tex         # Manual exhaustivo en LaTeX (24 págs)
 │   ├── MANUAL_MATEMATICO_COMPLETO.pdf         # PDF compilado con pdflatex
 │   ├── GUIA_EXPOSICION_10_MIN.md              # Guion oral de 8 diapositivas (10 min)
-│   ├── PREGUNTAS_DEFENSA.md                   # Catálogo exhaustivo de preguntas técnicas
+│   ├── PREGUNTAS_DEFENSA.md                   # Catálogo exhaustivo de preguntas técnicas (29 preguntas)
 │   └── REFERENCIAS_VERIFICADAS.md             # Catálogo bibliográfico con DOIs verificados
 ├── requirements.txt                           # Dependencias de Python fijadas
-├── run_all.py                                 # Script maestro ejecutable integral con verificación pytest
+├── run_all.py                                 # Script maestro ejecutable integral con verificación pytest y salida estricta
 └── README.md                                  # Este documento
 ```
 
@@ -90,7 +92,7 @@ python run_all.py
 ```
 
 ### 3.3 Ejecución de la Suite de Pruebas Unitarias y de Regresión
-Para correr los 37 tests automatizados:
+Para correr los 48 tests automatizados:
 ```bash
 pytest -v
 ```

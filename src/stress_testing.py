@@ -15,6 +15,8 @@ if str(root_dir) not in sys.path:
 from typing import Any
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from src.market_data import SPOT_PRICE, CONTRACT_MULTIPLIER, get_zero_rate, get_forward_price

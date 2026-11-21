@@ -16,6 +16,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 VALUATION_DATE_STR = "2026-11-17"

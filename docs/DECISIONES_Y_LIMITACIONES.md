@@ -76,25 +76,64 @@ Este documento registra formalmente cada decisión de diseño cuantitativo, fina
 * **Evidencia:** `tests/test_portfolio_and_stress.py` y `outputs/tables/stress_test_matrix.csv`.
 
 ### DEC-009: Restricciones Robustas de Roger Lee y Proyección Monótona de Calendario en SVI
-* **Decisión:** Imponer la cota analítica de momentos de Roger Lee $b(1+|\rho|) \le 1.95 < 2.0$ y la penalización estricta de densidad neutral al riesgo $g(k) \ge 0$ al 100% de la malla empírica. Aplicar acumulación monótona temporal previa a la interpolación PCHIP para eliminar decrementos de varianza total entre vencimientos adyacentes. Si un vencimiento tiene menos de 6 strikes, activar la política conservadora de Fallback por Spline PCHIP monótono.
+* **Decisión:** Imponer la cota analítica de momentos de Roger Lee $b(1+|\rho|) \le 1.95 < 2.0$ y la penalización estricta de densidad neutral al riesgo $g(k) \ge 0$ al 100% de la malla empírica. Si un vencimiento tiene menos de 6 strikes, activar la política conservadora de Fallback por Spline PCHIP monótono.
 * **Alternativas evaluadas:**
   1. Calibrar SVI con cotas laxas ($b(1+|\rho|) < 4.0$) sobre madureces con 2 a 5 contratos.
   2. Tolerar hasta un 20% de violaciones mariposa fuera de dinero.
-* **Motivo de la elección:** Ajustar 5 parámetros SVI sobre 2 a 5 observaciones está matemáticamente subidentificado y genera curvaturas extremas en las alas no observadas. La condición $b(1+|\rho|) < 2.0$ es indispensable para evitar densidades con colas más pesadas que las permitidas por la física neutral al riesgo ($\mathbb{E}[S_T] < \infty$). La acumulación monótona previa garantiza matemáticamente $\frac{\partial w}{\partial \tau} \ge 0$ en cualquier punto $(k, \tau)$ del soporte.
+* **Motivo de la elección:** Ajustar 5 parámetros SVI sobre 2 a 5 observaciones está matemáticamente subidentificado y genera curvaturas extremas en las alas no observadas. La condición $b(1+|\rho|) < 2.0$ es indispensable para evitar densidades con colas más pesadas que las permitidas por la física neutral al riesgo ($\mathbb{E}[S_T] < \infty$).
 * **Evidencia:** `tests/test_surface_and_interpolation.py` y tabla `outputs/tables/svi_slice_parameters.csv`.
+
+### DEC-010: Evaluación Temporal Unificada y Eliminación de Discontinuidades en Nodos Calibrados (Segunda Ronda)
+* **Decisión:** Unificar la evaluación temporal de la superficie para cualquier $\tau$ imponiendo la secuencia proyectada acumulativa monótona $w^*(\tau_i, k) = \max_{j \le i} w_{\text{raw}}(\tau_j, k)$ tanto en los nodos exactos $\tau = \tau_i$ como en la interpolación intermedia $C^1$ mediante PCHIP en $\tau$, junto con extrapolaciones planas continuas en volatilidad implícita para $\tau < \tau_1$ y $\tau > \tau_N$.
+* **Alternativas evaluadas:**
+  1. Evaluar el corte crudo $w_{\text{raw}}(\tau_i, k)$ cuando $\tau$ coincide con un tenor calibrado, y aplicar `maximum.accumulate` solo en puntos interpolados.
+  2. Forzar un ajuste global bidimensional no lineal de SVI paramétrico simultáneo (Surface SVI).
+* **Motivo de la elección:** La alternativa 1 provocaba una inconsistencia matemática severa: decrementos de varianza total exactamente en los nodos originales (Casos A y B de la auditoría) y un salto artificial discontinuo al aproximarse al tenor desde la izquierda o derecha ($\lim_{\epsilon \to 0} w(\tau_i \pm \epsilon) \neq w(\tau_i)$). La alternativa 2 introduce rigidez excesiva y distorsiona el ajuste de los strikes líquidos. La evaluación unificada garantiza $w(k, \tau_2) \ge w(k, \tau_1)$ para todo $\tau_2 \ge \tau_1 \ge 0$, elimina saltos de interpolación ($|\text{salto}| < 10^{-6}$), preserva la positividad de la varianza total y registra con precisión trazable los ajustes introducidos.
+* **Evidencia:** Eliminación de los contraejemplos Casos A y B en `tests/test_surface_and_interpolation.py`, verificación de continuidad $C^1$ y registro en `outputs/tables/svi_slice_parameters.csv`.
+
+### DEC-011: Validación Económica Explícita de Cortes Fallback PCHIP sin Garantías Ficticias (Segunda Ronda)
+* **Decisión:** Erradicar la asignación automática de `pct_no_butterfly_arb = 100.0%` en cortes fallback generados por PCHIP, reportando explícitamente `NaN` para la fórmula analítica $g(k)$ de SVI y sustituyéndola por una validación transversal exhaustiva basada en diferencias divididas de convexidad de precios ($\frac{\Delta^2 C}{\Delta K^2} \ge -\text{tol}$), límites intrínsecos y monotonía empírica.
+* **Alternativas evaluadas:**
+  1. Aplicar la función analítica $g(k)$ de Raw SVI a la curva PCHIP.
+  2. Declarar 100% de no arbitraje asumiendo que PCHIP preserva forma por diseño.
+* **Motivo de la elección:** La función analítica $g(k)$ se deriva matemáticamente de la primera y segunda derivada de la hipérbola Raw SVI; aplicarla a un spline por tramos carece de rigor formal. Asimismo, PCHIP preserva la monotonicidad de los datos empíricos de varianza, pero no garantiza automáticamente la convexidad de los precios de las opciones respecto al strike. Al evaluar numéricamente la convexidad, se descubrió que los vencimientos de 3d y 395d cumplen 100% de convexidad, mientras que el corte LEAPS de enero de 2029 (794d) exhibe anomalías en el strike extremo $K=3.0$ debido a iliquidez del mercado. Este hecho se registra de forma transparente como `EMPIRICAL_ANOMALIES_DETECTED` en lugar de enmascararlo con una garantía ficticia.
+* **Evidencia:** Metadatos ampliados en `svi_slice_parameters.csv` y prueba `test_pchip_fallback_economic_validation_and_no_fictitious_guarantees`.
+
+### DEC-012: Vinculación Estricta entre Señal Causal y Posiciones Simuladas del Portafolio (Segunda Ronda)
+* **Decisión:** Desacoplar la generación de señales de la evaluación de cartera y condicionar la apertura real de posiciones en la simulación académica al valor de la señal:
+  - `LONG_VOLATILITY_STRADDLE`: abre $+1$ Call, $+1$ Put, cobertura corta de acciones, fricciones y P&L de straddle largo.
+  - `NO_TRADE`: establece exactamente $0.0$ contratos, $0$ acciones, $\$0.00$ de fricción y $\$0.00$ de P&L bajo todos los escenarios de estrés, con justificación explícita de neutralidad.
+  - `SHORT_VOLATILITY_STRADDLE`: abre $-1$ Call, $-1$ Put, cobertura larga de acciones, recolecta prima inicial y asume pérdidas de cola no acotadas, etiquetado formalmente como `THEORETICAL_SHORT_STRADDLE_UNBOUNDED_TAIL_RISK`.
+* **Alternativas evaluadas:**
+  1. Generar la señal como etiqueta descriptiva y evaluar siempre el payoff de un straddle largo.
+  2. Forzar artificialmente una señal positiva mediante la alteración de umbrales para conservar el resultado anterior.
+* **Motivo de la elección:** La señal cuantitativa no puede ser cosmética; cambiar el pronóstico debe transformar las posiciones y el P&L simulado. La política respeta el resultado empírico causal (con el pronóstico purificado de 72.97% se activa `LONG_VOLATILITY_STRADDLE`), pero responde dinámicamente si se somete a pronósticos neutros o bajistas.
+* **Evidencia:** Pruebas parametrizadas en `tests/test_no_lookahead.py`.
+
+### DEC-013: Propagación Bloqueante de Errores y Códigos de Salida en el Pipeline (`run_all.py`) (Segunda Ronda)
+* **Decisión:** Configurar el orquestador maestro `run_all.py` para validar exhaustivamente la existencia, integridad y finitud de los artefactos generados tras cada etapa, deteniendo el flujo inmediatamente ante excepciones en etapas críticas y propagando códigos de salida distintos de cero (`sys.exit(code)`) ante cualquier fallo de pruebas o validaciones.
+* **Alternativas evaluadas:**
+  1. Imprimir advertencias en consola (`WARNING`) y continuar hasta anunciar éxito general con código 0.
+  2. Omitir validaciones intermedias de tablas generadas.
+* **Motivo de la elección:** Un pipeline financiero en producción cuantitativa no puede reportar éxito si existen pruebas unitarias fallidas o artefactos incompletos.
+* **Evidencia:** Suite de pruebas en `tests/test_pipeline_error_propagation.py`.
 
 ---
 
 ## 2. Limitaciones Identificadas y Mitigaciones Metodológicas
 
-1. **Ausencia de Cotizaciones Bid-Ask Simultáneas en Tiempo Real:**
-   * *Limitación:* Yahoo Finance no conserva las cotizaciones bilaterales vivas de la sesión regular una vez cerrado el mercado.
-   * *Mitigación:* Se utiliza `lastPrice` del 17 de noviembre, pero se filtra rigurosamente mediante el condicionamiento $\kappa = 0.01 / \text{Vega} \le 3.0$ puntos porcentuales. Todo contrato con Vega microscópica donde un tick de un centavo mueva la IV en más de 3 pp queda etiquetado como no apto para la calibración central de la superficie.
+1. **Diferencia entre Condiciones Europeas SVI y Coherencia Económica Americana:**
+   * *Limitación:* Las condiciones clásicas de Gatheral & Jacquier ($g(k) \ge 0, \frac{\partial w}{\partial \tau} \ge 0$) son estrictamente válidas para superficies de volatilidad implícita europeas. En este proyecto, la superficie se ajusta sobre volatilidades implícitas recuperadas de opciones americanas mediante Crank-Nicolson.
+   * *Mitigación:* Se reconoce formalmente esta distinción. La ausencia de arbitraje europeo en SVI garantiza la coherencia de la función generadora de volatilidades, pero la validez económica final de los precios de las opciones americanas se corrobora mediante pruebas dedicadas en el motor EDP: cotas intrínsecas ($C \ge (S-K)^+$, $P \ge (K-S)^+$), monotonía respecto al strike y monotonicidad en madurez ($V(\tau_2) \ge V(\tau_1)$).
 
-2. **Asincronía Temporal con Bloomberg:**
-   * *Limitación:* Los campos de Bloomberg provienen de una captura del 18 de noviembre a las 12:52 COT (~21 horas después del cierre del 17 de noviembre), cuando el spot de NU se había movido de $12.33 a ~$12.08 USD.
-   * *Mitigación:* Se documenta explícitamente esta asincronía. Las diferencias entre nuestras IVs y Bloomberg no se interpretan como un error de cálculo, sino como el efecto conjunto de: (i) caída del spot, (ii) paso del tiempo ($\Delta t \approx 0.88$ días), (iii) base de precio (last vs mid), y (iv) ligera diferencia en la curva de descuento (Tesoro vs SOFR).
+2. **Alcance de las Validaciones Numéricas en Malla Finita:**
+   * *Limitación:* Las comprobaciones numéricas de ausencia de arbitraje de calendario y mariposa se ejecutan sobre mallas discretas densas de log-moneyness ($k \in [-0.6, +0.6]$) y madureces. Ninguna prueba numérica sobre malla finita constituye una demostración analítica de ausencia de arbitraje en $\mathbb{R}^2$.
+   * *Mitigación:* Se acotan con precisión el dominio de validez, la resolución de la discretización y las tolerancias numéricas ($10^{-6}$ a $10^{-4}$ USD). En regiones fuera del soporte empírico observado, se activan banderas explícitas de extrapolación (`EXTRAPOLATED_LOCAL_SLICE` o `EXTRAPOLATED_GLOBAL_DOMAIN`), prohibiendo cualquier pretensión de garantía matemática universal.
 
-3. **Restricción de Backtesting Histórico Libre de Sesgos:**
-   * *Limitación:* No se dispone de la serie histórica diaria de la cadena completa de opciones ni de los contratos expirados.
-   * *Mitigación:* Se descarta la fabricación de backtests espurios basados en contratos supervivientes (survivorship bias). Las estrategias del Punto 53 se formulan como estrategias prospectivas hipotéticas, sustentadas en la econometría de series temporales del subyacente NU (HAR-RV validado rigurosamente fuera de muestra) y en la extracción analítica de la varianza forward de la curva ATM.
+3. **Carácter Académico e Hipotético de las Estrategias de Trading:**
+   * *Limitación:* El proyecto no cuenta con datos intradiarios de libro de órdenes con cotizaciones ejecutables en tiempo real ni con series continuas de contratos vencidos.
+   * *Mitigación:* Se prohíbe categóricamente presentar los resultados como "rentabilidades históricas comprobadas" o "recomendaciones de inversión". Todas las estrategias son simulaciones analíticas prospectivas basadas en modelos de equilibrio y supuestos conservadores de fricción transaccional (spreads, comisiones y slippage).
+
+4. **Anomalías Empíricas en Opciones LEAPS de Muy Largo Plazo (Vencimiento Enero 2029):**
+   * *Limitación:* En el vencimiento de 794 días (2029-01-19), los contratos profundamente dentro del dinero (como la Call $K=3.0$ con última transacción a $\$10.25$ e IV implícita de $103.88\%$) exhiben distorsiones por extrema iliquidez y falta de cotizaciones actualizadas.
+   * *Mitigación:* El corte se calibra mediante fallback PCHIP, se documenta la anomalía de convexidad ($89.47\%$ de convexidad en precios) y se restringe su estatus a `EMPIRICAL_ANOMALIES_DETECTED`. Para fines de pricing de alta precisión, se recomienda limitar el dominio de este corte al rango de strikes líquidos ($K \ge 5.0$).

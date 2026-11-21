@@ -51,14 +51,17 @@
 
 ---
 
-### Diapositiva 4: Calibración de la Superficie de Volatilidad (SVI) (3:45 – 5:00)
+### Diapositiva 4: Calibración de la Superficie de Volatilidad (SVI) y Monotonicidad Temporal (3:45 – 5:00)
 * **Contenido Visual:**
   * Figura 1: [smile_2d_slices.png](outputs/figures/smile_2d_slices.png) (Cortes de sonrisa 2D por vencimiento).
   * Figura 2: [surface_3d_volatility.png](outputs/figures/surface_3d_volatility.png) (Superficie 3D en coordenadas $(k, \tau)$).
   * Métricas de validación cruzada Leave-One-Strike-Out (197 contratos evaluados con EDP americana en puts): MAE Precio = $\$0.0389$ USD, RMSE Precio = $\$0.0649$ USD.
-  * Verificación analítica de no arbitraje: Condición de alas de Roger Lee ($b(1+|\rho|) \le 1.95 < 2.0$) y densidad mariposa ($g(k) \ge 0$) al 100% sobre el soporte empírico.
+  * Verificación analítica y numérica de no arbitraje:
+    * SVI Paramétrico: Condición de alas de Roger Lee ($b(1+|\rho|) \le 1.95 < 2.0$) y densidad mariposa ($g(k) \ge 0$) al 100% sobre el soporte empírico.
+    * Fallback PCHIP: Validación económica explícita mediante diferencias divididas de convexidad de precios ($\frac{\Delta^2 C}{\Delta K^2} \ge 0$), erradicando garantías ficticias (reportando `NaN` en la fórmula SVI).
+    * Consistencia temporal: Proyección monótona acumulativa unificada tanto en nodos exactos como en puntos interpolados, garantizando $\frac{\partial w}{\partial \tau} \ge 0$ y continuidad $C^1$ (resolución definitiva de los Casos A y B de auditoría).
 * **Guion del Expositor:**
-  > "Proyectamos la cadena en coordenadas estandarizadas de log-forward moneyness $k = \ln(K/F)$ y varianza total $w(k,\tau) = \sigma^2 \tau$. Calibramos la parametrización Raw SVI de Gatheral por cortes temporales, restringiendo estrictamente los parámetros a las cotas asintóticas de Roger Lee ($b(1+|\rho|) < 2.0$) y garantizando ausencia de arbitraje mariposa ($g(k) \ge 0$, verificado en el 100% del soporte de datos). En la dimensión temporal, aplicamos una acumulación monótona previa e interpolamos mediante splines PCHIP para asegurar $\partial w / \partial \tau \ge 0$, eliminando el arbitraje de calendario en todo el dominio. Sometimos la superficie a una validación cruzada Leave-One-Strike-Out con pricing PDE completo sobre 197 contratos fuera de muestra: el MAE fuera de muestra fue de apenas 3.89 centavos de dólar, demostrando una generalización económica impecable sin sobreajuste."
+  > "Proyectamos la cadena en coordenadas estandarizadas de log-forward moneyness $k = \ln(K/F)$ y varianza total $w(k,\tau) = \sigma^2 \tau$. Calibramos la parametrización Raw SVI de Gatheral por cortes temporales, restringiendo estrictamente los parámetros a las cotas asintóticas de Roger Lee ($b(1+|\rho|) < 2.0$) y garantizando ausencia de arbitraje mariposa analítico ($g(k) \ge 0$) en el 100% del soporte en cortes SVI. Para los vencimientos con pocos strikes, activamos un fallback conservador en PCHIP, validado económicamente mediante diferencias divididas de convexidad sin atribuirle fórmulas analíticas que no le corresponden. Crucialmente, unificamos la evaluación temporal mediante proyección acumulativa monótona $w^*(\tau_i, k)$: la superficie garantiza ausencia de arbitraje de calendario tanto en los vencimientos originales como en los intermedios, sin saltos artificiales. Sometimos la superficie a validación cruzada Leave-One-Strike-Out con pricing PDE completo sobre 197 contratos: el MAE fuera de muestra fue de apenas 3.89 centavos de dólar, demostrando una generalización económica impecable sin sobreajuste."
 
 ---
 
@@ -90,10 +93,10 @@
 ### Diapositiva 7: Estrategias Cuantitativas y Límites de Datos (7:30 – 8:45)
 * **Contenido Visual:**
   * Figura 1: [nu_historical_vol_and_forecasts.png](outputs/figures/nu_historical_vol_and_forecasts.png) (Serie histórica y pronóstico HAR-RV purificado).
-  * Figura 2: [strategy1_payoff_scenarios.png](outputs/figures/strategy1_payoff_scenarios.png) (Curvas de P&L de la Estrategia 1 bajo tres regímenes de fricción).
+  * Figura 2: [strategy1_payoff_scenarios.png](outputs/figures/strategy1_payoff_scenarios.png) (Curvas de P&L de la Estrategia 1 bajo tres regímenes de fricción y conexión estricta de señal).
   * Figura 3: [strategy2_calendar_payoff.png](outputs/figures/strategy2_calendar_payoff.png) (Payoff del Calendar Spread a strike fijo $K=13.00$).
 * **Guion del Expositor:**
-  > "Desarrollamos dos estrategias cuantitativas defendibles sin sesgo de anticipación. En la Estrategia 1, calibramos el modelo heterogéneo HAR-RV mediante validación walk-forward estrictamente purificada ($s \le t-21$), eliminando cualquier fuga del objetivo a 21 días (QLIKE = 0.1855, superior a EWMA 0.2099 y rolling 0.2512). Al 17 de noviembre, el pronóstico causal fue de 72.97% frente a una IV ATM de 44.02%, generando una señal $z = +0.505 > 0$. Para estructurar el Straddle ATM largo delta-neutral, empleamos el delta americano de la Put (-0.3839) junto al delta de la Call (+0.6120), requiriendo una cobertura dinámica exacta de -23 acciones de NU. En la Estrategia 2, extrajimos la volatilidad forward a strike fijo $K=13.00$ entre 31 y 59 días ($\sigma_{\text{fwd}} = 38.15\%$) mediante un Calendar Spread. Modelamos tres regímenes de costos y garantizamos total transparencia: al disponer de una sola sesión de corte transversal, declaramos la ausencia de backtesting histórico intradía como una limitación metodológica innegociable."
+  > "Desarrollamos dos estrategias cuantitativas defendibles sin sesgo de anticipación. En la Estrategia 1, calibramos el modelo heterogéneo HAR-RV mediante validación walk-forward estrictamente purificada ($s \le t-21$), eliminando cualquier fuga del objetivo a 21 días (QLIKE = 0.1855, superior a EWMA 0.2099 y rolling 0.2512). Al 17 de noviembre, el pronóstico causal fue de 72.97% frente a una IV combinada de 45.90%, superando el umbral de 5 pp y activando la señal `LONG_VOLATILITY_STRADDLE`. Separamos rigurosamente la señal de la ejecución simulada: la estructura abrió $+1$ Call, $+1$ Put y una cobertura delta exacta de $-23$ acciones de NU (utilizando el delta americano de la put de -0.3839). Si el pronóstico se ubicara en la banda neutral, la simulación arroja estrictamente cero contratos, cero costos y cero P&L. En la Estrategia 2, extrajimos la volatilidad forward a strike fijo $K=13.00$ entre 31 y 59 días ($\sigma_{\text{fwd}} = 38.15\%$) mediante un Calendar Spread. Modelamos tres regímenes de costos y enfatizamos que son simulaciones académicas prospectivas, no órdenes de ejecución ni promesas de rentabilidad histórica."
 
 ---
 

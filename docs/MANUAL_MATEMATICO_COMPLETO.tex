@@ -545,9 +545,9 @@ $\eta > 0$ & $[0.005, 2.0]$ & Curvatura / suavizado del vértice en la región A
 \caption{Parámetros de la formulación Raw SVI.}
 \end{table}
 
-\subsection{Condiciones Analíticas de No Arbitraje Estático}
+\subsection{Condiciones Analíticas de No Arbitraje Estático Europeo}
 \begin{theorem}[Condiciones de No Arbitraje de Gatheral \& Jacquier, 2014; Lee, 2004]
-Una superficie de volatilidad representada en varianza total $w(k, \tau)$ está libre de arbitraje estático si y solo si:
+Una superficie de volatilidad representada en varianza total $w(k, \tau)$ está libre de arbitraje estático europeo si y solo si:
 \begin{enumerate}
     \item \textbf{No negatividad global de la varianza:}
     \begin{equation}
@@ -569,15 +569,71 @@ Una superficie de volatilidad representada en varianza total $w(k, \tau)$ está 
     \begin{equation}
         \frac{\partial w(k, \tau)}{\partial \tau} \ge 0 \quad \forall k, \tau
     \end{equation}
-    Para garantizar esta condición sobre todo el continuo bidimensional, se aplica una regularización monótona acumulada $\widetilde{w}(k, \tau_j) = \max_{\tau' \le \tau_j} w(k, \tau')$ previo a la interpolación PCHIP temporal, previniendo decrementos espurios de varianza.
 \end{enumerate}
 \end{theorem}
 
-\subsection{Política de Calibración: Ajuste SVI vs Fallback Spline PCHIP}
-Para evitar subidentificación paramétrica y sobreajuste numérico en madureces con escasa liquidez:
+\subsection{Distinción entre Superficie Europea SVI y Coherencia Económica Americana}
+Es fundamental distinguir tres niveles conceptuales rigurosos:
+\begin{enumerate}
+    \item \textbf{Superficie SVI sobre IVs Americanas:} La parametrización Raw SVI se ajusta a partir de volatilidades implícitas $\sigma_{\text{imp}}(K, \tau)$ que fueron previamente invertidas mediante el motor Crank-Nicolson con penalización sobre precios americanos de mercado. SVI actúa como interpolador/suavizador bidimensional de varianza total.
+    \item \textbf{Arbitraje Clásico Europeo:} Las condiciones analíticas de Gatheral \& Jacquier ($g(k) \ge 0, \frac{\partial w}{\partial \tau} \ge 0$) aplican estrictamente a superficies neutrales al riesgo de opciones europeas. Su cumplimiento en la superficie garantiza regularidad matemática y ausencia de patologías analíticas en el generador continuo de volatilidades.
+    \item \textbf{Comprobaciones Económicas en Precios Americanos:} Los precios finales de las opciones americanas generados mediante la revaloración de la superficie en el motor EDP deben satisfacer las restricciones económicas fundamentales de no arbitraje americano:
+    \begin{align}
+        C_{\text{Am}}(S, K, \tau) &\ge \max(S - K, 0), \quad P_{\text{Am}}(S, K, \tau) \ge \max(K - S, 0) \quad \text{(Cotas intrínsecas)} \\
+        C_{\text{Am}}(S, K, \tau) &\le S, \quad P_{\text{Am}}(S, K, \tau) \le K \quad \text{(Cotas superiores)} \\
+        \frac{\partial C_{\text{Am}}}{\partial K} &\le 0, \quad \frac{\partial P_{\text{Am}}}{\partial K} \ge 0 \quad \text{(Monotonía en Strike)} \\
+        V_{\text{Am}}(S, K, \tau_2) &\ge V_{\text{Am}}(S, K, \tau_1) \quad \forall \tau_2 > \tau_1 \quad \text{(Monotonía temporal por derecho de ejercicio)}
+    \end{align}
+    Todas estas condiciones son evaluadas numéricamente y verificadas con 0 violaciones en la suite de pruebas automatizadas (\texttt{check\_american\_economic\_arbitrage}).
+\end{enumerate}
+
+\subsection{Consistencia Temporal Unificada y Eliminación de Discontinuidades de Calendario}
+En la primera versión del sistema, la función de superficie aplicaba la proyección acumulativa $\max$ al interpolar en madureces intermedias, pero evaluaba el corte crudo $w_{\text{raw}}(\tau_i, k)$ cuando $\tau$ coincidía con un nodo calibrado. Esta discrepancia provocaba decrementos de varianza total en los vencimientos exactos (Casos A y B de auditoría) y saltos artificiales discontinuos al aproximarse al nodo ($\lim_{\epsilon \to 0} w(\tau_i \pm \epsilon) \neq w(\tau_i)$).
+
+Para resolver esto definitivamente, rediseñamos la evaluación temporal bajo una política \textbf{unificada}:
+\begin{enumerate}
+    \item Para cualquier $k$, se evalúa la secuencia de varianzas totales crudas en los $N$ vencimientos calibrados:
+    \begin{equation}
+        w_{\text{raw}}(\tau_1, k), w_{\text{raw}}(\tau_2, k), \dots, w_{\text{raw}}(\tau_N, k)
+    \end{equation}
+    \item Se impone la proyección temporal no decreciente acumulativa:
+    \begin{equation}
+        w^*(\tau_i, k) = \max_{1 \le j \le i} w_{\text{raw}}(\tau_j, k), \quad i = 1, \dots, N
+    \end{equation}
+    \item Para cualquier madurez $\tau \in [\tau_1, \tau_N]$, se evalúa mediante interpolación PCHIP monótona sobre los pares $\{(\tau_i, w^*(\tau_i, k))\}_{i=1}^N$:
+    \begin{equation}
+        w(k, \tau) = \text{PCHIP}_{\tau}\left(\{(\tau_i, w^*(\tau_i, k))\}\right)(\tau)
+    \end{equation}
+    Dado que PCHIP preserva la monotonicidad estricta de datos no decrecientes y en cada nodo coincide exactamente con $w^*(\tau_i, k)$, se garantiza:
+    \begin{itemize}
+        \item Consistencia idéntica en nodos calibrados y puntos intermedios: $w(k, \tau_i) \equiv w^*(\tau_i, k)$.
+        \item Continuidad de clase $C^1$ sin saltos ni discontinuidades de interpolación:
+        \begin{equation}
+            \lim_{\epsilon \to 0^+} w(k, \tau_i + \epsilon) = \lim_{\epsilon \to 0^-} w(k, \tau_i - \epsilon) = w(k, \tau_i)
+        \end{equation}
+        \item Ausencia absoluta de arbitraje de calendario: $\frac{\partial w(k, \tau)}{\partial \tau} \ge 0$ para todo $\tau \in [\tau_1, \tau_N]$.
+    \end{itemize}
+    \item Para extrapolaciones fuera del soporte temporal:
+    \begin{align}
+        \tau < \tau_1 &\implies w(k, \tau) = w^*(\tau_1, k) \cdot \frac{\tau}{\tau_1} \iff \sigma(k, \tau) = \sigma(k, \tau_1) \quad (\text{IV plana continua}) \\
+        \tau > \tau_N &\implies w(k, \tau) = w^*(\tau_N, k) \cdot \frac{\tau}{\tau_N} \iff \sigma(k, \tau) = \sigma(k, \tau_N) \quad (\text{IV plana continua})
+    \end{align}
+    asegurando que cuando $\tau \to 0$, $w(k, \tau) \to 0$ con pendiente estrictamente positiva.
+\end{enumerate}
+
+\subsection{Validación Económica de Cortes Fallback PCHIP sin Garantías Ficticias}
+Cuando un corte temporal posee menos de 6 strikes o no alcanza convergencia analítica libre de arbitraje mariposa en SVI, se activa la política de Fallback por Spline PCHIP monótono.
+\paragraph{Erradicación de Falsas Garantías Analíticas:}
+La función $g(k)$ es una derivación analítica cerrada exclusiva de la geometría hipérbola de Raw SVI. En versiones anteriores, se registraba mecánicamente \texttt{'pct\_no\_butterfly\_arb': 100.0\%} para cortes PCHIP, lo cual constituía una afirmación ficticia sin comprobación matemática real.
+En nuestra versión reparada:
 \begin{itemize}
-    \item Si una madurez posee $N \ge 6$ strikes con soporte balanceado OTM/ATM y converge a una solución que satisface $b(1+|\rho|) \le 1.95$ y $g(k) \ge 0$ al 100\% de la malla empírica, se adopta la parametrización analítica **Raw SVI**.
-    \item Si $N < 6$ o la parametrización SVI viola alguna cota de estabilidad económica, se activa la política conservadora de **Fallback PCHIP**, preservando la forma de la curva de volatilidad sin inventar curvatura artificial en las alas no observadas.
+    \item Se asigna explícitamente \texttt{NaN} a \texttt{pct\_no\_butterfly\_arb} en todo corte fallback, documentando que la fórmula SVI no es aplicable a splines.
+    \item Se implementa un procedimiento de validación transversal exhaustivo mediante \textbf{diferencias divididas de convexidad de precios}:
+    \begin{equation}
+        \frac{\Delta^2 C}{\Delta K^2} = \frac{\frac{C(K_{i+2}) - C(K_{i+1})}{K_{i+2} - K_{i+1}} - \frac{C(K_{i+1}) - C(K_i)}{K_{i+1} - K_i}}{\frac{K_{i+2} - K_i}{2}} \ge -\text{tol}
+    \end{equation}
+    evaluado en mallas densas de strikes en conjunto con cotas intrínsecas y monotonía de precios de Calls y Puts.
+    \item Los vencimientos de 3 días (2026-11-20) y 395 días (2027-12-17) verifican 100.0\% de convexidad en precios (\texttt{VERIFIED\_EMPIRICAL\_CONVEX\_BOUNDS}). Por el contrario, el corte LEAPS de enero de 2029 (794 días) arroja un $89.5\%$ de convexidad debido a una cotización extrema e ilíquida en el strike profundo ITM $K=3.0$, hecho que queda reportado de forma transparente como \texttt{EMPIRICAL\_ANOMALIES\_DETECTED}.
 \end{itemize}
 
 \newpage
@@ -679,17 +735,21 @@ donde $RV^{(d)}$ es la varianza diaria, $RV^{(w)} = \frac{1}{5}\sum_{i=0}^4 RV_{
 Dado que el objetivo forward $RV_{t, t+21}^{(m)}$ abarca 21 días hacia el futuro, entrenar modelos de ventana expansiva con datos hasta $t$ introduce una fuga de información (\textit{leakage}) en los últimos 20 días. Para garantizar validez econométrica genuina fuera de muestra, implementamos una validación \textbf{walk-forward purificada}: para predecir en el instante $t$, la muestra de ajuste se restringe estrictamente a $s \le t - 21$.
 En la evaluación fuera de muestra (2025--2026), el modelo purificado logró una pérdida QLIKE de $0.1855$ y un RMSE de $15.04$ puntos porcentuales, superando consistentemente a los estimadores EWMA ($\lambda=0.94$, QLIKE $0.2099$) y a la volatilidad histórica de 21 días (QLIKE $0.2512$).
 
-\paragraph{Señal Cuantitativa y Cobertura Delta Americana Dinámica:}
-Al 17 de noviembre de 2026, el modelo proyectó causalmente una volatilidad futura a 21 días de $72.97\%$, mientras que la IV ATM de mercado a 31 días cotizaba en $44.02\%$.
-La señal cuantitativa de entrada:
+\paragraph{Señal Cuantitativa y Desacoplamiento de Ejecución Simulada:}
+Al 17 de noviembre de 2026, el modelo proyectó causalmente una volatilidad futura a 21 días de $72.97\%$, mientras que la IV combinada de mercado del straddle cotizaba en $45.90\%$.
+El diferencial de volatilidad:
 \begin{equation}
-    z = \ln\left( \frac{\widehat{\sigma}_{\text{HAR}}}{\sigma_{\text{ATM}}} \right) = \ln\left( \frac{72.97\%}{44.02\%} \right) = +0.505 > 0
+    \Delta \sigma = \widehat{\sigma}_{\text{HAR}} - \sigma_{\text{Straddle}} = 72.97\% - 45.90\% = +27.07 \text{ pp}
 \end{equation}
-detona una recomendación de \texttt{LONG\_VOLATILITY\_STRADDLE}. Para estructurar la posición delta-neutral, se compra 1 Call ATM 31d ($K=12.50$, $\Delta_C = +0.6120$) y 1 Put americana ATM 31d ($K=12.50$, $\Delta_P = -0.3839$). El delta neto de las opciones es:
-\begin{equation}
-    \Delta_{\text{opciones}} = 100 \times (+0.6120 - 0.3839) = +22.81 \text{ acciones}
-\end{equation}
-Por consiguiente, la cobertura dinámica delta-neutral exige vender en corto exactamente $h_S = -23$ acciones de NU (dejando un delta residual ínfimo de $-0.19$).
+supera ampliamente la tasa de corte por fricciones (\textit{hurdle rate} de $5.0$ pp), detonando la señal \texttt{LONG\_VOLATILITY\_STRADDLE}.
+
+Para evitar que la señal sea un mero rótulo decorativo, la arquitectura desacopla la señal de la construcción del portafolio simulado (\texttt{build\_straddle\_portfolio\_from\_signal}):
+\begin{itemize}
+    \item \textbf{Caso A (\texttt{LONG\_VOLATILITY\_STRADDLE}):} Abre $+1$ contrato Call ATM 31d ($K=12.00$, $\Delta_C = +0.6153$, precio $\$0.86$), $+1$ contrato Put americana ATM 31d ($K=12.00$, $\Delta_P = -0.3839$, precio $\$0.47$). Para neutralizar el delta neto de $+0.2314$ por contrato, se venden en corto $h_S = -23$ acciones de NU, asumiendo un costo de débito inicial de $\$133.00$ USD más costos de transacción en tres regímenes.
+    \item \textbf{Caso B (\texttt{NO\_TRADE}):} Si el diferencial de volatilidad se ubica dentro de la banda neutral $[-\text{hurdle}, +\text{hurdle}]$, la simulación establece estrictamente $0.0$ contratos de opciones, $0$ acciones de cobertura, $\$0.00$ de costos de fricción y $\$0.00$ de P\&L bajo todos los escenarios de shock, justificando formalmente la abstención por insuficiencia de prima neta frente a fricciones.
+    \item \textbf{Caso C (\texttt{SHORT\_VOLATILITY\_STRADDLE}):} Si el diferencial es inferior a $-5.0$ pp, la simulación abre $-1$ Call y $-1$ Put, compra $+23$ acciones de cobertura y recolecta $\$133.00$ USD de crédito inicial. Esta estructura se clasifica explícitamente como una exposición teórica de riesgo asimétrico no acotado en las colas (\texttt{THEORETICAL\_SHORT\_STRADDLE\_UNBOUNDED\_TAIL\_RISK}).
+\end{itemize}
+Todas las estrategias son simulaciones analíticas prospectivas y no constituyen recomendaciones de inversión ni órdenes de ejecución real.
 
 \subsection{Estrategia 2: Estructura Temporal y Calendar Spread a Strike Fijo}
 Dada la superficie de volatilidad SVI calibrada en el strike fijo $K = 13.00$ entre los vencimientos $\tau_1 = 31$ días ($\sigma_1 = 41.56\%$) y $\tau_2 = 59$ días ($\sigma_2 = 40.00\%$):

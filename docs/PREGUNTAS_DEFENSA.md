@@ -246,3 +246,38 @@ Este documento recopila las 28 preguntas técnicas, metodológicas, financieras 
   2. **Adopción de la superficie SVI como estándar de valoración institucional:** Calibrar diariamente la superficie en varianza total con restricciones analíticas para garantizar ausencia de arbitraje mariposa y de calendario.
   3. **Mandato de Revaloración Completa por EDP en Pruebas de Estrés:** Prohibir el uso exclusivo de Griegas de primer y segundo orden para evaluar pérdidas bajo escenarios de estrés severo ($|\Delta S| \ge 10\%$).
   4. **Matriz de Control de Iliquidez y Asignación:** Excluir de la calibración central todo contrato con condicionamiento $\kappa > 3.0$ pp/¢ y exigir un buffer de liquidez para cubrir el riesgo de asignación anticipada en posiciones cortas de Puts americanas.
+
+---
+
+## Bloque 10: Auditoría Cuantitativa Independiente — Segunda Ronda
+
+### Pregunta 26: ¿Por qué existían decrementos de varianza total (arbitraje de calendario) en los nodos calibrados originales y cómo se resolvieron definitivamente?
+* **Respuesta fundamentada:**
+  En la primera versión de la superficie, la función `surface_iv()` aplicaba la proyección `np.maximum.accumulate` únicamente al interpolar en madureces intermedias, pero cuando $\tau$ coincidía con un vencimiento calibrado devolvía directamente la varianza del corte original. Esto creaba una inconsistencia matemática grave: la superficie era monótona entre nodos, pero no en los nodos mismos (Casos A y B de auditoría), generando saltos artificiales discontinuos al aproximarse a cualquier vencimiento calibrado.
+  La solución definitiva unificó la evaluación: para cualquier $k$, se evalúa la secuencia de cortes calibrados y se obtiene la secuencia proyectada monótona $w^*(\tau_i, k) = \max_{j \le i} w_{\text{raw}}(\tau_j, k)$. El interpolador PCHIP temporal evalúa esta secuencia monótona en todo el dominio continuo $\tau \in [\tau_1, \tau_N]$. Dado que en cada nodo PCHIP coincide idénticamente con $w^*(\tau_i, k)$, se garantiza:
+  1. $\frac{\partial w}{\partial \tau} \ge 0$ en todos los nodos exactos y puntos intermedios.
+  2. Continuidad estricta $C^1$ sin saltos ($|\text{discontinuidad}| < 10^{-6}$).
+  3. Registro transparente de las modificaciones introducidas en `svi_slice_parameters.csv`.
+
+### Pregunta 27: ¿Por qué no se puede aplicar la fórmula analítica $g(k)$ de Raw SVI a un spline PCHIP y cómo se valida formalmente la ausencia de arbitraje mariposa en cortes fallback?
+* **Respuesta fundamentada:**
+  La función $g(k)$ de Gatheral es una derivación analítica exacta de la primera y segunda derivada de la ecuación hiperbólica de Raw SVI. Aplicar esta fórmula a un spline PCHIP por tramos carece de validez matemática. Asimismo, atribuir `100.0%` de no arbitraje a un corte PCHIP sin verificarlo constituía una garantía ficticia.
+  En nuestra implementación, los cortes fallback reportan explícitamente `NaN` en `pct_no_butterfly_arb` (indicando que la fórmula SVI no es aplicable) y se someten a un procedimiento numérico riguroso de diferencias divididas de convexidad de precios:
+  $$\frac{\Delta^2 C}{\Delta K^2} = \frac{\frac{C(K_{i+2}) - C(K_{i+1})}{K_{i+2} - K_{i+1}} - \frac{C(K_{i+1}) - C(K_i)}{K_{i+1} - K_i}}{\frac{K_{i+2} - K_i}{2}} \ge -\text{tol}$$
+  junto con cotas intrínsecas y monotonía de precios. El vencimiento de 3 días (20-nov) y 395 días (17-dic-2027) satisfacen 100% de convexidad, mientras que el corte LEAPS de enero de 2029 (794d) exhibe $89.5\%$ de convexidad debido a una transacción ilíquida en $K=3.0$, lo cual se registra transparentemente como `EMPIRICAL_ANOMALIES_DETECTED`.
+
+### Pregunta 28: ¿Cómo se asegura que las señales de trading no sean cosméticas y determinen efectivamente la estructura de posiciones y resultados simulados?
+* **Respuesta fundamentada:**
+  Separamos la función de generación de señales (`generate_strategy_signal`) de la función de construcción del portafolio (`build_straddle_portfolio_from_signal`). Las posiciones, flujos de caja y resultados simulados quedan determinados estrictamente por la acción emitida:
+  - `LONG_VOLATILITY_STRADDLE`: Abre $+1$ Call, $+1$ Put, delta hedge con $-23$ acciones, y genera el P&L clásico convexo de volatilidad larga.
+  - `NO_TRADE`: Establece estrictamente $0.0$ contratos, $0$ acciones, $\$0.00$ de fricción transaccional y $\$0.00$ de P&L bajo todos los escenarios de shock, justificando la inacción por encontrarse el diferencial dentro de la banda neutral de costos ($\pm 5$ pp).
+  - `SHORT_VOLATILITY_STRADDLE`: Abre $-1$ Call, $-1$ Put, delta hedge inverso con $+23$ acciones, recolecta la prima inicial y asume pérdidas de cola no acotadas, etiquetado formalmente como una exposición teórica de riesgo asimétrico.
+  Esta separación garantiza que cualquier modificación en el pronóstico se traduzca de inmediato en un cambio efectivo en la cartera simulada.
+
+### Pregunta 29: ¿Cómo garantiza el orquestador del pipeline (`run_all.py`) que un proceso con pruebas o etapas fallidas no se presente falsamente como exitoso?
+* **Respuesta fundamentada:**
+  El orquestador `run_all.py` fue rediseñado bajo una arquitectura de ejecución segura:
+  1. Cada etapa crítica cuenta con validaciones post-ejecución sobre sus artefactos generados (existencia de archivos, tamaño mayor a cero, cantidad mínima de filas y verificación de finitud numérica sin valores infinitos).
+  2. Si ocurre una excepción en cualquier etapa bloqueante, el pipeline se aborta inmediatamente y finaliza con código de error `sys.exit(1)`.
+  3. La suite de pruebas de Pytest se ejecuta como etapa final obligatoria; si reporta cualquier fallo de prueba, el pipeline captura el código de salida no nulo y termina inmediatamente con dicho código de error (`sys.exit(test_exit_code)`).
+  4. El banner final de "PIPELINE EXECUTED SUCCESSFULLY" solo se imprime cuando todas las etapas y las 48 pruebas de regresión concluyen con éxito total.

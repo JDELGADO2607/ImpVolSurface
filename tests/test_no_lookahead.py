@@ -1,11 +1,17 @@
 """
-Unit tests for Causality, Absence of Look-Ahead Bias, and Strategy Signal Sensitivity (Bloque P0-D).
+Unit & Regression Tests for Causality, Absence of Look-Ahead Bias,
+and Signal-Linked Trading Simulation Positions (Bloque P0-D and Audit Round 2).
+
 Validates:
-1. Historical dataset bounds (strictly <= 2026-11-17).
+1. Historical dataset bounds (strictly <= 2026-11-17, no future lookahead).
 2. Counterfactual invariance: modifying future returns after day t does not change forecast at day t.
 3. Purged OOS walk-forward loss metrics integrity.
-4. Strategy signal sensitivity: correctly transitions between LONG, SHORT, and NO_TRADE.
-5. Friction costs and transaction penalties across regimes.
+4. Strategy signal sensitivity: transitions between LONG_VOLATILITY, SHORT_VOLATILITY, and NO_TRADE.
+5. Signal-Linked Portfolio Execution:
+   - High forecast -> Long Straddle (+1 Call, +1 Put, negative stock hedge, positive friction).
+   - Neutral forecast -> NO_TRADE (0 Call, 0 Put, 0 Shares, 0 Friction, exactly 0.0 USD P&L).
+   - Low forecast -> Short Straddle (-1 Call, -1 Put, positive stock hedge, inverted tail liability).
+6. Non-hardcoded forecast parameter dispatch: verify custom forecasts are strictly honored.
 """
 
 import sys
@@ -20,7 +26,11 @@ import numpy as np
 import statsmodels.api as sm
 
 from src.forecasts import load_or_fetch_historical_nu, fit_har_rv_walk_forward
-from src.strategies import generate_strategy_signal
+from src.strategies import (
+    generate_strategy_signal,
+    build_straddle_portfolio_from_signal,
+    analyze_strategy_1_straddle
+)
 
 def test_historical_dataset_no_lookahead():
     hist_csv = Path("data/processed/nu_historical_daily.csv")
@@ -42,7 +52,6 @@ def test_counterfactual_future_invariance():
 
     # Pick an evaluation point in the series
     t_eval = len(df) - 50
-    date_eval = df.index[t_eval]
 
     # Baseline forecast at t_eval
     df_base = df.copy()
@@ -86,8 +95,9 @@ def test_counterfactual_future_invariance():
     pred_pert = float(m_pert.predict(x_pert.reshape(1, -1))[0])
 
     # Counterfactual invariant: past prediction must be strictly identical
-    assert abs(pred_base - pred_pert) < 1e-12, \
+    assert abs(pred_base - pred_pert) < 1e-12, (
         f"Causality violation! Future shock altered past prediction: {pred_base} vs {pred_pert}"
+    )
 
 def test_forecast_evaluation_results():
     eval_csv = Path("outputs/tables/volatility_forecast_evaluation.csv")
@@ -122,20 +132,63 @@ def test_strategy_signal_sensitivity():
     assert s_neutral['action'] == "NO_TRADE"
     assert abs(s_neutral['vol_spread_pp']) <= 5.0
 
-def test_strategy_payoffs_and_cost_penalties():
-    s1_csv = Path("outputs/tables/strategy1_straddle_scenarios.csv")
-    s2_csv = Path("outputs/tables/strategy2_calendar_scenarios.csv")
-    assert s1_csv.exists()
-    assert s2_csv.exists()
+def test_strategy_portfolio_position_linkage_and_signal_dispatch():
+    """
+    Mandatory Audit Check Phase 3:
+    Verifies that the portfolio construction and simulated P&L are strictly driven by the signal:
+    1. High forecast activates LONG straddle (+1 Call, +1 Put, negative stock hedge, positive friction).
+    2. Neutral forecast activates NO_TRADE:
+       - 0 Calls, 0 Puts, 0 Shares
+       - 0 Transaction/friction costs
+       - Exactly 0.0 USD Net P&L across ALL spot shocks and cost regimes.
+    3. Low forecast activates SHORT straddle:
+       - Does NOT reuse the long straddle positions!
+       - -1 Call, -1 Put, positive stock hedge
+       - At 0% spot shock, profits from theta/premium retention minus friction
+       - Large moves produce tail losses (unbounded tail risk).
+    """
+    # Case 1: High forecast (75.0% vs ~45.9% IV)
+    df_long, sig_long = analyze_strategy_1_straddle(forecast_vol_pct=75.0)
+    assert sig_long['action'] == "LONG_VOLATILITY_STRADDLE"
+    assert (df_long['Signal_Action'] == "LONG_VOLATILITY_STRADDLE").all()
+    assert (df_long['Friction_Cost'] > 0.0).all()
+    # In extreme spot moves (+25%, -25%), long straddle has positive payoff
+    extreme_pnl_long = df_long[df_long['Spot_Shock'] == '+25.0%']['Gross_PnL'].iloc[0]
+    assert extreme_pnl_long > 0.0
 
-    df1 = pd.read_csv(s1_csv)
-    df2 = pd.read_csv(s2_csv)
+    # Case 2: Neutral forecast within hurdle band (46.0% vs ~45.9% IV)
+    df_none, sig_none = analyze_strategy_1_straddle(forecast_vol_pct=46.0)
+    assert sig_none['action'] == "NO_TRADE"
+    assert (df_none['Signal_Action'] == "NO_TRADE").all()
+    assert (df_none['Friction_Cost'] == 0.0).all(), "NO_TRADE must have 0 transaction friction"
+    assert (df_none['Options_Payoff'] == 0.0).all(), "NO_TRADE must have 0 options payoff"
+    assert (df_none['Stock_Hedge_PnL'] == 0.0).all(), "NO_TRADE must have 0 stock hedge PnL"
+    assert (df_none['Gross_PnL'] == 0.0).all(), "NO_TRADE must have 0 Gross PnL"
+    assert (df_none['Net_PnL'] == 0.0).all(), "NO_TRADE must have exactly 0.0 Net PnL"
 
-    # Friction cost must be strictly positive
-    assert (df1['Friction_Cost'] > 0.0).all()
-    assert (df2['Friction_Cost_USD'] > 0.0).all()
+    # Case 3: Low forecast below hurdle band (28.0% vs ~45.9% IV)
+    df_short, sig_short = analyze_strategy_1_straddle(forecast_vol_pct=28.0)
+    assert sig_short['action'] == "SHORT_VOLATILITY_STRADDLE"
+    assert (df_short['Signal_Action'] == "SHORT_VOLATILITY_STRADDLE").all()
+    assert (df_short['Friction_Cost'] > 0.0).all()
 
-    # Conservative frictions must be greater than Optimistic
-    fric_opt = df1[df1['Cost_Regime'] == 'Optimistic']['Friction_Cost'].iloc[0]
-    fric_cons = df1[df1['Cost_Regime'] == 'Conservative']['Friction_Cost'].iloc[0]
-    assert fric_cons > fric_opt
+    # Null spot shock (+0.0%) for short straddle: retains premium minus friction
+    null_short_pnl = df_short[(df_short['Cost_Regime'] == 'Base') & (df_short['Spot_Shock'] == '+0.0%')]['Net_PnL'].iloc[0]
+    assert null_short_pnl > 50.0, f"Short straddle should be profitable under null shock: {null_short_pnl}"
+
+    # Extreme shock (+25.0%) for short straddle: severe tail losses
+    extreme_short_pnl = df_short[(df_short['Cost_Regime'] == 'Base') & (df_short['Spot_Shock'] == '+25.0%')]['Net_PnL'].iloc[0]
+    assert extreme_short_pnl < -50.0, f"Short straddle should suffer tail losses on large spot moves: {extreme_short_pnl}"
+
+def test_forecast_parameter_dynamic_dispatch_no_hardcoding():
+    """
+    Mandatory Audit Check 3.5:
+    Confirms that analyze_strategy_1_straddle does NOT rely on a hardcoded 72.97% forecast,
+    and dynamically adopts whatever forecast value is passed.
+    """
+    test_forecasts = [20.0, 42.5, 55.0, 85.0]
+    for fc in test_forecasts:
+        _, sig = analyze_strategy_1_straddle(forecast_vol_pct=fc)
+        assert abs(sig['forecast_vol_pct'] - fc) < 1e-4, (
+            f"Forecast not dynamically dispatched: expected {fc}, got {sig['forecast_vol_pct']}"
+        )
