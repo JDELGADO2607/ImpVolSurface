@@ -53,44 +53,47 @@
 
 ### Diapositiva 4: Calibración de la Superficie de Volatilidad (SVI) (3:45 – 5:00)
 * **Contenido Visual:**
-  * Figura 1: [smile_2d_slices.png](file:///C:/Users/CAROL/orca/workspaces/ImpVolSurface/rockling/outputs/figures/smile_2d_slices.png) (Cortes de sonrisa 2D por vencimiento).
-  * Figura 2: [surface_3d_volatility.png](file:///C:/Users/CAROL/orca/workspaces/ImpVolSurface/rockling/outputs/figures/surface_3d_volatility.png) (Superficie 3D en coordenadas $(k, \tau)$).
-  * Métricas de validación cruzada Leave-One-Strike-Out: MAE IV = 2.48 pp, RMSE IV = 4.69 pp, MAE Precio = $\$0.039$ USD.
+  * Figura 1: [smile_2d_slices.png](outputs/figures/smile_2d_slices.png) (Cortes de sonrisa 2D por vencimiento).
+  * Figura 2: [surface_3d_volatility.png](outputs/figures/surface_3d_volatility.png) (Superficie 3D en coordenadas $(k, \tau)$).
+  * Métricas de validación cruzada Leave-One-Strike-Out (197 contratos evaluados con EDP americana en puts): MAE Precio = $\$0.0389$ USD, RMSE Precio = $\$0.0649$ USD.
+  * Verificación analítica de no arbitraje: Condición de alas de Roger Lee ($b(1+|\rho|) \le 1.95 < 2.0$) y densidad mariposa ($g(k) \ge 0$) al 100% sobre el soporte empírico.
 * **Guion del Expositor:**
-  > "Proyectamos la cadena en coordenadas estandarizadas de log-forward moneyness $k = \ln(K/F)$ y varianza total $w(k,\tau) = \sigma^2 \tau$. Calibramos la parametrización Raw SVI de Gatheral por cortes temporales, restringiendo los parámetros para garantizar ausencia de arbitraje mariposa ($g(k) \ge 0$, verificado en el 100% del soporte líquido). En la dimensión temporal, interpolamos mediante splines monótonos PCHIP para asegurar $\partial w / \partial \tau \ge 0$, eliminando el arbitraje de calendario. Sometimos la superficie a una validación cruzada Leave-One-Out sobre 196 contratos fuera de muestra: el error medio absoluto en precio fue de apenas 3.9 centavos de dólar, demostrando una excelente capacidad de generalización sin sobreajuste."
+  > "Proyectamos la cadena en coordenadas estandarizadas de log-forward moneyness $k = \ln(K/F)$ y varianza total $w(k,\tau) = \sigma^2 \tau$. Calibramos la parametrización Raw SVI de Gatheral por cortes temporales, restringiendo estrictamente los parámetros a las cotas asintóticas de Roger Lee ($b(1+|\rho|) < 2.0$) y garantizando ausencia de arbitraje mariposa ($g(k) \ge 0$, verificado en el 100% del soporte de datos). En la dimensión temporal, aplicamos una acumulación monótona previa e interpolamos mediante splines PCHIP para asegurar $\partial w / \partial \tau \ge 0$, eliminando el arbitraje de calendario en todo el dominio. Sometimos la superficie a una validación cruzada Leave-One-Strike-Out con pricing PDE completo sobre 197 contratos fuera de muestra: el MAE fuera de muestra fue de apenas 3.89 centavos de dólar, demostrando una generalización económica impecable sin sobreajuste."
 
 ---
 
 ### Diapositiva 5: Comparación de los Cuatro Modelos de Pricing (5:00 – 6:15)
 * **Contenido Visual:**
-  * Figura: [model_comparison_errors.png](file:///C:/Users/CAROL/orca/workspaces/ImpVolSurface/rockling/outputs/figures/model_comparison_errors.png) (Comparación de MAE entre los 4 modelos por segmento).
-  * Tabla comparativa:
-    * M1 (Europeo Plano): MAE = $\$0.0536$
-    * M2 (Europeo Superficie): MAE = $\$0.0306$
-    * M3 (Americano Plano): MAE = $\$0.0482$
-    * M4 (Americano Superficie): MAE = $\$0.0299$
+  * Figura: [model_comparison_errors.png](outputs/figures/model_comparison_errors.png) (Comparación de MAE entre los 4 modelos por segmento).
+  * Tabla comparativa dentro de muestra (In-Sample, $N=201$):
+    * M1 (Europeo Plano): MAE = $\$0.0536$, RMSE = $\$0.0891$
+    * M2 (Europeo Superficie): MAE = $\$0.0297$, RMSE = $\$0.0565$
+    * M3 (Americano Plano): MAE = $\$0.0482$, RMSE = $\$0.0816$
+    * M4 (Americano Superficie): MAE = $\$0.0285$, RMSE = $\$0.0480$
+    * Validación Fuera de Muestra (LOO CV Americano): MAE = $\$0.0389$, RMSE = $\$0.0649$
 * **Guion del Expositor:**
-  > "Para cuantificar con precisión matemática el impacto de cada supuesto, evaluamos la matriz $2 \times 2$ entre tipo de ejercicio (Europeo vs Americano) y estructura de volatilidad (Plana vs Superficie). En Calls, el Modelo 1 coincide exactamente con el Modelo 3, y el Modelo 2 con el Modelo 4, ratificando la teoría. En Puts, la prima de ejercicio anticipado alcanza hasta 2.5 centavos en contratos ITM. Sin embargo, el efecto más dominante es la sonrisa de volatilidad: pasar de volatilidad plana a la superficie SVI reduce el error de pricing en más del 44% general y en más del 54% en contratos dentro del dinero (ITM), recortando el MAE de $\$0.0854$ a $\$0.0396$. Black-Scholes plano subvalora sistemáticamente las alas OTM y distorsiona el valor de las coberturas."
+  > "Para cuantificar con rigor el impacto de cada supuesto, evaluamos la matriz $2 \times 2$ entre tipo de ejercicio (Europeo vs Americano) y estructura de volatilidad (Plana vs Superficie). En Calls, el Modelo 1 coincide con el Modelo 3, y el Modelo 2 con el Modelo 4, ratificando la teoría de Merton ($q=0$). En Puts, la prima de ejercicio anticipado es capturada con exactitud por las diferencias finitas. No obstante, el factor preponderante es la sonrisa de volatilidad: pasar de volatilidad plana a la superficie SVI reduce el error medio en un 40.9% general y en un 48.4% en contratos ITM, recortando el MAE de $\$0.0854$ a $\$0.0398$. Black-Scholes plano subvalora sistemáticamente las alas OTM y genera sesgos inaceptables para la gestión de coberturas."
 
 ---
 
 ### Diapositiva 6: Portafolio Hipotético, Griegas y Stress Testing (6:15 – 7:30)
 * **Contenido Visual:**
-  * Estructura de cartera: 5 patas de opciones reales en 31 y 59 días + cobertura delta con -354 acciones de NU.
-  * Figura 1: [stress_test_pnl_waterfall.png](file:///C:/Users/CAROL/orca/workspaces/ImpVolSurface/rockling/outputs/figures/stress_test_pnl_waterfall.png) (P&L por escenario: Revaloración PDE vs Taylor).
-  * Figura 2: [stress_crisis_leg_breakdown.png](file:///C:/Users/CAROL/orca/workspaces/ImpVolSurface/rockling/outputs/figures/stress_crisis_leg_breakdown.png) (Desglose por pata en el Escenario 3 de Crisis Severa).
+  * Estructura de cartera: 5 patas de opciones reales en 31 y 59 días + cobertura delta con -357 acciones de NU ($\Delta_{\text{neto}} = +0.11$).
+  * Figura 1: [stress_test_pnl_waterfall.png](outputs/figures/stress_test_pnl_waterfall.png) (P&L por escenario: Revaloración PDE vs Taylor).
+  * Figura 2: [stress_crisis_leg_breakdown.png](outputs/figures/stress_crisis_leg_breakdown.png) (Desglose por pata en el Escenario 3 de Crisis Severa).
+  * Métricas clave: Escenario Nulo validado ($\text{P\&L} \equiv \$0.00$), Diferencia inicial Mark-to-Model aislada ($-\$20.43$ USD), Capital Económico de Margen ($\$5,435.31$ USD).
 * **Guion del Expositor:**
-  > "Construimos una cartera hipotética de 5 patas reales de NU representativa de una mesa institucional: spreads verticales, straddles y calendars, neutralizada en delta inicial mediante una posición corta de 354 acciones de NU. Sometimos esta cadena fija a cinco escenarios de estrés multifactorial. El hallazgo más crítico para el área de riesgos es la ruptura de la aproximación de Taylor por griegas: en un shock de crisis del -20% en spot con empinamiento de skew (+12 pp vol), la aproximación local de Taylor estima erróneamente una ganancia de $+\$3,699$ USD debido al término positivo de Gamma ($\frac{1}{2}\Gamma \Delta S^2$). Sin embargo, la revaloración completa con el motor PDE americano revela un P&L real de $+\$446$ USD, una discrepancia de más de $\$3,250$ USD. Esto ocurre porque las Calls pierden toda su delta al caer a cero y los Puts cortos sufren riesgo de asignación anticipada acelerada. La revaloración completa por EDP es insustituible."
+  > "Construimos una cartera de 5 patas representativa de una mesa institucional: spreads verticales, straddles y calendars, neutralizada en delta inicial mediante una posición corta de 357 acciones de NU. Estabilizamos las griegas numéricas fijando el dominio espacial $S_{\max}$ e interpolando con PCHIP, resolviendo el defecto que inflaba el Gamma de la Put $K=12$ a 3.35 y corrigiéndolo a 0.2375. Al someter la cartera a cinco escenarios de estrés con contabilidad dual (aislando el error de marca inicial de $-\$20.43$ USD), comprobamos que en el Escenario Nulo el P&L es exactamente cero. En el Escenario 3 de Crisis Severa (-20% en spot, +12 pp vol y empinamiento de skew), la revaloración PDE completa arroja un beneficio real de $+\$496.56$ USD frente a $+\$757.71$ USD estimados por Taylor, revelando una discrepancia genuina de $-\$261.15$ USD. La literatura previa reportaba $-\$3,253$ USD, cifra que desmitificamos: estaba inflada por el Gamma numérico inestable. La revaloración completa por EDP es insustituible para capturar la asimetría del colapso de las Calls y el ejercicio anticipado de Puts."
 
 ---
 
 ### Diapositiva 7: Estrategias Cuantitativas y Límites de Datos (7:30 – 8:45)
 * **Contenido Visual:**
-  * Figura 1: [nu_historical_vol_and_forecasts.png](file:///C:/Users/CAROL/orca/workspaces/ImpVolSurface/rockling/outputs/figures/nu_historical_vol_and_forecasts.png) (Serie histórica y pronóstico HAR-RV).
-  * Figura 2: [strategy1_payoff_scenarios.png](file:///C:/Users/CAROL/orca/workspaces/ImpVolSurface/rockling/outputs/figures/strategy1_payoff_scenarios.png) (Curvas de P&L de la Estrategia 1 bajo tres regímenes de fricción).
-  * Figura 3: [strategy2_calendar_payoff.png](file:///C:/Users/CAROL/orca/workspaces/ImpVolSurface/rockling/outputs/figures/strategy2_calendar_payoff.png) (Payoff del Calendar Spread explotando la varianza forward).
+  * Figura 1: [nu_historical_vol_and_forecasts.png](outputs/figures/nu_historical_vol_and_forecasts.png) (Serie histórica y pronóstico HAR-RV purificado).
+  * Figura 2: [strategy1_payoff_scenarios.png](outputs/figures/strategy1_payoff_scenarios.png) (Curvas de P&L de la Estrategia 1 bajo tres regímenes de fricción).
+  * Figura 3: [strategy2_calendar_payoff.png](outputs/figures/strategy2_calendar_payoff.png) (Payoff del Calendar Spread a strike fijo $K=13.00$).
 * **Guion del Expositor:**
-  > "Desarrollamos dos estrategias cuantitativas defendibles. En la Estrategia 1, modelamos la serie histórica de NU mediante el modelo econométrico HAR-RV de Corsi con validación walk-forward (QLIKE = 0.1813). Al 17 de noviembre, el pronóstico de volatilidad a 21 días se ubicó en 72.97%, frente a una IV ATM de 44.02%, generando una señal $z = +0.505 > 0$. Esto indicó que las opciones estaban baratas frente a la volatilidad proyectada tras los resultados trimestrales, justificando un Straddle ATM largo delta-neutral. En la Estrategia 2, extrajimos la volatilidad forward implícita entre el vencimiento de 31 días y 59 días ($\sigma_{\text{fwd}} = 38.15\%$) mediante un Calendar Spread vega-ponderado en strike 13.00. Modelamos tres regímenes de costos de transacción: en el régimen conservador, el punto de equilibrio del straddle exige un movimiento de spot superior al 12% para compensar fricciones. Resaltamos con honestidad académica que, al no disponer de series históricas de cadenas intradía completas, no presentamos backtests retrospectivos espurios."
+  > "Desarrollamos dos estrategias cuantitativas defendibles sin sesgo de anticipación. En la Estrategia 1, calibramos el modelo heterogéneo HAR-RV mediante validación walk-forward estrictamente purificada ($s \le t-21$), eliminando cualquier fuga del objetivo a 21 días (QLIKE = 0.1855, superior a EWMA 0.2099 y rolling 0.2512). Al 17 de noviembre, el pronóstico causal fue de 72.97% frente a una IV ATM de 44.02%, generando una señal $z = +0.505 > 0$. Para estructurar el Straddle ATM largo delta-neutral, empleamos el delta americano de la Put (-0.3839) junto al delta de la Call (+0.6120), requiriendo una cobertura dinámica exacta de -23 acciones de NU. En la Estrategia 2, extrajimos la volatilidad forward a strike fijo $K=13.00$ entre 31 y 59 días ($\sigma_{\text{fwd}} = 38.15\%$) mediante un Calendar Spread. Modelamos tres regímenes de costos y garantizamos total transparencia: al disponer de una sola sesión de corte transversal, declaramos la ausencia de backtesting histórico intradía como una limitación metodológica innegociable."
 
 ---
 

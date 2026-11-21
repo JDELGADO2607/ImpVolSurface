@@ -49,6 +49,40 @@ Este documento registra formalmente cada decisión de diseño cuantitativo, fina
 * **Motivo de la elección:** Newton-Raphson diverge o da pasos descontrolados cuando la opción está profundamente OTM o ITM, ya que la Vega $\nu \to 0$, haciendo que el denominador tienda a cero. Brent combina interpolación cuadrática inversa, secante y bisección garantizada, asegurando convergencia superlineal cuando el comportamiento es suave y convergencia garantizada en el bracket sin riesgo de división por cero.
 * **Evidencia:** Pruebas de recuperación de volatilidad sintética en `tests/test_iv_recovery.py`.
 
+### DEC-006: Estabilización de Griegas Numéricas Americanas Mediante Dominio Fijo $S_{\max}$ y Malla Compartida PCHIP
+* **Decisión:** Fijar un dominio espacial común e invariante $S_{\max} = 4.0 \cdot \max(S_0, K)$ para evaluar el precio base y los puntos perturbados $S_0 \pm dS$. Evaluar las perturbaciones sobre la misma solución discreta EDP mediante interpolación local monótona PCHIP en lugar de reconstruir tres mallas independientes con splines cúbicos oscilatorios.
+* **Alternativas evaluadas:**
+  1. Mantener $S_{\max}(S) = 4.0 \cdot \max(S, K)$ recalculado dinámicamente para cada bump.
+  2. Aumentar arbitrariamente el bump $dS$ a $0.10$ o $0.50$ para tapar el ruido numérico.
+  3. Sustituir el Gamma americano por el Gamma europeo analítico de Black-Scholes.
+* **Motivo de la elección:** Al perturbar el spot con $S_{\max}$ dependiente de $S$, se generaban tres mallas desalineadas. El error de interpolación cúbica $O(\Delta S^2)$, al dividirse por $dS^2 = 10^{-4}$, se amplificaba 10,000 veces, disparando el Gamma de la Put $K=12$ a un absurdo $3.3547$. La fijación de $S_{\max}$ y el uso de PCHIP local suprimen por completo el ruido de malla y devuelven un Gamma estable y económicamente riguroso de $0.2375$, consistente a través de bumps $dS \in [0.005, 0.05]$ y resoluciones $M \in [150, 900]$.
+* **Evidencia:** Pruebas de regresión parametrizadas en `tests/test_pde_greeks_stability.py`.
+
+### DEC-007: Eliminación Estricta del Sesgo de Anticipación en HAR-RV Mediante Walk-Forward Purificado
+* **Decisión:** Implementar una validación econométrica fuera de muestra estrictamente purificada (*purged walk-forward*), restringiendo la muestra de entrenamiento para pronosticar en la fecha $t$ a observaciones históricas estrictamente anteriores a $s \le t - 21$.
+* **Alternativas evaluadas:**
+  1. Entrenar con toda la muestra histórica disponible hasta la fecha $t$ (`iloc[:t]`).
+  2. Ajustar un único modelo estático in-sample para toda la serie.
+* **Motivo de la elección:** Debido a que el objetivo dependiente $RV_{t, t+21}^{(m)}$ es un promedio rodante de varianza que se proyecta 21 días hacia el futuro, entrenar con observaciones entre $t-20$ y $t-1$ utiliza etiquetas que contienen datos contemporáneos a la ventana proyectada, induciendo una fuga de información (*target leakage*). La purga estricta ($s \le t - 21$) garantiza ortogonalidad temporal absoluta. Bajo este esquema, HAR-RV demostró superioridad predictiva genuina con una pérdida QLIKE de $0.1855$, batiendo a EWMA ($0.2099$) y a la volatilidad histórica ($0.2512$).
+* **Evidencia:** Prueba de invariancia contrafactual en `tests/test_no_lookahead.py` y tabla `outputs/tables/volatility_forecast_evaluation.csv`.
+
+### DEC-008: Unificación Contable del Stress Testing y Adopción de Margen Regulatorio como Capital Económico
+* **Decisión:** Separar algebraicamente la discrepancia inicial de marca a modelo ($\Pi_{0,\text{model}} - \Pi_{0,\text{market}} = -\$20.43$ USD) del P&L generado por los shocks de estrés ($\Pi_{1,\text{model}} - \Pi_{0,\text{model}}$). Incorporar el Escenario Nulo (S0) como prueba diagnóstica y definir el denominador de rentabilidad mediante el requerimiento prudencial de margen regulatorio (Reg T / FINRA 4210) de $\$5\,435.31$ USD.
+* **Alternativas evaluadas:**
+  1. Restar el precio de mercado inicial del precio del modelo estresado final.
+  2. Sumar el valor absoluto de pasivos cortos y acciones cortas como "capital invertido".
+  3. Mantener la afirmación de que la discrepancia de Taylor era de $-\$3\,253$ USD.
+* **Motivo de la elección:** Mezclar la marca inicial con la respuesta al shock contaminaba la medición de riesgo con el error de modelo en $t_0$. En carteras con posiciones cortas, sumar el valor absoluto de pasivos no representa capital propio sino apalancamiento bruto. Al limpiar la contabilidad e introducir Griegas estabilizadas, el Escenario Nulo produce P&L idénticamente nulo ($0.00$ USD), la suma de patas reconcilia exactamente con el total del portafolio, y la discrepancia de Taylor en Crisis Severa se desmitifica: se reduce de $-\$3\,253$ USD a $-\$261.15$ USD, demostrando que gran parte de la brecha anterior era ruido numérico y no hiper-no-linealidad financiera.
+* **Evidencia:** `tests/test_portfolio_and_stress.py` y `outputs/tables/stress_test_matrix.csv`.
+
+### DEC-009: Restricciones Robustas de Roger Lee y Proyección Monótona de Calendario en SVI
+* **Decisión:** Imponer la cota analítica de momentos de Roger Lee $b(1+|\rho|) \le 1.95 < 2.0$ y la penalización estricta de densidad neutral al riesgo $g(k) \ge 0$ al 100% de la malla empírica. Aplicar acumulación monótona temporal previa a la interpolación PCHIP para eliminar decrementos de varianza total entre vencimientos adyacentes. Si un vencimiento tiene menos de 6 strikes, activar la política conservadora de Fallback por Spline PCHIP monótono.
+* **Alternativas evaluadas:**
+  1. Calibrar SVI con cotas laxas ($b(1+|\rho|) < 4.0$) sobre madureces con 2 a 5 contratos.
+  2. Tolerar hasta un 20% de violaciones mariposa fuera de dinero.
+* **Motivo de la elección:** Ajustar 5 parámetros SVI sobre 2 a 5 observaciones está matemáticamente subidentificado y genera curvaturas extremas en las alas no observadas. La condición $b(1+|\rho|) < 2.0$ es indispensable para evitar densidades con colas más pesadas que las permitidas por la física neutral al riesgo ($\mathbb{E}[S_T] < \infty$). La acumulación monótona previa garantiza matemáticamente $\frac{\partial w}{\partial \tau} \ge 0$ en cualquier punto $(k, \tau)$ del soporte.
+* **Evidencia:** `tests/test_surface_and_interpolation.py` y tabla `outputs/tables/svi_slice_parameters.csv`.
+
 ---
 
 ## 2. Limitaciones Identificadas y Mitigaciones Metodológicas

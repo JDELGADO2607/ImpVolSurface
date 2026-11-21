@@ -50,17 +50,27 @@ def run_pipeline():
     run_stress_testing()
 
     # Step 7: Historical Forecasts & Hypothetical Strategies
-    print("\n>>> Step 7/7: Estimating HAR-RV Forecasts and Trading Strategies...")
+    print("\n>>> Step 7/8: Estimating HAR-RV Forecasts and Trading Strategies...")
     from src.forecasts import run_forecast_pipeline
     from src.strategies import run_strategies_analysis
     run_forecast_pipeline()
     run_strategies_analysis()
+
+    # Step 8: Automated Verification Test Suite (Pytest)
+    print("\n>>> Step 8/8: Executing Complete Automated Verification Test Suite...")
+    import pytest
+    test_exit_code = pytest.main(["-v", "tests/"])
+    if test_exit_code != 0:
+        print(f"\n[WARNING] Pytest reported test failures (exit code: {test_exit_code})")
+    else:
+        print("\n[SUCCESS] All unit, regression, and stability tests passed successfully!")
 
     elapsed = time.time() - start_time
     print("\n" + "=" * 80)
     print(f"PIPELINE EXECUTED SUCCESSFULLY IN {elapsed:.1f} SECONDS!")
     print("All tables exported to: outputs/tables/")
     print("All figures exported to: outputs/figures/")
+    print(f"Test suite exit code: {test_exit_code}")
     print("=" * 80)
 
 if __name__ == "__main__":

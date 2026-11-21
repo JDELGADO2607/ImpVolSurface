@@ -79,6 +79,17 @@ Este documento recopila las 28 preguntas técnicas, metodológicas, financieras 
   2. Para Puts americanas, contrastamos el motor EDP contra un árbol binomial Cox-Ross-Rubinstein (CRR) de 1000 pasos en múltiples plazos y moneyness: la diferencia se mantuvo por debajo de $\$0.00050$ USD.
   3. Ejecutamos pruebas de refinamiento de malla duplicando nodos espaciales ($M = 150 \to 300 \to 600$) y temporales ($N = 75 \to 150 \to 300$), confirmando convergencia numérica monótona sin oscilaciones espurias.
 
+### Pregunta 10b: ¿A qué se debía la inestabilidad de Gamma en la Put K=12 (3.3547 vs 0.2375) y cómo se corrigió matemáticamente?
+* **Respuesta fundamentada:**
+  Al calcular segundas derivadas por diferencias centrales:
+  $$\Gamma = \frac{V(S_0 + dS) - 2V(S_0) + V(S_0 - dS)}{dS^2}$$
+  El código original definía la cota superior del dominio espacial como $S_{\max}(S) = 4.0 \cdot \max(S, K)$. Al evaluar con perturbación $dS = 0.01$, el dominio $[0, S_{\max}]$ cambiaba ligeramente en las tres evaluaciones, construyendo **tres mallas discretas desalineadas**. La interpolación cúbica subsiguiente introducía un error de discretización del orden de $O(\Delta S^2)$; al dividirse por el denominador cuadrático $dS^2 = (0.01)^2 = 10^{-4}$, este ruido numérico se multiplicaba por $10\,000\times$, arrojando un Gamma artificial de $3.3547$ para la Put $K=12$.
+  
+  La corrección matemática consistió en:
+  1. Fijar un dominio espacial común e invariante $S_{\max} = 4.0 \cdot \max(S_0, K)$ compartido por todas las perturbaciones.
+  2. Resolver la EDP una sola vez sobre dicha malla compartida (\texttt{fd\_american\_grid}) y evaluar los puntos perturbados sobre la solución continua unificada mediante interpolación PCHIP local monótona, suprimiendo sobreoscilaciones espurias.
+  3. Tras la corrección, el Gamma de la Put $K=12$ convergió suavemente a **$0.2375$**, en perfecta consistencia con el Gamma europeo ($0.2346$) más la curvatura adicional propia de la prima de ejercicio anticipado.
+
 ---
 
 ## Bloque 4: Inversión de Volatilidad Implícita y Contraste con Bloomberg
@@ -106,25 +117,28 @@ Este documento recopila las 28 preguntas técnicas, metodológicas, financieras 
 
 ## Bloque 5: Superficie de Volatilidad, Modelo SVI y Validación
 
-### Pregunta 14: ¿Qué ventajas ofrece la parametrización Raw SVI frente a un spline cúbico libre?
+### Pregunta 14: ¿Qué ventajas ofrece la parametrización Raw SVI frente a un spline cúbico libre y qué cotas asintóticas se imponen?
 * **Respuesta fundamentada:**
   Un spline cúbico sin restricciones tiende a generar oscilaciones locales espurias (*Runge phenomenon*) y sobreajuste en los extremos de la muestra, violando con frecuencia las condiciones de no arbitraje mariposa ($g(k) < 0$) y produciendo densidades de probabilidad neutral al riesgo negativas.
   Raw SVI modela la varianza total como una hipérbola asimétrica en log-moneyness $k$:
   $$w(k) = a + b \left[ \rho(k - m) + \sqrt{(k - m)^2 + \eta^2} \right]$$
-  Esta estructura es lineal en las alas ($k \to \pm \infty$), lo que garantiza consistencia con la fórmula de momentos de Roger Lee (evitando colas excesivamente pesadas que invalidarían martingalas) y converge de forma natural al comportamiento asintótico de modelos de volatilidad estocástica como Heston.
+  Esta estructura es lineal en las alas ($k \to \pm \infty$), lo que garantiza consistencia con la fórmula de momentos de Roger Lee:
+  $$b(1 + |\rho|) < 2.0$$
+  evitando colas excesivamente pesadas que invalidarían la existencia de momentos del subyacente ($\mathbb{E}[S_T] < \infty$). En nuestra calibración robusta, se impone $b(1+|\rho|) \le 1.95$. Si un corte temporal dispone de menos de 6 strikes o no alcanza convergencia libre de arbitraje, el motor conmuta automáticamente a un Fallback por Spline PCHIP monótono conservador.
 
-### Pregunta 15: ¿Cómo verifican matemáticamente que la superficie calibrada no admite arbitraje estático europeo?
+### Pregunta 15: ¿Cómo verifican matemáticamente que la superficie calibrada no admite arbitraje estático europeo ni de calendario?
 * **Respuesta fundamentada:**
   Verificamos dos condiciones analíticas rigurosas:
   1. **Ausencia de arbitraje mariposa (Densidad no negativa):** La función de densidad neutral al riesgo de Durrleman/Gatheral $g(k)$ debe ser no negativa para todo $k$:
      $$g(k) = \left( 1 - \frac{k w'(k)}{2 w(k)} \right)^2 - \frac{w'(k)^2}{4} \left( \frac{1}{w(k)} + \frac{1}{4} \right) + \frac{w''(k)}{2} \ge 0$$
-     En nuestra calibración SVI, $g(k) \ge 0$ se cumple en el 100% de los puntos evaluados en los tenores representativos.
-  2. **Ausencia de arbitraje de calendario:** La varianza total $w(k, \tau)$ debe ser no decreciente en madurez: $\frac{\partial w(k, \tau)}{\partial \tau} \ge 0$. Esto se garantiza interpolando en la dimensión temporal mediante un spline cúbico monótono PCHIP.
+     En nuestra superficie reparada, $g(k) \ge 0$ se verifica al **100.0%** sobre la malla de soporte empírico en todos los cortes temporales.
+  2. **Ausencia de arbitraje de calendario:** La varianza total $w(k, \tau)$ debe ser estrictamente no decreciente en madurez: $\frac{\partial w(k, \tau)}{\partial \tau} \ge 0$. Para garantizar esto a través de todos los niveles de moneyness, se aplica una regularización acumulativa previa ($\widetilde{w}(k, \tau_j) = \max_{\tau' \le \tau_j} w(k, \tau')$) e interpolación temporal por PCHIP, garantizando cero violaciones de calendario en todo el dominio bidimensional.
 
-### Pregunta 16: ¿Por qué la validación in-sample no es suficiente y qué arrojó la validación Leave-One-Strike-Out?
+### Pregunta 16: ¿Por qué la validación in-sample no es suficiente y qué arrojó la validación Leave-One-Strike-Out con pricing americano?
 * **Respuesta fundamentada:**
   Calibrar por contrato de forma in-sample conduce mecánicamente a errores pequeños porque los parámetros absorben el ruido de microestructura de los precios observados.
-  Para probar el verdadero poder predictivo del modelo, ejecutamos una validación cruzada Leave-One-Strike-Out sobre 196 contratos: retiramos secuencialmente cada strike de la muestra, re-calibramos SVI sobre los strikes restantes y evaluamos el error de predicción sobre el strike excluido. El modelo obtuvo un error medio absoluto fuera de muestra de **MAE = 2.48 pp en volatilidad** y de apenas **MAE = $0.039 USD en precio** (menos de 4 centavos de dólar), confirmando que la superficie captura la estructura fundamental del mercado sin sobreajuste.
+  Para probar el verdadero poder predictivo del modelo, ejecutamos una validación cruzada Leave-One-Strike-Out agrupada sobre 197 contratos: retiramos secuencialmente cada strike de la muestra, re-calibramos la superficie sobre los strikes restantes y revaloramos el contrato excluido utilizando su motor exacto (Black-Scholes analítico para Calls y Crank-Nicolson con penalización para Puts americanas).
+  El modelo obtuvo un error medio absoluto fuera de muestra de **MAE = $0.0389 USD** (apenas 3.89 centavos de dólar) y **RMSE = $0.0649 USD**, confirmando una capacidad de generalización económica superior sin sobreajuste.
 
 ---
 
@@ -132,10 +146,10 @@ Este documento recopila las 28 preguntas técnicas, metodológicas, financieras 
 
 ### Pregunta 17: ¿Cuáles fueron las conclusiones de la comparación entre los cuatro modelos (Europeo/Americano $\times$ Plano/Superficie)?
 * **Respuesta fundamentada:**
-  1. **Efecto de Ejercicio Anticipado:** En Calls, el Modelo 1 coincide exactamente con el Modelo 3, y el Modelo 2 con el Modelo 4 (prima americana = 0). En Puts, la prima americana alcanza hasta $\$0.025$ USD en ITM.
-  2. **Efecto de la Superficie de Volatilidad:** La incorporación de la superficie reduce el error de tarificación de manera sustancial en todos los segmentos:
-     * En toda la muestra: el MAE cae de $\$0.0536$ (M1) a $\$0.0299$ (M4).
-     * En opciones ITM: el MAE se reduce a más de la mitad, cayendo de $\$0.0854$ a $\$0.0396$ USD.
+  1. **Efecto de Ejercicio Anticipado:** En Calls, el Modelo 1 coincide exactamente con el Modelo 3 (MAE $0.0551), y el Modelo 2 con el Modelo 4 (MAE $0.0259), confirmando la teoría de Merton ($q=0$). En Puts, la prima americana reduce el MAE de $\$0.0515$ (M1) a $\$0.0386$ (M3) en plano, y de $\$0.0351$ (M2) a $\$0.0322$ (M4) en superficie.
+  2. **Efecto de la Superficie de Volatilidad:** La incorporación de la superficie reduce el error de tarificación de manera sustancial:
+     * En toda la muestra ($N=201$): el MAE dentro de muestra cae de $\$0.0536$ (M1) a **$\$0.0285$ USD (M4)** (reducción del 40.9%).
+     * En opciones ITM ($N=72$): el MAE se reduce a casi la mitad, cayendo de $\$0.0854$ a **$\$0.0398$ USD** (reducción del 48.4%).
   3. **Conclusión Institucional:** El error de utilizar una volatilidad plana es de 3 a 5 veces mayor que el error de ignorar el ejercicio anticipado en contratos ATM/OTM. Por tanto, tarificar con volatilidad plana distorsiona severamente la gestión de riesgos de la entidad.
 
 ### Pregunta 18: ¿Cuáles son las unidades exactas de las Griegas calculadas y por qué Vega se escala a 1 punto porcentual?
@@ -160,13 +174,28 @@ Este documento recopila las 28 preguntas técnicas, metodológicas, financieras 
   3. El moneyness: $k_1 = \ln(K / F_1)$.
   Esto actualiza la posición del contrato sobre la superficie de volatilidad implícita antes de ejecutar la revaloración completa con el motor de diferencias finitas.
 
-### Pregunta 20: ¿Por qué la aproximación de Taylor por Griegas falló catastróficamente en el Escenario 3 (-20% spot, +12 pp vol)?
+### Pregunta 20: ¿Por qué la literatura previa del proyecto reportaba una discrepancia de Taylor de -$3,253 USD y cuál es la cifra real corregida?
 * **Respuesta fundamentada:**
-  En el Escenario 3, la aproximación de Taylor estimó una ganancia de $+\$3,699$ USD, mientras que la revaloración completa por EDP arrojó una ganancia real de solo $+\$446$ USD (una discrepancia de más de $\$3,250$ USD).
-  Esto ocurre por la naturaleza local de las derivadas:
-  * El término de Gamma positiva $\frac{1}{2} \Gamma (\Delta S)^2$ en Taylor asume que la ganancia por convexidad crece parabólicamente sin límite. En la realidad, ante una caída del 20%, las Calls largas colapsan hacia cero (su valor no puede ser negativo), perdiendo toda su delta y convexidad.
-  * Asimismo, en los Puts cortos, la aproximación lineal de Vega asume que la subida de volatilidad encarece el contrato de forma ilimitada, ignorando que el valor de una opción americana está acotado superiormente por su strike $K$ y que el ejercicio anticipado se activa.
-  La aproximación de Taylor solo es válida para perturbaciones infinitesimales; en crisis severas, **la revaloración completa por EDP es mandatoria**.
+  La discrepancia de $-\$3\,253.04$ USD reportada anteriormente en el Escenario 3 (Crisis Severa, $\Delta S = -20\%$, $+12$ pp vol) no se debía exclusivamente a no-linealidad financiera, sino a dos defectos técnicos corregidos en la auditoría cuantitativa:
+  1. **Inestabilidad de Gamma Numérico:** La Put $K=12$ ($\tau=31$ días) arrojaba un Gamma artificialmente inflado de $3.3547$ (en lugar del valor real de $0.2375$), originado por la desalineación de mallas al perturbar el spot con $S_{\max}(S)$ dinámico. Este error en Gamma, multiplicado por $\frac{1}{2} M q (\Delta S)^2$, inflaba el P&L de Taylor en $+\$2\,844$ USD espurios.
+  2. **Contaminación por Marca a Modelo:** Se restaba el precio de mercado inicial en vez del precio de modelo inicial, sumando la discrepancia inicial de $-\$20.43$ USD.
+
+  Al estabilizar el motor PDE (fijando $S_{\max}$ y usando interpolación PCHIP) y unificar la base contable del modelo:
+  * El **P&L real de la EDP Completa** es de **$+\$496.56$ USD**.
+  * El **P&L estimado por Taylor** es de **$+\$757.71$ USD**.
+  * La **discrepancia de Taylor genuina** es de **$-\$261.15$ USD** (un 34.5% del P&L estimado).
+  
+  Esta discrepancia real sí representa fenómenos financieros genuinos: ante caídas de spot del 20%, las Calls largas colapsan asintóticamente a cero perdiendo su convexidad (mientras Taylor asume crecimiento cuadrático infinito), y las Puts cortas sufren aceleración de ejercicio anticipado.
+
+### Pregunta 20b: ¿Cómo se verificó que la contabilidad de stress testing está perfectamente libre de desajustes iniciales?
+* **Respuesta fundamentada:**
+  Se introdujo el **Escenario Nulo (S0)** con perturbaciones idénticamente nulas ($\Delta S = 0$, $\Delta t = 0$, $\Delta \sigma = 0$, $\Delta r = 0$). En este escenario, tanto la revaloración completa por EDP como la expansión de Taylor arrojan **exactamente $0.00$ USD** de P&L. Asimismo, se separó la discrepancia inicial de marca a modelo ($\Pi_{0,\text{model}} - \Pi_{0,\text{market}} = -\$20.43$ USD), y se verificó que la sumatoria individual de P&L de las 5 patas de opciones más la cobertura de acciones ($-357$ acciones de NU) coincide al céntimo con el P&L total del portafolio.
+
+### Pregunta 20c: ¿Por qué es un error metodológico presentar el valor absoluto de una cartera con posiciones cortas como "capital invertido"?
+* **Respuesta fundamentada:**
+  En una cartera con opciones vendidas y acciones cortas, el valor neto de mercado puede ser pequeño o negativo mientras el pasivo contingente es enorme. Sumar el valor absoluto de posiciones cortas no refleja fondos propios comprometidos, sino que distorsiona la métrica de rentabilidad. Implementamos el estándar regulatorio de margen (Reg T / FINRA 4210):
+  $$C_{\text{margin}} = \text{Margen Acciones Cortas (50\%)} + \text{Margen Opciones Cortas} + \text{Costo Opciones Largas} = \$5\,435.31 \text{ USD}$$
+  Sobre este capital económico de garantía, el P&L de $+\$496.56$ USD en el Escenario 3 representa un retorno prudencial del **$+9.14\%$**.
 
 ### Pregunta 21: ¿Qué diferencia existe entre la convención Sticky-Strike y Sticky-Moneyness?
 * **Respuesta fundamentada:**
@@ -178,13 +207,16 @@ Este documento recopila las 28 preguntas técnicas, metodológicas, financieras 
 
 ## Bloque 8: Estrategias Cuantitativas y Modelación Econométrica
 
-### Pregunta 22: ¿Cómo formularon la Estrategia 1 y por qué una señal $z > 0$ no garantiza rentabilidad comercial?
+### Pregunta 22: ¿Cómo formularon la Estrategia 1, cómo eliminaron el sesgo de anticipación y cómo cubrieron el delta americano?
 * **Respuesta fundamentada:**
-  Estimamos el modelo HAR-RV de Corsi sobre 1240 retornos diarios de NU hasta el 17-nov-2026 mediante validación walk-forward fuera de muestra (QLIKE = 0.1813). El modelo proyectó una volatilidad a 21 días de **72.97%**, muy por encima de la IV ATM del mercado a 31 días (**44.02%**), generando una señal $z = \ln(72.97 / 44.02) = +0.505 > 0$ que motivó la compra de un Straddle ATM delta-neutral.
-  Sin embargo, $z > 0$ no garantiza rentabilidad por tres factores críticos:
-  1. **Prima de Riesgo de Volatilidad (VRP):** Los agentes del mercado demandan un descuento estructural en las opciones vendidas para compensar el riesgo de saltos no diversificables.
-  2. **Costos de Fricción:** En nuestro análisis de costos, el bid-ask spread y las comisiones consumen hasta el 25% de la prima pagada en el régimen conservador, exigiendo un movimiento de spot superior al 12% solo para alcanzar el punto de equilibrio.
-  3. **Riesgo de Rebalanceo Delta:** Mantener la delta-neutralidad exige transar activamente acciones del subyacente, devengando costos de deslizamiento (*slippage*).
+  1. **Eliminación del Sesgo de Anticipación (Look-Ahead Purging):**
+     Dado que la variable objetivo forward $RV_{t, t+21}^{(m)}$ abarca 21 días hacia el futuro, entrenar modelos de regresión rodante con muestras que lleguen hasta $t$ filtra información de los últimos 20 días. Implementamos una validación walk-forward estrictamente purificada: para predecir en la fecha $t$, el modelo solo se entrena con historia $s \le t - 21$. Bajo este estándar econométrico riguroso, el modelo HAR-RV purificado alcanzó un **QLIKE de 0.1855** y un **RMSE de 15.04 pp**, superando al benchmark EWMA ($\lambda=0.94$, QLIKE 0.2099) y a la volatilidad histórica de 21 días (QLIKE 0.2512).
+  2. **Señal Cuantitativa Dinámica:**
+     Al 17 de noviembre de 2026, el modelo proyectó causalmente una volatilidad a 21 días de **72.97%**, muy por encima de la IV ATM del mercado a 31 días (**44.02%**), generando una señal $z = \ln(72.97 / 44.02) = +0.505 > 0$ que activó la estrategia `LONG_VOLATILITY_STRADDLE`.
+  3. **Cobertura Delta Americana Dinámica:**
+     A diferencia de enfoques ingenuos que asumen que un Straddle ATM tiene delta cero o que la Put tiene delta -0.50, calculamos el delta exacto de la Put americana mediante nuestro motor EDP ($\Delta_P = -0.3839$) junto con el delta de la Call ($\Delta_C = +0.6120$). El delta neto de 1 contrato de opciones es de $+22.81$ acciones de NU, el cual se neutralizó exactamente mediante una posición corta de **$h_S = -23$ acciones de NU**.
+  4. **Límites Comerciales:**
+     Resaltamos que $z > 0$ no asegura ganancias arbitrarias debido a la prima de riesgo de volatilidad (VRP), costos de fricción y slippage de rebalanceo delta. En el régimen de fricción conservador, el subyacente requiere un salto superior al 12% para alcanzar el breakeven.
 
 ### Pregunta 23: ¿Cómo se deriva la volatilidad forward entre dos vencimientos en la Estrategia 2 (Calendar Spread)?
 * **Respuesta fundamentada:**

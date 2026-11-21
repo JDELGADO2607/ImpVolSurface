@@ -1,5 +1,5 @@
-maturity_bucket,contracts_evaluated,mean_bias_pp,mae_pp,rmse_pp,min_diff_pp,max_diff_pp
-15-90d (Liquid Term),89,-0.91,3.03,6.09,-40.57,9.18
-90-365d (Medium Term),57,0.19,1.48,2.13,-6.93,5.43
-< 15d (Short / Asynchronous),15,2.49,4.77,5.51,-4.6,9.13
-> 365d (LEAPS),38,3.24,3.52,8.24,-2.24,47.34
+tenor_bucket,n_contracts,n_bbg_mid_available,mean_bias_vs_bbg_mid_pp,mae_vs_bbg_mid_pp,mean_bias_vs_bbg_last_pp,mae_vs_bbg_last_pp
+Short Tenor (<= 30d),49,49,0.04,3.84,0.98,3.89
+Intermediate (31d - 90d),56,55,-0.82,2.78,-0.3,2.4
+Medium-Long (91d - 365d),57,57,0.19,1.48,0.26,1.68
+LEAPS (> 365d),39,38,3.24,3.52,1.69,1.97
