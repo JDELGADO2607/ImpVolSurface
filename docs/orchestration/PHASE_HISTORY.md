@@ -27,3 +27,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | PHASE_2 APPROVED tras reparacion1; PHASE_3 autorizada para validacion | ea0df6f,38tests PASS,API/diagnosticos corregidos; LOW editoriales/numericos aceptados para etapa inicial; PHASE_3_START |
 | 2026-11-21 | PHASE_3 dispatch aceptado para validacion, sin calibracion | ctx_4970fa04f5d2, task_47d1d8249cd0; informe/criterios8ddc554 accesibles, PR4 OPEN |
 | 2026-11-21 | PHASE_3 REJECTED y reparacion1 autorizada | 37bbd12,48tests PASS y precios muestreados favorables;2MEDIUM de validacion/conclusiones,1LOW adaptacion temporal; sin calibracion |
+| 2026-11-21 | Reparacion1 fase3 dispatch aceptado | ctx_4c5de8c1d790, task_0b31f3ad8f73; informefb3f5c6 accesible, PR4 OPEN |
