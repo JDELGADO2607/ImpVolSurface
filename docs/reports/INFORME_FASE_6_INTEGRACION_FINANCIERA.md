@@ -10,14 +10,17 @@
 - $\xi = 0.481785$
 - $\rho = -0.949807$
 - Razón de Feller: $\frac{2\kappa\theta}{\xi^2} = 5.018 > 1$ (satisfecho estrictamente)  
-**Curva de Descuento:** US Treasury Par Yield Curve Bootstrap Oficial (ACT/365 Fixed, $q = 0.00$, $S_0 = 12.33$ USD)  
-**Base de Código:** Commit `b4cb3d6840e1596ed656cad1768b642e936c9845` (PR #5)  
+**Curva de Descuento:** Curva determinista ex post a partir de tasas par CMT del US Treasury, con instrumentos sintéticos y aproximaciones de construcción; no un bootstrap completo de bonos cotizados (ACT/365 Fixed, $q = 0.00$, $S_0 = 12.33$ USD).
+
+**Referencia de esta corrección documental:** Commit `2a9143ba55f1e17b165fa7132d954227635e6538` (PR #5). Resultados numéricos conservados; revisión humana final pendiente.
 
 ---
 
 ## 1. Resumen Ejecutivo y Objetivos
 
 Conforme al encargo de Fase 6 y la directiva humana de mínima complejidad suficiente del 22 de noviembre de 2026, la Fase 6 consolida la integración financiera completa del modelo de Heston clásico sobre el libro de derivados de NU Holdings:
+
+La calibración previa minimiza SSE no ponderada sobre **60 puts americanas de entrenamiento**. Las **22 puts de holdout por strike y 15 por vencimiento** no forman parte de esa función objetivo. Las métricas sobre 97 puts combinan entrenamiento y holdouts; las 142 calls son un contraste externo. La revisión humana final del conjunto permanece pendiente.
 
 1. **Comparación Rigurosa de Cuatro Modelos:** Sobre el universo común congelado de 239 contratos (97 puts americanas y 142 calls externas), aislando la Prima por Ejercicio Anticipado (EEP) y el efecto de la sonrisa estocástica frente al benchmark plano del 44.0%.
 2. **Cartera Hipotética y Griegas de Heston:** Valuación directa bajo Heston de las 5 patas predefinidas en `src/portfolio.py` (`PORTFOLIO_LEGS`), cálculo coherente de Delta, Gamma, sensibilidad a $\sigma_0 = \sqrt{v_0}$ y Theta diaria, determinación de la posición de cobertura delta-neutral en acciones de NU, y aproximación dinámica de capital/margen.
@@ -31,7 +34,7 @@ Conforme al encargo de Fase 6 y la directiva humana de mínima complejidad sufic
 Se contrastaron cuatro columnas de valuación sobre los 239 contratos utilizando la curva determinista común:
 - **M1 (Europeo Flat BS):** Fórmula de Black-Scholes con volatilidad ex-ante plana del 44.0% y descuento $D(T)$ de la curva.
 - **M2 (Americano Flat 1D):** EDP 1D americana (Crank-Nicolson + penalización) con volatilidad plana del 44.0% y estructura temporal de tasas. Para calls bajo $q=0, r\ge 0$, coincide con M1 por el teorema de Merton (1973).
-- **M3 (Europeo Heston):** Valuación semianalítica exacta mediante `ql.AnalyticHestonEngine` consumiendo la curva densa diaria oficial (`curve.to_quantlib_term_structure(dense_daily=True)`).
+- **M3 (Europeo Heston):** Valuación semianalítica mediante integración numérica con tolerancia finita en `ql.AnalyticHestonEngine`, consumiendo la curva densa diaria (`curve.to_quantlib_term_structure(dense_daily=True)`).
 - **M4 (Americano Heston):** Precios finos auditados del solver 2D para puts (Fase 4); para calls, idéntico a M3 ($C_{\text{Am}} \equiv C_{\text{Eu}}$).
 
 ### 2.1 Desempeño y Métricas de Error por Partición
@@ -46,7 +49,7 @@ Se contrastaron cuatro columnas de valuación sobre los 239 contratos utilizando
 | **Universo Común Total** | **239** | $0.0538$ | $0.0489$ | $0.0708$ | **$0.0615$** | $0.1011$ | $0.0117$ |
 
 *Notas:*
-1. En puts americanas, el modelo Heston (M4) logra un MAE de **$0.0238$ USD** frente a **$0.0374$ USD** del modelo americano de volatilidad plana (M2), lo que representa una **reducción del error del 36.21%** en la muestra para la que fue calibrado.
+1. En las 97 puts evaluadas (60 de entrenamiento y 37 holdout), el modelo Heston (M4) logra un MAE de **$0.0238$ USD** frente a **$0.0374$ USD** del modelo americano de volatilidad plana (M2), una **reducción del error del 36.21%**. Esta métrica conjunta no es exclusivamente in-sample ni exclusivamente fuera de muestra.
 2. En las 142 calls externas out-of-sample (no utilizadas en calibración), Heston obtiene un MAE de **$0.0873$ USD** frente a **$0.0568$ USD** del benchmark plano ex-ante, resultando en un MAE combinado sobre los 239 contratos de **$0.0615$ USD** para Heston vs **$0.0489$ USD** para el flat americano. No se afirma superioridad global del modelo sobre todo tipo de contrato, reportándose ambos comportamientos con total transparencia académica.
 3. La Prima por Ejercicio Anticipado ($\text{EEP} = P_{\text{Am}} - P_{\text{Eu}}$) promedia $0.0287$ USD ($2.87$ centavos) en las 97 puts, con un máximo de $0.5673$ USD en puts profundas ITM de tenores largos, confirmando la relevancia económica de la valoración americana. Para calls bajo $q=0, r\ge 0$, la EEP es idénticamente cero por el teorema de Merton (1973).
 
@@ -101,9 +104,9 @@ Se evaluó la cartera delta-hedged revaluando numéricamente cada contrato bajo 
 | **S5** | Bullish Rally (+15% / -8pp) | $+15.0\%$ | $-8.0$ pp | $+824.03$ | $-726.85$ | **$+97.18$** | $+145.21$ | **$-48.03$** |
 
 ### 4.1 Análisis Financiero del Estrés
-1. **Comportamiento Delta-Neutral:** En los shocks moderados de spot ($\pm 5\%$, S1 y S2), la cobertura en acciones neutraliza la exposición lineal y la gamma positiva neta de la cartera genera una ganancia de convexidad simétrica de $\approx +18.5$ a $+26.3$ USD.
-2. **Convergencia y Divergencia de Taylor:** En movimientos pequeños ($\pm 5\%$), la expansión de Taylor concuerda con la revaluación no lineal con un error menor a $4.1$ USD. Sin embargo, en el escenario de crisis severa (S4, $-20\%$ de spot y $+12$ pp de volatilidad), la aproximación lineal/cuadrática subestima la ganancia de convexidad en **$47.10$ USD** ($+492.21$ USD revaluado vs $+445.11$ USD en Taylor), demostrando la necesidad de la revaluación completa por diferencias finitas.
-3. **Escenario S5 (Rally con Vol Crush):** La ganancia moderada de $+97.18$ USD refleja que las opciones compradas capturen el movimiento positivo de spot atenuado por la compresión de volatilidad ($-8$ pp). Taylor sobreestima la ganancia en $48.03$ USD ($+145.21$ USD) debido a la pérdida de vega no lineal.
+1. **Comportamiento Delta-Neutral:** En los shocks moderados de spot ($\pm 5\%$, S1 y S2), la cobertura reduce la exposición lineal. La gamma positiva local es consistente con P&L positivos de $+26.26$ y $+18.54$ USD, respectivamente; la revaloración completa no es simétrica.
+2. **Residuo de Aproximación de Taylor:** En los shocks de spot de $\pm 5\%$, la diferencia entre revaloración y Taylor es menor a $4.1$ USD. En S4 ($-20\%$ de spot y $+12$ pp de $\sigma_0$), la revaloración completa da $+492.21$ USD y Taylor $+445.11$ USD: el residuo es **$+47.10$ USD**. Taylor incluye segundo orden en spot y primer orden en $\sigma_0$; omite términos cruzados, curvatura en volatilidad y órdenes superiores. El residuo no puede atribuirse exclusivamente a convexidad ni interpretarse como una ganancia independiente.
+3. **Escenario S5 (Rally con Vol Crush):** El P&L revalorado es $+97.18$ USD frente a $+145.21$ USD de Taylor. El residuo de **$-48.03$ USD** corresponde a la aproximación conjunta de los shocks; no permite aislar una contribución exclusiva de vega o convexidad.
 
 ---
 
@@ -115,22 +118,23 @@ Se evaluó la cartera delta-hedged revaluando numéricamente cada contrato bajo 
   - Presentar a NU Holdings Ltd. como subyacente de alta liquidez en NYSE ($S_0 = 12.33$ USD al 17-nov-2026).
   - Justificar la necesidad de migrar de la parametrización ad-hoc de SVI a un modelo estructural estocástico clásico bajo $\mathbb{Q}$ (Heston 1993).
 - **Minuto 1:30 – 3:30 | Calibración y Condición de Feller:**
-  - Explicar la función de pérdida ponderada sobre las 97 puts americanas utilizando la curva determinista de bonos del Tesoro de EE.UU. (aclarando que la curva CMT aproxima instrumentos sintéticos mediante bootstrap cuantitativo).
-  - Mostrar los parámetros óptimos: $v_0 = 0.1861$, $\kappa = 2.7255$, $\theta = 0.2137$, $\xi = 0.4818$, $\rho = -0.9498$.
+  - Explicar la función objetivo **SSE no ponderada sobre 60 puts americanas de entrenamiento**, $\sum_{i\in\mathrm{train}}(P_i^{\mathrm{Am,Heston}}-P_i^{\mathrm{obs}})^2$. Las otras 37 puts se reservan: 22 para holdout por strike y 15 por vencimiento. La evaluación abarca 97 puts, pero no todas se usan para calibrar. Se utiliza una curva determinista CMT ex post con instrumentos sintéticos y aproximaciones de bootstrap, sin demostrar disponibilidad exacta a las 16:00.
+  - Mostrar los parámetros seleccionados, sin afirmar optimalidad global: $v_0 = 0.1861$, $\kappa = 2.7255$, $\theta = 0.2137$, $\xi = 0.4818$, $\rho = -0.9498$.
   - Resaltar la satisfacción estricta de la condición de Feller ($2\kappa\theta/\xi^2 = 5.018 > 1$), que garantiza que la varianza instantánea nunca toca cero. Recordar que el pricer semianalítico de QuantLib opera bajo integración numérica con tolerancia finita y no aritmética exacta.
 - **Minuto 3:30 – 5:30 | Superficie de Volatilidad Implícita Equivalente:**
   - Detallar la extensión 1D con la curva determinista $r(t = T - \tau)$ y los 6 controles contra QuantLib (discrepancia $< 0.001$ USD).
   - Aclarar la naturaleza de la IV americana equivalente frente a Black-Scholes.
-  - *Precisión documental:* En la grilla descriptiva de 35 puntos, 29 puts y 33 calls exhiben inversión interior convergente (`CONVERGED`); las restantes corresponden a los límites asintóticos de vega nula o valor intrínseco.
+  - *Precisión documental:* En cada grilla descriptiva de 35 puntos, 29 puts y 33 calls exhiben inversión interior convergente (`CONVERGED`); las otras filas conservan estados de frontera o no identificación, incluido un `PRICE_BELOW_INTRINSIC` en puts.
 - **Minuto 5:30 – 7:30 | Comparación de Modelos y Cartera Delta-Hedged:**
   - Contrastar los 4 modelos sobre 239 contratos: Heston reduce el MAE de $3.74$ centavos a $2.38$ centavos en puts americanas (mejora del $36.21\%$), mientras que en calls externas no calibradas el modelo plano se mantiene en $5.68$¢ frente a $8.73$¢ de Heston (combinado $4.89$¢ vs $6.15$¢).
   - La prima de ejercicio anticipado en puts promedia $2.87$ centavos (máximo $56.7$ centavos en puts ITM).
   - Mostrar la estructura de 5 patas y la posición de cobertura: corto 393 acciones para neutralizar una delta de $+393.22$ acciones (delta residual $+0.22$ por redondeo entero), con gamma positiva ($+118.24$).
-- **Minuto 7:30 – 9:00 | Pruebas de Estrés y Convexidad:**
+  - Distinguir esta cartera de cinco patas, integrada con Heston, de las estrategias históricas straddle y calendar spread, que no fueron migradas a Heston ni constituyen un backtest de rentabilidad histórica.
+- **Minuto 7:30 – 9:00 | Pruebas de Estrés y Aproximación de Taylor:**
   - Evidenciar la robustez del escenario nulo ($PnL = 0.00$ USD exacto).
-  - Explicar la discrepancia de Taylor en el shock de crisis ($-20\%$ / $+12$ pp): la convexidad no lineal genera $+492.21$ USD frente a los $+445.11$ USD previstos por Taylor ($47.10$ USD de ganancia no lineal pura). Recordar que estos PnL son instantáneos e hipotéticos, sin modelar financiación, fricciones ni probabilidades históricas.
+  - Explicar el shock de crisis ($-20\%$ / $+12$ pp): revaloración completa de $+492.21$ USD frente a $+445.11$ USD de Taylor, con **$47.10$ USD de residuo de aproximación**, sin atribuirlo exclusivamente a convexidad. Taylor ya incorpora gamma local, pero omite términos cruzados, volga y órdenes superiores. Recordar que estos PnL son instantáneos e hipotéticos, sin modelar financiación, fricciones ni probabilidades históricas.
 - **Minuto 9:00 – 10:00 | Limitaciones Aceptadas y Conclusiones:**
-  - Resumir las limitaciones formales aceptadas por la coordinación humana (`F4-H2` en escenarios artificiales extremos, opciones profundas ITM y precisión de IV en 3d).
+  - Resumir las limitaciones aceptadas: asincronía de precios, identificación paramétrica, precisión de IV en 3d, curva ex post y `F4-H2` abierto en escenarios sintéticos extremos.
   - Concluir que el modelo es parsimonioso, matemáticamente riguroso y defendible ante un panel académico y de riesgo.
 
 ### 5.2 Tabla Sinóptica Final de Resultados
@@ -140,7 +144,7 @@ Se evaluó la cartera delta-hedged revaluando numéricamente cada contrato bajo 
 | Parámetros Calibrados Heston | $(0.1861, 2.7255, 0.2137, 0.4818, -0.9498)$ | Aprobado (PoC Régimen A) |
 | Razón de Feller ($2\kappa\theta/\xi^2$) | $5.018$ | Cumple ($> 1$) |
 | MAE Puts Americanas Heston (97 puts) | **$0.0238$ USD** ($2.38$ ¢) | Reducción 36.21% vs Flat Am ($0.0374$) |
-| RMSE Puts Americanas Heston (97 puts) | **$0.0340$ USD** ($3.40$ ¢) | Óptimo en Muestra de Calibración |
+| RMSE Puts Americanas Heston (97 puts) | **$0.0340$ USD** ($3.40$ ¢) | Evaluación total: 60 train + 37 holdout |
 | MAE Calls Externas Heston (142 calls) | **$0.0873$ USD** ($8.73$ ¢) | Out-of-Sample (vs $0.0568$ Flat) |
 | MAE Combinado (239 contratos) | **$0.0615$ USD** ($6.15$ ¢) | vs $0.0489$ USD Flat Am |
 | Discrepancia Máx. 1D vs QuantLib (6 casos) | **$0.000910$ USD** | Cumple ($\le 0.0020$ USD) |
@@ -162,7 +166,11 @@ Se evaluó la cartera delta-hedged revaluando numéricamente cada contrato bajo 
 4. **Delta-Neutralidad y Expansión de Taylor:**
    La delta-neutralidad es aproximada ($+0.22$ acciones de residuo) debido al redondeo entero de las acciones de cobertura ($-393$ acciones). La aproximación de Taylor incluye términos de segundo orden en spot $S$ y primer orden en $\sigma_0$, sin incluir términos cruzados de vanna ni volga completos.
 5. **Grillas Descriptivas de 35 Puntos y Tenor Ultracorto:**
-   De los 35 puntos evaluados en la grilla descriptiva de Fase 5, 29 puts y 33 calls convergieron en el interior de la superficie; las restantes corresponden a los límites de no identificación cerca de la frontera intrínseca o vega nula. Se mantiene asimismo documentada la limitación de precisión en la put de 3 días (`NU261120P00012500`).
+   En cada grilla de 35 puntos de Fase 5, 29 puts y 33 calls tienen IV interior identificada. En puts quedan 5 estados `CONVERGED_AT_LOWER_BRACKET` y 1 `PRICE_BELOW_INTRINSIC`; en calls, 2 `CONVERGED_AT_LOWER_BRACKET`. No se cuentan como raíces interiores. Se mantiene la limitación de precisión en la put de 3 días (`NU261120P00012500`).
+6. **Asincronía, Identificación Paramétrica y Curva Ex Post:**
+   Las últimas transacciones de opciones no forman una cadena sincronizada y ejecutable. Una sola sección transversal no garantiza identificación única de los cinco parámetros; $\rho$ queda próximo al límite de búsqueda. La curva usa CMT del día de valoración y aproximaciones sobre instrumentos sintéticos, sin demostrar disponibilidad exacta a las 16:00. Los parámetros son neutrales al riesgo, no estimaciones de la dinámica física.
+7. **Alcance de las Estrategias:**
+   El estrés Heston de esta fase corresponde a la cartera hipotética de cinco patas. Las estrategias históricas straddle y calendar spread se conservan en sus módulos previos, sin integración equivalente con Heston ni validación de rentabilidad histórica.
 
 ---
 

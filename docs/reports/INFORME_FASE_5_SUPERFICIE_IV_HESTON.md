@@ -10,7 +10,7 @@
 - $\xi = 0.481785$
 - $\rho = -0.949807$
 - Razón de Feller: $\frac{2\kappa\theta}{\xi^2} = 5.018 > 1$ (condición estrictamente satisfecha)  
-**Curva de Descuento:** US Treasury Par Yield Curve Bootstrap Oficial (ACT/365 Fixed, $q = 0.00$, $S_0 = 12.33$ USD)  
+**Curva de Descuento:** Curva determinista ex post a partir de tasas par CMT del US Treasury, con instrumentos sintéticos y aproximaciones de construcción; no un bootstrap completo de bonos cotizados (ACT/365 Fixed, $q = 0.00$, $S_0 = 12.33$ USD).
 **Base de Código:** Commit `7f51a811ae5815dadf8c26b46f707e9f7cb0d05c` (PR #5)  
 
 ---
@@ -95,11 +95,11 @@ La convergencia es estrictamente monótona con el refinamiento espacial y tempor
 - **Puts Totales Procesadas:** 97 contratos.
 - **Inversión Heston Exitosa:**
   - `CONVERGED`: 88 contratos con raíz interior precisa (residual $< 10^{-6}$ USD).
-  - `CONVERGED_AT_LOWER_BRACKET`: 9 contratos profundos ITM en tenores cortos donde el precio del modelo está en la cota de valor intrínseco y la volatilidad converge al límite numérico inferior ($\sigma = 0.01$). Estos contratos se conservan explícitamente sin forzar valores arbitrarios ni omitir filas.
+  - `CONVERGED_AT_LOWER_BRACKET`: 9 contratos con precio próximo a una frontera y escasa identificación de IV. El valor reportado en el límite numérico inferior ($\sigma = 0.01$) no es una IV interior identificada ni una estimación económica del 1 %. Se conservan las filas y sus estados explícitos.
 - **Inversión de Precios de Mercado Observados:**
   - `CONVERGED`: 96 contratos.
   - `UNIDENTIFIABLE_VOL_TOO_HIGH`: 1 contrato con prima anómala de mercado.
-- **Métricas de Error en Muestra Común Válida (88 puts):**
+- **Métricas de Error:** Precio sobre las 97 puts; IV sobre las 88 puts con inversión interior común válida.
   - MAE de Precio: $0.0238$ USD (2.38 centavos).
   - RMSE de Precio: $0.0340$ USD (3.40 centavos).
   - MAE de IV Equivalente: $2.52$ puntos porcentuales.
@@ -114,7 +114,7 @@ La convergencia es estrictamente monótona con el refinamiento espacial y tempor
 - **Inversión de Precios de Mercado Observados:**
   - `CONVERGED`: 138 contratos.
   - `UNIDENTIFIABLE_VOL_TOO_HIGH`: 4 contratos OTM con precios desfasados respecto a la hora de cierre.
-- **Métricas de Error en Muestra Común Válida (137 calls):**
+- **Métricas de Error:** Precio sobre las 142 calls; IV sobre las 137 calls con inversión interior común válida.
   - MAE de Precio: $0.0873$ USD.
   - RMSE de Precio: $0.1281$ USD.
   - MAE de IV BS: $12.75$ puntos porcentuales.
@@ -125,8 +125,8 @@ La convergencia es estrictamente monótona con el refinamiento espacial y tempor
 ## 5. Grilla Descriptiva de 35 Puntos
 
 Se evaluó la grilla predefinida $K \in \{9.0, 11.0, 12.33, 15.0, 17.0\}$ USD y tenores $\{3, 31, 59, 94, 212, 430, 794\}$ días:
-- **Puts:** 35 de 35 puntos valorados directamente con el solver 2D / reutilización auditada de Fase 4, e invertidos exitosamente a IV equivalente.
-- **Calls:** 35 de 35 puntos valorados con `AnalyticHestonEngine` e invertidos a IV de Black-Scholes.
+- **Puts:** 35 de 35 puntos valorados con Heston; **29 de 35 IV interiores identificadas** (`CONVERGED`). Los otros 6 puntos conservan sus estados: 5 `CONVERGED_AT_LOWER_BRACKET` y 1 `PRICE_BELOW_INTRINSIC`. No se cuentan como inversiones interiores exitosas.
+- **Calls:** 35 de 35 puntos valorados con `AnalyticHestonEngine`; **33 de 35 IV interiores identificadas** (`CONVERGED`). Los otros 2 puntos son `CONVERGED_AT_LOWER_BRACKET` y no se cuentan como IV interiores.
 - Los resultados se encuentran exportados en `data/heston/phase5/heston_descriptive_grid_35_puts.csv` y `heston_descriptive_grid_35_calls.csv`.
 
 ---
@@ -148,7 +148,7 @@ Se generaron y verificaron cuatro figuras de alta resolución en `figures/phase5
 2. **Naturaleza de la IV Americana Equivalente:**
    La volatilidad implícita americana equivalente obtenida por inversión sobre la EDP 1D es una medida de cotización y comparación de primas, no una volatilidad de difusión Black-Scholes europea. Por tanto, no se asume paridad call-put europea ni ausencia automática de arbitraje de calendario sobre $w = \sigma_{\text{IV}}^2 T$ sin verificación numérica explícita.
 3. **Puntos Profundos ITM:**
-   En opciones muy profundas en el dinero o vencimientos ultracortos (e.g. 3 días), la prima está dominada por el valor intrínseco $(K - S)^+$ y la vega decae rápidamente ($\frac{\partial P}{\partial \sigma} \to 0$). El motor reporta estados explícitos de no identificación sin forzar artificialmente valores arbitrarios de $\sigma_{\min}$.
+   En opciones muy profundas en el dinero o vencimientos ultracortos (e.g. 3 días), la prima puede estar dominada por el valor intrínseco $(K - S)^+$ y la vega decae rápidamente ($\frac{\partial P}{\partial \sigma} \to 0$). También puede perderse identificación en primas OTM casi nulas. Los estados de frontera y no identificación deben distinguirse de las raíces interiores; un valor reportado en $\sigma_{\min}$ no identifica la volatilidad económica. Se conserva la limitación de precisión ultracorta de `NU261120P00012500`.
 
 ---
 
