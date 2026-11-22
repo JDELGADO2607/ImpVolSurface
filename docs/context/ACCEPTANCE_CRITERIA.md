@@ -1,5 +1,7 @@
 # Criterios antes de evaluar resultados
 
+Filtro obligatorio de materialidad vigente: toda nueva reparación debe identificar evidencia de impacto en precios reales, resultados publicados, reproducción esencial o conclusiones financieras. Sin ello, clasificar como limitación documentable y continuar; no bloquear por hardening de cachés/manifiestos/validadores. Conservar calibración/motor y experimentos satisfactorios; pruebas focalizadas e informes breves. Meta: terminar5/6y exposición defendible de10min, no validación industrial. Esta regla humana se aplica prospectivamente sin borrar evidencia histórica.
+
 Actualización humana22-nov vigente: evaluar rigor matemático, precisión y resultados reales, reproducción limpia básica e integración académica. La robustez ante artefactos artificialmente alterados se documenta como limitación, sin bloquear salvo impacto real demostrado. F4-H2 aceptado expresamente, no reparado; no omitir esta distinción en el informe final. El historial de criterios/pruebas permanece abajo. Fase5 se rige por [PHASE_5_START](../orchestration/PHASE_5_START.md), fijado antes de sus resultados; no exige framework de validación/caché ni nueva campaña de corrupción de archivos.
 
 Propietario Codex. Versionar cualquier cambio de criterio y su motivo antes de seleccionar resultados. Una tolerancia debe relacionarse con escala de precio, granularidad observada y error numérico medido, sin presuponer bid/ask fiable. Fase 0 propondrá presupuesto de error y criterios cuantitativos para PoC; Codex los fijará antes de la calibración.

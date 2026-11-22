@@ -8,6 +8,8 @@ Actualización humana22-nov-2026: se acepta F4-H2 como limitación sobre escenar
 
 ## Comunicación verificada
 
+Prioridad humana reafirmada tras iniciar5: mínima complejidad suficiente. Antes de solicitar otra reparación, Codex debe aportar evidencia de impacto en precios reales, resultados publicados, reproducibilidad esencial o conclusiones financieras y proponer la corrección mínima. Un contraejemplo artificial, caché/manifiesto/validador más estricto o mejora opcional sin ese impacto se documenta como limitación y no bloquea. No repetir calibración ni experimentos costosos ya satisfactorios sin evidencia material. Usar informes breves, pruebas focalizadas y aceptación proporcional al proyecto de diez minutos; priorizar5/6y exposición. Revisión humana final y prohibición de merge automático se conservan.
+
 Cargar orca skills get orca-cli y orca skills get orchestration del ejecutable actual. Descubrir sesiones con terminal list y worktree ps, copiar handles reales. Los handles expiran al reiniciar Orca. terminal read permite inspección y terminal send una notificación a la sesión existente. La sesión Gemini aparece como antigravity en este entorno.
 
 Para trabajo supervisado utilizar orchestration worker-start con spec-file, --agent antigravity y --worktree new-child, especificando base publicada. Recibir dispatch real. Comunicarse con orchestration send --to dispatch:<id>. La guía instalada indica que los mensajes del worker reactivan al coordinador. Tras dispatch cerrar el turno y atender la reactivación, sin polling ni scripts que consuman el inbox. Verificar el recibo y seguir next si existe. No prometer ejecución mientras la aplicación esté cerrada. Reanudar leyendo HANDOFF y registros si el evento no llega.
