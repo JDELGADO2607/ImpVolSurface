@@ -44,6 +44,7 @@ from typing import Dict, List, Tuple, Optional, Any, Union
 
 import numpy as np
 import pandas as pd
+import scipy
 from scipy.stats import norm
 
 try:
@@ -59,6 +60,116 @@ from src.pricing_american_fd import fd_american_price
 
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "heston" / "phase3"
+
+
+class SnapshotIntegrityError(Exception):
+    """Raised when snapshot files fail cryptographic hash or dependency verification."""
+    pass
+
+
+VERIFIED_SNAPSHOT_METADATA = {
+    "commit": "37bbd12d52819c765c64a950333962af9410073d",
+    "description": "Frozen verified Phase 3 pricing tables approved by technical audit",
+    "tables": {
+        "market_97_puts_validation.csv": "5a1bc12e6988bcb16d9659536a2b2027cf1b994633ef2d404ae57af1e97c016b",
+        "market_97_summary_by_tenor.csv": "20c92c1efc4d159f2216d5449970afa881125cf84c4574c5324301f829810ada",
+        "market_97_summary_by_partition.csv": "ae1f4531ae9391b06f5d254ff50e3a82536c90fc9a99cd87d0eec5ea8d3b183e",
+        "market_worst3_refinement.csv": "6e6312d1cef0db47865b7c7279eedd495ac7cc78ed997e19f98e2ea000cfc67b",
+        "hypothetical_regimes_108.csv": "e477fa4e42080ee4d739063513534b14a2ee81e25a4fe99764ab3aa89dce8b22",
+        "regimes_mesh_refinement.csv": "b1ed50558034b82793dc9fd1a0220f0a4d246d6c61665e0461e4018ad3136f67",
+        "continuity_edge_cases.csv": "2a5437eb9c66f692a7d266dee0dbb9d208ad67375a567c7237864cd0f9f5c5e7",
+    },
+    "inputs": {
+        "puts_selected_clean": ("data/heston/puts_selected_clean.csv", "1c069129d8dc138f8896fb8f02c83809454df0d041569f418a7cbbea21545df2"),
+        "options_clean": ("outputs/tables/options_clean.csv", "521a00ad92bcfee9d561a2d862ae8d69706d7e552322a0f99ef61df10425ea29"),
+        "treasury_cmt_raw": ("data/heston/treasury_cmt_2026_11_17_raw.json", "87e1d8653fb68224bee2becd9032d2d1e7c75e5bf23e66b8b1c8370ecd97d175"),
+        "rates_treasury_manifest": ("data/heston/rates_treasury_manifest.json", "fb361dd17776bc7e943234fc704ab90958832880d30118b174e0f161a5e677c8"),
+        "data_split_manifest": ("data/heston/data_split_manifest.json", "981345af41c4b68ef0c0733aab80bbbdc46a9b6c924a7206193fb11a5e06ce0f"),
+        "phase0_manifest": ("data/heston/phase0_execution_manifest.json", "eb145a16dfe0ab92ebe973304273f0b109f5d69f1cc6c9f6d6b10ffedaeb51d3"),
+        "phase1_manifest": ("data/heston/phase1/phase1_execution_manifest.json", "cf735b41d342ad554505abb41e6da72a703b65b9f8e6b82e036a3675b4454e7d")
+    },
+    "parameters": {
+        "spot_price": 12.33,
+        "dividend_yield": 0.0,
+        "poc_v0": 0.18613777847584,
+        "poc_kappa": 2.7254603668370714,
+        "poc_theta": 0.2136796992000426,
+        "poc_xi": 0.4817847258429695,
+        "poc_rho": -0.9498066630129804
+    }
+}
+
+
+def compute_normalized_source_sha256(file_path: Path) -> str:
+    """Computes SHA-256 hex digest of a source code file with CRLF -> LF normalization."""
+    data = file_path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
+
+
+def verify_snapshot_inputs_and_params(base_dir: Optional[Path] = None) -> Tuple[bool, str]:
+    """
+    Verifies that source input files and parameter dependencies match the verified snapshot.
+    Returns (is_valid, message).
+    """
+    base = base_dir or root_dir
+    inputs = VERIFIED_SNAPSHOT_METADATA["inputs"]
+    for k, (rel_path, exp_hash) in inputs.items():
+        p = base / rel_path
+        if not p.exists():
+            return False, f"Input file missing: {rel_path}"
+        act_hash = compute_file_sha256(p)
+        if act_hash != exp_hash:
+            return False, f"Input hash mismatch for {k} ({rel_path}): expected {exp_hash}, got {act_hash}"
+
+    # Check parameters
+    params = VERIFIED_SNAPSHOT_METADATA["parameters"]
+    if abs(SPOT_PRICE - params["spot_price"]) > 1e-12:
+        return False, f"SPOT_PRICE mismatch: expected {params['spot_price']}, got {SPOT_PRICE}"
+    if abs(DIVIDEND_YIELD - params["dividend_yield"]) > 1e-12:
+        return False, f"DIVIDEND_YIELD mismatch: expected {params['dividend_yield']}, got {DIVIDEND_YIELD}"
+    poc = get_phase1_poc_params()
+    if abs(poc.v0 - params["poc_v0"]) > 1e-12 or abs(poc.kappa - params["poc_kappa"]) > 1e-12 or \
+       abs(poc.theta - params["poc_theta"]) > 1e-12 or abs(poc.xi - params["poc_xi"]) > 1e-12 or \
+       abs(poc.rho - params["poc_rho"]) > 1e-12:
+        return False, "Regime A PoC parameters mismatch against verified snapshot"
+
+    return True, "All inputs and parameter dependencies verified against snapshot"
+
+
+def verify_snapshot_table_file(table_name: str, file_path: Path) -> Tuple[bool, str]:
+    """
+    Verifies that a cached table file matches its expected SHA-256 hash in the verified snapshot.
+    Returns (is_valid, message).
+    """
+    expected = VERIFIED_SNAPSHOT_METADATA["tables"].get(table_name)
+    if not expected:
+        return False, f"Unknown snapshot table: {table_name}"
+    if not file_path.exists():
+        return False, f"File does not exist: {file_path}"
+    act_hash = compute_file_sha256(file_path)
+    if act_hash != expected:
+        return False, f"Hash mismatch for {table_name}: expected {expected}, got {act_hash}"
+    return True, f"Verified table {table_name} matches commit {VERIFIED_SNAPSHOT_METADATA['commit']}"
+
+
+def load_verified_snapshot_table(
+    table_name: str,
+    file_path: Optional[Path] = None,
+    data_dir: Optional[Path] = None,
+    strict: bool = False
+) -> Tuple[pd.DataFrame, bool]:
+    """
+    Loads a table from snapshot, validating its SHA-256 against VERIFIED_SNAPSHOT_METADATA.
+    If strict=True and verification fails, raises SnapshotIntegrityError.
+    Returns (dataframe, is_verified).
+    """
+    p = file_path or ((data_dir or DATA_DIR) / table_name)
+    is_valid, msg = verify_snapshot_table_file(table_name, p)
+    if strict and not is_valid:
+        raise SnapshotIntegrityError(f"Snapshot integrity verification failed for {table_name}: {msg}")
+    df = pd.read_csv(p)
+    df.attrs["is_snapshot_verified"] = is_valid
+    return df, is_valid
 
 
 def get_phase1_poc_params() -> HestonParams:
@@ -116,7 +227,9 @@ def crr_american_put_price(
 def run_market_97_validation(
     solver: Optional[Heston2DSolver] = None,
     pricer: Optional[HestonOptionPricer] = None,
-    reuse_verified_tables: bool = True
+    reuse_verified_tables: bool = True,
+    strict_verification: bool = False,
+    data_dir: Optional[Path] = None
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Validates all 97 market puts under:
@@ -131,12 +244,30 @@ def run_market_97_validation(
     - df_worst3: Extra-fine refinement study on the 3 contracts with largest discrepancies.
     """
     if reuse_verified_tables:
-        p_det = DATA_DIR / "market_97_puts_validation.csv"
-        p_ten = DATA_DIR / "market_97_summary_by_tenor.csv"
-        p_par = DATA_DIR / "market_97_summary_by_partition.csv"
-        p_wor = DATA_DIR / "market_worst3_refinement.csv"
+        dir_to_use = data_dir or DATA_DIR
+        p_det = dir_to_use / "market_97_puts_validation.csv"
+        p_ten = dir_to_use / "market_97_summary_by_tenor.csv"
+        p_par = dir_to_use / "market_97_summary_by_partition.csv"
+        p_wor = dir_to_use / "market_worst3_refinement.csv"
+
         if p_det.exists() and p_ten.exists() and p_par.exists() and p_wor.exists():
-            return pd.read_csv(p_det), pd.read_csv(p_ten), pd.read_csv(p_par), pd.read_csv(p_wor)
+            inputs_ok, msg_in = verify_snapshot_inputs_and_params()
+            det_ok, msg_det = verify_snapshot_table_file("market_97_puts_validation.csv", p_det)
+            ten_ok, _ = verify_snapshot_table_file("market_97_summary_by_tenor.csv", p_ten)
+            par_ok, _ = verify_snapshot_table_file("market_97_summary_by_partition.csv", p_par)
+            wor_ok, _ = verify_snapshot_table_file("market_worst3_refinement.csv", p_wor)
+
+            all_verified = inputs_ok and det_ok and ten_ok and par_ok and wor_ok
+            if strict_verification and not all_verified:
+                raise SnapshotIntegrityError(f"Snapshot integrity verification failed for Market 97 tables: {msg_in}; {msg_det}")
+
+            df_det = pd.read_csv(p_det)
+            df_ten = pd.read_csv(p_ten)
+            df_par = pd.read_csv(p_par)
+            df_wor = pd.read_csv(p_wor)
+
+            df_det.attrs["is_snapshot_verified"] = all_verified
+            return df_det, df_ten, df_par, df_wor
 
     solver = solver or Heston2DSolver()
     pricer = pricer or HestonOptionPricer()
@@ -386,7 +517,9 @@ def get_predeclared_hypothetical_regimes() -> Dict[str, Dict[str, Any]]:
 def run_hypothetical_regimes_108(
     solver: Optional[Heston2DSolver] = None,
     pricer: Optional[HestonOptionPricer] = None,
-    reuse_verified_tables: bool = True
+    reuse_verified_tables: bool = True,
+    strict_verification: bool = False,
+    data_dir: Optional[Path] = None
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Evaluates the 6 predeclared regimes across 3 strikes (9.0, 12.33, 17.0)
@@ -397,10 +530,22 @@ def run_hypothetical_regimes_108(
     for Regimes B through F (Default, Fine, Extra-Fine).
     """
     if reuse_verified_tables:
-        p_108 = DATA_DIR / "hypothetical_regimes_108.csv"
-        p_ref = DATA_DIR / "regimes_mesh_refinement.csv"
+        dir_to_use = data_dir or DATA_DIR
+        p_108 = dir_to_use / "hypothetical_regimes_108.csv"
+        p_ref = dir_to_use / "regimes_mesh_refinement.csv"
         if p_108.exists() and p_ref.exists():
-            return pd.read_csv(p_108), pd.read_csv(p_ref)
+            inputs_ok, msg_in = verify_snapshot_inputs_and_params()
+            r108_ok, msg_r = verify_snapshot_table_file("hypothetical_regimes_108.csv", p_108)
+            ref_ok, msg_ref = verify_snapshot_table_file("regimes_mesh_refinement.csv", p_ref)
+
+            all_verified = inputs_ok and r108_ok and ref_ok
+            if strict_verification and not all_verified:
+                raise SnapshotIntegrityError(f"Snapshot integrity verification failed for Regimes 108 tables: {msg_in}; {msg_r}; {msg_ref}")
+
+            df_108 = pd.read_csv(p_108)
+            df_ref = pd.read_csv(p_ref)
+            df_108.attrs["is_snapshot_verified"] = all_verified
+            return df_108, df_ref
 
     solver = solver or Heston2DSolver()
     pricer = pricer or HestonOptionPricer()
@@ -686,7 +831,7 @@ def run_analytical_limits_validation(
             "ql_status": ql_status,
             "ql_exception": ql_exc,
             "abs_err_usd": err_ql,
-            "max_abs_err_usd": err_ql if np.isfinite(err_ql) else 0.0,
+            "max_abs_err_usd": err_ql,
             "status_002": status_002,
             "status_target_002": status_002,
             "qualitative_limit_status": qual_status
@@ -736,7 +881,9 @@ def run_analytical_limits_validation(
 def run_continuity_and_edge_cases(
     solver: Optional[Heston2DSolver] = None,
     pricer: Optional[HestonOptionPricer] = None,
-    reuse_verified_tables: bool = True
+    reuse_verified_tables: bool = True,
+    strict_verification: bool = False,
+    data_dir: Optional[Path] = None
 ) -> pd.DataFrame:
     """
     Validates historical edge cases and continuous fractional maturity perturbation:
@@ -749,9 +896,19 @@ def run_continuity_and_edge_cases(
     - Fractional maturity T = 27.5d and temporal perturbations T +/- 1e-4 years.
     """
     if reuse_verified_tables:
-        p_con = DATA_DIR / "continuity_edge_cases.csv"
+        dir_to_use = data_dir or DATA_DIR
+        p_con = dir_to_use / "continuity_edge_cases.csv"
         if p_con.exists():
-            return pd.read_csv(p_con)
+            inputs_ok, msg_in = verify_snapshot_inputs_and_params()
+            con_ok, msg_c = verify_snapshot_table_file("continuity_edge_cases.csv", p_con)
+
+            all_verified = inputs_ok and con_ok
+            if strict_verification and not all_verified:
+                raise SnapshotIntegrityError(f"Snapshot integrity verification failed for Continuity table: {msg_in}; {msg_c}")
+
+            df_con = pd.read_csv(p_con)
+            df_con.attrs["is_snapshot_verified"] = all_verified
+            return df_con
 
     solver = solver or Heston2DSolver()
     pricer = pricer or HestonOptionPricer()
@@ -828,7 +985,8 @@ def run_continuity_and_edge_cases(
 
 def run_economic_arbitrage_checks(
     solver: Optional[Heston2DSolver] = None,
-    reuse_verified_tables: bool = True
+    reuse_verified_tables: bool = True,
+    data_dir: Optional[Path] = None
 ) -> pd.DataFrame:
     """
     Evaluates 9 strikes x 5 tenors = 45 points on frozen grid under Regime A:
@@ -860,7 +1018,8 @@ def run_economic_arbitrage_checks(
         {"label": "794d", "days": 794, "T": 794.0 / 365.0}
     ]
 
-    econ_csv = DATA_DIR / "economic_arbitrage_checks.csv"
+    dir_to_use = data_dir or DATA_DIR
+    econ_csv = dir_to_use / "economic_arbitrage_checks.csv"
     if reuse_verified_tables and econ_csv.exists():
         df_base = pd.read_csv(econ_csv)
         prices_am = {}
@@ -1115,13 +1274,16 @@ def run_rates_curve_integration_check(
 
 def run_phase3_pipeline(
     output_dir: Optional[Path] = None,
-    reuse_verified_prices: bool = True
+    data_dir: Optional[Path] = None,
+    reuse_verified_prices: bool = True,
+    strict_verification: bool = False
 ) -> Dict[str, Any]:
     """
     Orchestrates execution of the full Phase 3 verification suite,
     exporting all diagnostic CSV artifacts and the execution manifest.
     """
-    output_dir = output_dir or DATA_DIR
+    data_dir = data_dir or DATA_DIR
+    output_dir = output_dir or data_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     t_pipeline_start = time.perf_counter()
 
@@ -1131,44 +1293,37 @@ def run_phase3_pipeline(
 
     # 1. Market 97 Puts Validation
     print("\n[Step 1/6] Running Market 97 Puts Validation (Default, Fine, QuantLib Refined)...")
-    df_detailed, df_by_tenor, df_by_partition, df_worst3 = run_market_97_validation(reuse_verified_tables=reuse_verified_prices)
+    df_detailed, df_by_tenor, df_by_partition, df_worst3 = run_market_97_validation(
+        reuse_verified_tables=reuse_verified_prices,
+        strict_verification=strict_verification,
+        data_dir=data_dir
+    )
     
     path_m97_detailed = output_dir / "market_97_puts_validation.csv"
     path_m97_tenor = output_dir / "market_97_summary_by_tenor.csv"
     path_m97_part = output_dir / "market_97_summary_by_partition.csv"
     path_m97_worst3 = output_dir / "market_worst3_refinement.csv"
 
-    if not (reuse_verified_prices and path_m97_detailed.exists()):
+    if output_dir != data_dir or not (reuse_verified_prices and path_m97_detailed.exists()):
         df_detailed.to_csv(path_m97_detailed, index=False)
         df_by_tenor.to_csv(path_m97_tenor, index=False)
         df_by_partition.to_csv(path_m97_part, index=False)
         df_worst3.to_csv(path_m97_worst3, index=False)
 
-    max_m97_err = float(df_detailed["abs_err_fine_usd"].max())
-    mae_m97_err = float(df_detailed["abs_err_fine_usd"].mean())
-    rmse_m97_err = float(np.sqrt((df_detailed["abs_err_fine_usd"] ** 2).mean()))
-    pct_m97_pass = float((df_detailed["status_target_002"] == "PASS").mean() * 100.0)
-
-    print(f"   Market 97 completed: Max Err = {max_m97_err:.6f} USD, MAE = {mae_m97_err:.6f} USD, RMSE = {rmse_m97_err:.6f} USD")
-    print(f"   Pass rate within 0.0020 USD target: {pct_m97_pass:.1f}% ({len(df_detailed)}/97 puts)")
-
     # 2. 6 Predeclared Hypothetical Regimes (108 prices)
     print("\n[Step 2/6] Running 6 Predeclared Hypothetical Regimes (108 prices EU & AM)...")
-    df_108, df_refine_regimes = run_hypothetical_regimes_108(reuse_verified_tables=reuse_verified_prices)
+    df_108, df_refine_regimes = run_hypothetical_regimes_108(
+        reuse_verified_tables=reuse_verified_prices,
+        strict_verification=strict_verification,
+        data_dir=data_dir
+    )
     
     path_regimes_108 = output_dir / "hypothetical_regimes_108.csv"
     path_regimes_refine = output_dir / "regimes_mesh_refinement.csv"
 
-    if not (reuse_verified_prices and path_regimes_108.exists()):
+    if output_dir != data_dir or not (reuse_verified_prices and path_regimes_108.exists()):
         df_108.to_csv(path_regimes_108, index=False)
         df_refine_regimes.to_csv(path_regimes_refine, index=False)
-
-    max_regime_err = float(df_108["abs_error_usd"].max())
-    mae_regime_err = float(df_108["abs_error_usd"].mean())
-    pct_regime_pass = float((df_108["status_target_002"] == "PASS").mean() * 100.0)
-
-    print(f"   Hypothetical Regimes completed: Max Err = {max_regime_err:.6f} USD, MAE = {mae_regime_err:.6f} USD")
-    print(f"   Pass rate within 0.0020 USD target: {pct_regime_pass:.1f}% ({len(df_108)}/108 prices)")
 
     # 3. Analytical Limits & Degenerate Boundaries
     print("\n[Step 3/6] Running Analytical Limits & Degenerate Boundaries (xi=0, v0=0, tau=0)...")
@@ -1179,15 +1334,22 @@ def run_phase3_pipeline(
 
     # 4. Continuity, Perturbations & Historical Edge Cases
     print("\n[Step 4/6] Running Continuity & Historical Edge Cases (27.5d, edge contracts)...")
-    df_continuity = run_continuity_and_edge_cases(reuse_verified_tables=reuse_verified_prices)
+    df_continuity = run_continuity_and_edge_cases(
+        reuse_verified_tables=reuse_verified_prices,
+        strict_verification=strict_verification,
+        data_dir=data_dir
+    )
     path_continuity = output_dir / "continuity_edge_cases.csv"
-    if not (reuse_verified_prices and path_continuity.exists()):
+    if output_dir != data_dir or not (reuse_verified_prices and path_continuity.exists()):
         df_continuity.to_csv(path_continuity, index=False)
     print(f"   Continuity edge cases completed: {len(df_continuity)} cases exported.")
 
     # 5. Economic Properties, Shape Arbitrage & Butterfly Spread Uncertainty
     print("\n[Step 5/6] Running Economic Properties & Butterfly Uncertainty Propagation...")
-    df_economic = run_economic_arbitrage_checks(reuse_verified_tables=reuse_verified_prices)
+    df_economic = run_economic_arbitrage_checks(
+        reuse_verified_tables=reuse_verified_prices,
+        data_dir=data_dir
+    )
     path_economic = output_dir / "economic_arbitrage_checks.csv"
     df_economic.to_csv(path_economic, index=False)
     print(f"   Economic properties completed: {len(df_economic)} points verified.")
@@ -1199,32 +1361,131 @@ def run_phase3_pipeline(
     df_rates.to_csv(path_rates, index=False)
     print(f"   Rates curve integration check completed: {len(df_rates)} segments verified.")
 
-    # Dynamic status evaluations
-    worst3_pass = bool(
-        len(df_worst3) > 0
-        and (df_worst3["status_extrafine_target"] == "PASS").all()
-        and (df_worst3["abs_err_extrafine_vs_ql1000"] <= 0.0020).all()
-    )
-    worst_3_status = "ALL_CONVERGED_WITHIN_002" if worst3_pass else "FAILED"
+    # --- NUMERICAL VALIDATION AND ERROR RECOMPUTATION GATES ---
 
-    m97_pass = bool(
-        len(df_detailed) == 97
-        and (df_detailed["status_target_002"] == "PASS").all()
+    # Snapshot provenance evaluation
+    def check_table_verification(df: pd.DataFrame, table_name: str) -> bool:
+        flag = df.attrs.get("is_snapshot_verified")
+        if flag is not None:
+            return bool(flag)
+        is_ok, _ = verify_snapshot_table_file(table_name, data_dir / table_name)
+        return is_ok
+
+    m97_verified = check_table_verification(df_detailed, "market_97_puts_validation.csv")
+    regimes_verified = check_table_verification(df_108, "hypothetical_regimes_108.csv")
+    continuity_verified = check_table_verification(df_continuity, "continuity_edge_cases.csv")
+    all_snapshot_verified = bool(m97_verified and regimes_verified and continuity_verified)
+
+    prices_source_commit = (
+        VERIFIED_SNAPSHOT_METADATA["commit"]
+        if (reuse_verified_prices and all_snapshot_verified)
+        else "UNVERIFIED_OR_FRESH_EXECUTION"
     )
+
+    # 1. Market 97 Gate: recompute error from prices & references, verify finitude, bounds, and coherence
+    fine_price = df_detailed["proprietary_fine_usd"]
+    ql_ref_price = df_detailed["ql_refined_700_usd"]
+    stored_err = df_detailed["abs_err_fine_usd"]
+    computed_err = (fine_price - ql_ref_price).abs()
+
+    m97_finite = bool(
+        np.isfinite(fine_price).all()
+        and np.isfinite(ql_ref_price).all()
+        and np.isfinite(stored_err).all()
+        and np.isfinite(computed_err).all()
+    )
+
+    if m97_finite:
+        max_m97_err = float(max(computed_err.max(), stored_err.max()))
+        mae_m97_err = float(computed_err.mean())
+        rmse_m97_err = float(np.sqrt((computed_err ** 2).mean()))
+        pct_m97_pass = float((computed_err <= 0.0020).mean() * 100.0)
+        m97_within_tol = bool((computed_err <= 0.0020).all() and (stored_err <= 0.0020).all())
+        m97_coherence = bool(np.allclose(stored_err, computed_err, atol=1e-6))
+        m97_status_labels = bool(m97_within_tol and (df_detailed["status_target_002"] == "PASS").all())
+    else:
+        max_m97_err = float(np.nanmax(computed_err)) if len(computed_err) > 0 and not np.isnan(computed_err).all() else 999.0
+        mae_m97_err = 999.0
+        rmse_m97_err = 999.0
+        pct_m97_pass = 0.0
+        m97_within_tol = False
+        m97_coherence = False
+        m97_status_labels = False
+
+    m97_pass = bool(len(df_detailed) == 97 and m97_finite and m97_within_tol and m97_coherence and m97_status_labels)
     market_97_status = "PASSED" if m97_pass else "FAILED"
 
-    regimes_pass = bool(
-        len(df_108) == 108
-        and (df_108["status_target_002"] == "PASS").all()
+    print(f"   Market 97 gate: Max Err = {max_m97_err:.6f} USD, Status = {market_97_status}")
+
+    # 2. Regimes 108 Gate: recompute error, verify finitude, bounds, coherence
+    regime_prop = df_108["proprietary_fine_usd"]
+    regime_ref = df_108["ql_reference_usd"]
+    stored_regime_err = df_108["abs_error_usd"]
+    computed_regime_err = (regime_prop - regime_ref).abs()
+
+    regimes_finite = bool(
+        np.isfinite(regime_prop).all()
+        and np.isfinite(regime_ref).all()
+        and np.isfinite(stored_regime_err).all()
+        and np.isfinite(computed_regime_err).all()
     )
+
+    if regimes_finite:
+        max_regime_err = float(max(computed_regime_err.max(), stored_regime_err.max()))
+        mae_regime_err = float(computed_regime_err.mean())
+        pct_regime_pass = float((computed_regime_err <= 0.0020).mean() * 100.0)
+        regimes_within_tol = bool((computed_regime_err <= 0.0020).all() and (stored_regime_err <= 0.0020).all())
+        regimes_coherence = bool(np.allclose(stored_regime_err, computed_regime_err, atol=1e-6))
+        regimes_status_labels = bool(regimes_within_tol and (df_108["status_target_002"] == "PASS").all())
+    else:
+        max_regime_err = float(np.nanmax(computed_regime_err)) if len(computed_regime_err) > 0 and not np.isnan(computed_regime_err).all() else 999.0
+        mae_regime_err = 999.0
+        pct_regime_pass = 0.0
+        regimes_within_tol = False
+        regimes_coherence = False
+        regimes_status_labels = False
+
+    regimes_pass = bool(len(df_108) == 108 and regimes_finite and regimes_within_tol and regimes_coherence and regimes_status_labels)
     regimes_status = "PASSED" if regimes_pass else "FAILED"
 
-    econ_pass = bool(
+    print(f"   Hypothetical Regimes gate: Max Err = {max_regime_err:.6f} USD, Status = {regimes_status}")
+
+    # 3. Worst 3 Gate: recompute error, verify finitude, bounds, coherence
+    w3_prop = df_worst3["price_extrafine_320x160_m900"]
+    w3_ql = df_worst3["ql_ultra_1000"]
+    stored_w3_err = df_worst3["abs_err_extrafine_vs_ql1000"]
+    computed_w3_err = (w3_prop - w3_ql).abs()
+
+    w3_finite = bool(
+        np.isfinite(w3_prop).all()
+        and np.isfinite(w3_ql).all()
+        and np.isfinite(stored_w3_err).all()
+        and np.isfinite(computed_w3_err).all()
+    )
+
+    if w3_finite:
+        w3_within_tol = bool((computed_w3_err <= 0.0020).all() and (stored_w3_err <= 0.0020).all())
+        w3_coherence = bool(np.allclose(stored_w3_err, computed_w3_err, atol=1e-6))
+        w3_status_labels = bool(w3_within_tol and (df_worst3["status_extrafine_target"] == "PASS").all())
+    else:
+        w3_within_tol = False
+        w3_coherence = False
+        w3_status_labels = False
+
+    worst3_pass = bool(len(df_worst3) == 3 and w3_finite and w3_within_tol and w3_coherence and w3_status_labels)
+    worst_3_status = "ALL_CONVERGED_WITHIN_002" if worst3_pass else "FAILED"
+
+    # 4. Economic Properties Gate
+    econ_finite = bool(
         len(df_economic) == 45
+        and df_economic["finiteness_check"].all()
+        and not df_economic["upper_bound_violation"].any()
+        and not df_economic["calendar_violation"].any()
         and (df_economic["status_economic"] == "PASS").all()
     )
-    economic_status = "PASSED" if econ_pass else "FAILED"
+    economic_status = "PASSED" if econ_finite else "FAILED"
 
+    # 5. Analytical Limits Gate
     limits_pass = bool(
         len(df_limits) > 0
         and (df_limits["qualitative_limit_status"].str.startswith("PASS")).all()
@@ -1232,13 +1493,16 @@ def run_phase3_pipeline(
     )
     limits_status = "PASSED" if limits_pass else "FAILED"
 
+    # 6. Rates Integration Gate
     rates_pass = bool(
-        len(df_rates) > 0
+        len(df_rates) == 33
         and (df_rates["status"].isin(["PASS", "PASS_WITHIN_TOLERANCE"])).all()
+        and (df_rates["absolute_discrepancy"] <= 1e-4).all()
     )
     rates_status = "PASSED" if rates_pass else "FAILED"
 
-    overall_passed = bool(worst3_pass and m97_pass and regimes_pass and econ_pass and limits_pass and rates_pass)
+    # Overall Verdict
+    overall_passed = bool(worst3_pass and m97_pass and regimes_pass and econ_finite and limits_pass and rates_pass)
     overall_status = "PASSED" if overall_passed else "FAILED"
 
     # Input file digests
@@ -1265,7 +1529,7 @@ def run_phase3_pipeline(
     }
     for k, p in source_files.items():
         if p.exists():
-            source_hashes[k] = compute_file_sha256(p)
+            source_hashes[k] = compute_normalized_source_sha256(p)
 
     # 7. Execution Manifest
     t_pipeline_total = time.perf_counter() - t_pipeline_start
@@ -1304,14 +1568,14 @@ def run_phase3_pipeline(
         },
         "input_hashes": input_hashes,
         "execution_provenance": {
-            "prices_source_commit": "37bbd12d52819c765c64a950333962af9410073d",
-            "diagnostics_remediation": "REMEDIATION_1_AUDIT_37bbd12",
+            "prices_source_commit": prices_source_commit,
+            "diagnostics_remediation": "REMEDIATION_2_AUDIT_28bd72a",
             "python_version": sys.version,
             "platform": sys.platform,
             "quantlib_version": ql.__version__ if HAS_QUANTLIB else "N/A",
             "numpy_version": np.__version__,
             "pandas_version": pd.__version__,
-            "scipy_version": norm.__module__
+            "scipy_version": scipy.__version__
         },
         "source_hashes": source_hashes,
         "output_files": {

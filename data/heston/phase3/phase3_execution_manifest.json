@@ -16,8 +16,8 @@
     "spot_price": 12.33,
     "dividend_yield": 0.0
   },
-  "execution_timestamp": "2026-11-22T03:58:23.242429+00:00",
-  "wall_time_seconds": 52.51,
+  "execution_timestamp": "2026-11-22T04:27:46.436725+00:00",
+  "wall_time_seconds": 50.47,
   "validation_summary": {
     "overall_status": "PASSED",
     "market_97_status": "PASSED",
@@ -28,16 +28,16 @@
     "worst_3_refinement_status": "ALL_CONVERGED_WITHIN_002",
     "market_97_puts": {
       "n_contracts": 97,
-      "max_abs_err_usd": 0.0005457561607178,
-      "mae_usd": 5.563763622349474e-05,
-      "rmse_usd": 0.00010234959486416997,
+      "max_abs_err_usd": 0.0005457561607178363,
+      "mae_usd": 5.5637636223494396e-05,
+      "rmse_usd": 0.00010234959486418474,
       "target_criterion_usd": 0.002,
       "pct_within_target": 100.0
     },
     "hypothetical_regimes_108": {
       "n_prices": 108,
-      "max_abs_err_usd": 0.0005093403816572,
-      "mae_usd": 6.851663565498941e-05,
+      "max_abs_err_usd": 0.0005093403816572861,
+      "mae_usd": 6.8516635654985e-05,
       "pct_within_target": 100.0
     }
   },
@@ -52,16 +52,16 @@
   },
   "execution_provenance": {
     "prices_source_commit": "37bbd12d52819c765c64a950333962af9410073d",
-    "diagnostics_remediation": "REMEDIATION_1_AUDIT_37bbd12",
+    "diagnostics_remediation": "REMEDIATION_2_AUDIT_28bd72a",
     "python_version": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
     "platform": "win32",
     "quantlib_version": "1.44",
     "numpy_version": "2.1.1",
     "pandas_version": "2.2.2",
-    "scipy_version": "scipy.stats._continuous_distns"
+    "scipy_version": "1.18.0"
   },
   "source_hashes": {
-    "pipeline_phase3_py": "710ba9d3e8ed4f8e4d03330f60807d16f434884324dc70917f894bf8f2a0aaf7",
+    "pipeline_phase3_py": "d91a84be7fe5ea5405c02ed38c4490c3b736039672c7481ac5e787b7cdfeb048",
     "solver_2d_py": "ea0298e59dcd47d612403ea9c81e1c6dd5b4e029774369f2b1542c048bffe64c",
     "heston_model_py": "05d61ab33829b8fe663e9442124586958c1f47a1cf6c636d9fbeac5f71704529",
     "rates_curve_py": "46d204608ff6294817dff40bd19c1b525bb37d954b6692660f88890f1c24da7c"
@@ -73,7 +73,7 @@
     "market_worst3_refinement.csv": "6e6312d1cef0db47865b7c7279eedd495ac7cc78ed997e19f98e2ea000cfc67b",
     "hypothetical_regimes_108.csv": "e477fa4e42080ee4d739063513534b14a2ee81e25a4fe99764ab3aa89dce8b22",
     "regimes_mesh_refinement.csv": "b1ed50558034b82793dc9fd1a0220f0a4d246d6c61665e0461e4018ad3136f67",
-    "analytical_limits_validation.csv": "d70d94587908eddb10ae6e7d0f26eedfaa7c29f446daf5215eb6f332d9aec96f",
+    "analytical_limits_validation.csv": "94d97405573315bd1c43f78bfd6e675d2139fbc41fb902dda2581a9ce725f927",
     "continuity_edge_cases.csv": "2a5437eb9c66f692a7d266dee0dbb9d208ad67375a567c7237864cd0f9f5c5e7",
     "economic_arbitrage_checks.csv": "2afd3f723c8b4a928bad72aaa12f861389b84f9ca014810b7a73801a0f64a389",
     "rates_curve_integration_check.csv": "d20cea09949adf290631ff766695fb7809d09cd21d3d832ab1550b34c836f531"

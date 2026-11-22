@@ -27,6 +27,7 @@ import math
 import numpy as np
 import pandas as pd
 import pytest
+import scipy
 
 from src.heston.rates_curve import get_official_yield_curve, SPOT_PRICE
 from src.heston.heston_model import HestonParams, HestonOptionPricer
@@ -34,8 +35,14 @@ from src.heston.solver_2d import Heston2DSolver
 from src.heston.pipeline_phase3 import (
     get_phase1_poc_params,
     compute_file_sha256,
+    compute_normalized_source_sha256,
     crr_american_put_price,
-    DATA_DIR
+    DATA_DIR,
+    SnapshotIntegrityError,
+    VERIFIED_SNAPSHOT_METADATA,
+    verify_snapshot_inputs_and_params,
+    verify_snapshot_table_file,
+    load_verified_snapshot_table
 )
 
 
@@ -340,6 +347,250 @@ def test_negative_aggregator_rejects_worst3_failure():
         pipe.run_market_97_validation = orig_m97
 
 
+def test_snapshot_integrity_guard_rejects_tampered_hash(tmp_path):
+    """
+    Verifies that the pre-load snapshot guard rejects tampered files before reading them as valid.
+    """
+    legit_file = DATA_DIR / "market_97_puts_validation.csv"
+    assert legit_file.exists()
+
+    # Legitimate file passes verification
+    is_valid, msg = verify_snapshot_table_file("market_97_puts_validation.csv", legit_file)
+    assert is_valid, f"Legitimate file should pass verification: {msg}"
+
+    # Tampered file fails verification
+    bad_file = tmp_path / "market_97_puts_validation.csv"
+    bad_df = pd.read_csv(legit_file)
+    bad_df.loc[0, "proprietary_fine_usd"] += 1.0
+    bad_df.to_csv(bad_file, index=False)
+
+    is_valid_bad, msg_bad = verify_snapshot_table_file("market_97_puts_validation.csv", bad_file)
+    assert not is_valid_bad, "Tampered file must fail snapshot hash verification"
+    assert "Hash mismatch" in msg_bad
+
+    # Strict loader raises SnapshotIntegrityError
+    with pytest.raises(SnapshotIntegrityError):
+        load_verified_snapshot_table("market_97_puts_validation.csv", file_path=bad_file, strict=True)
+
+
+def test_snapshot_integrity_guard_rejects_incompatible_inputs_or_params(tmp_path):
+    """
+    Verifies that verify_snapshot_inputs_and_params detects missing or tampered input dependencies.
+    """
+    # Legitimate root directory passes
+    is_valid, msg = verify_snapshot_inputs_and_params(root_dir)
+    assert is_valid, f"Legitimate repo inputs must pass verification: {msg}"
+
+    # Empty/tampered directory fails
+    is_valid_empty, msg_empty = verify_snapshot_inputs_and_params(tmp_path)
+    assert not is_valid_empty
+    assert "missing" in msg_empty.lower() or "mismatch" in msg_empty.lower()
+
+
+def test_aggregator_rejects_raw_price_modification():
+    """
+    Verifies that modifying a price (e.g. +1 USD) while keeping status PASS
+    causes the aggregator to detect the true error (1.0 USD), reject the market gate,
+    and refuse to attribute prices to the verified commit 37bbd12.
+    """
+    import tempfile, contextlib, io
+    import src.heston.pipeline_phase3 as pipe
+
+    base = DATA_DIR
+    load = lambda n: pd.read_csv(base / n)
+    orig_limits = pipe.run_analytical_limits_validation
+    orig_cont = pipe.run_continuity_and_edge_cases
+    orig_econ = pipe.run_economic_arbitrage_checks
+    orig_rates = pipe.run_rates_curve_integration_check
+    orig_data_dir = pipe.DATA_DIR
+
+    try:
+        pipe.run_analytical_limits_validation = lambda: load("analytical_limits_validation.csv")
+        pipe.run_continuity_and_edge_cases = lambda **kw: load("continuity_edge_cases.csv")
+        pipe.run_economic_arbitrage_checks = lambda **kw: load("economic_arbitrage_checks.csv")
+        pipe.run_rates_curve_integration_check = lambda: load("rates_curve_integration_check.csv")
+
+        with tempfile.TemporaryDirectory() as t:
+            cache = Path(t) / "cache"
+            import shutil
+            shutil.copytree(base, cache)
+            out = Path(t) / "out"
+            pipe.DATA_DIR = cache
+
+            # Tamper with row 0 price by +1 USD, keeping PASS label
+            f = cache / "market_97_puts_validation.csv"
+            df = pd.read_csv(f)
+            df.loc[0, "proprietary_fine_usd"] += 1.0
+            df.to_csv(f, index=False)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = pipe.run_phase3_pipeline(out)
+
+            assert result["validation_summary"]["market_97_status"] == "FAILED"
+            assert result["validation_summary"]["overall_status"] == "FAILED"
+            assert result["validation_summary"]["market_97_puts"]["max_abs_err_usd"] >= 0.99
+            assert result["execution_provenance"]["prices_source_commit"] != "37bbd12d52819c765c64a950333962af9410073d"
+    finally:
+        pipe.run_analytical_limits_validation = orig_limits
+        pipe.run_continuity_and_edge_cases = orig_cont
+        pipe.run_economic_arbitrage_checks = orig_econ
+        pipe.run_rates_curve_integration_check = orig_rates
+        pipe.DATA_DIR = orig_data_dir
+
+
+def test_aggregator_rejects_numeric_failure_with_stale_pass_label():
+    """
+    Verifies that setting abs_err_fine_usd = 1.0 while leaving status PASS
+    fails the market gate due to tolerance and coherence checks.
+    """
+    import tempfile, contextlib, io, shutil
+    import src.heston.pipeline_phase3 as pipe
+
+    base = DATA_DIR
+    load = lambda n: pd.read_csv(base / n)
+    orig_limits = pipe.run_analytical_limits_validation
+    orig_cont = pipe.run_continuity_and_edge_cases
+    orig_econ = pipe.run_economic_arbitrage_checks
+    orig_rates = pipe.run_rates_curve_integration_check
+    orig_data_dir = pipe.DATA_DIR
+
+    try:
+        pipe.run_analytical_limits_validation = lambda: load("analytical_limits_validation.csv")
+        pipe.run_continuity_and_edge_cases = lambda **kw: load("continuity_edge_cases.csv")
+        pipe.run_economic_arbitrage_checks = lambda **kw: load("economic_arbitrage_checks.csv")
+        pipe.run_rates_curve_integration_check = lambda: load("rates_curve_integration_check.csv")
+
+        with tempfile.TemporaryDirectory() as t:
+            cache = Path(t) / "cache"
+            shutil.copytree(base, cache)
+            out = Path(t) / "out"
+            pipe.DATA_DIR = cache
+
+            # Invalidate error column to 1.0 USD while leaving status PASS
+            f = cache / "market_97_puts_validation.csv"
+            df = pd.read_csv(f)
+            df.loc[0, "abs_err_fine_usd"] = 1.0
+            df.to_csv(f, index=False)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = pipe.run_phase3_pipeline(out)
+
+            assert result["validation_summary"]["market_97_status"] == "FAILED"
+            assert result["validation_summary"]["overall_status"] == "FAILED"
+            assert result["validation_summary"]["market_97_puts"]["max_abs_err_usd"] >= 0.99
+    finally:
+        pipe.run_analytical_limits_validation = orig_limits
+        pipe.run_continuity_and_edge_cases = orig_cont
+        pipe.run_economic_arbitrage_checks = orig_econ
+        pipe.run_rates_curve_integration_check = orig_rates
+        pipe.DATA_DIR = orig_data_dir
+
+
+def test_aggregator_rejects_nan_or_inf_in_prices_or_errors():
+    """
+    Verifies that injecting NaN into price or error columns causes finite checks to fail.
+    """
+    import tempfile, contextlib, io, shutil
+    import src.heston.pipeline_phase3 as pipe
+
+    base = DATA_DIR
+    load = lambda n: pd.read_csv(base / n)
+    orig_limits = pipe.run_analytical_limits_validation
+    orig_cont = pipe.run_continuity_and_edge_cases
+    orig_econ = pipe.run_economic_arbitrage_checks
+    orig_rates = pipe.run_rates_curve_integration_check
+    orig_data_dir = pipe.DATA_DIR
+
+    try:
+        pipe.run_analytical_limits_validation = lambda: load("analytical_limits_validation.csv")
+        pipe.run_continuity_and_edge_cases = lambda **kw: load("continuity_edge_cases.csv")
+        pipe.run_economic_arbitrage_checks = lambda **kw: load("economic_arbitrage_checks.csv")
+        pipe.run_rates_curve_integration_check = lambda: load("rates_curve_integration_check.csv")
+
+        with tempfile.TemporaryDirectory() as t:
+            cache = Path(t) / "cache"
+            shutil.copytree(base, cache)
+            out = Path(t) / "out"
+            pipe.DATA_DIR = cache
+
+            f = cache / "market_97_puts_validation.csv"
+            df = pd.read_csv(f)
+            df.loc[0, "proprietary_fine_usd"] = np.nan
+            df.to_csv(f, index=False)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = pipe.run_phase3_pipeline(out)
+
+            assert result["validation_summary"]["market_97_status"] == "FAILED"
+            assert result["validation_summary"]["overall_status"] == "FAILED"
+    finally:
+        pipe.run_analytical_limits_validation = orig_limits
+        pipe.run_continuity_and_edge_cases = orig_cont
+        pipe.run_economic_arbitrage_checks = orig_econ
+        pipe.run_rates_curve_integration_check = orig_rates
+        pipe.DATA_DIR = orig_data_dir
+
+
+def test_aggregator_rejects_regimes_price_modification():
+    """
+    Verifies that modifying price in hypothetical regimes table causes regimes gate to FAIL.
+    """
+    import tempfile, contextlib, io, shutil
+    import src.heston.pipeline_phase3 as pipe
+
+    base = DATA_DIR
+    load = lambda n: pd.read_csv(base / n)
+    orig_limits = pipe.run_analytical_limits_validation
+    orig_cont = pipe.run_continuity_and_edge_cases
+    orig_econ = pipe.run_economic_arbitrage_checks
+    orig_rates = pipe.run_rates_curve_integration_check
+    orig_data_dir = pipe.DATA_DIR
+
+    try:
+        pipe.run_analytical_limits_validation = lambda: load("analytical_limits_validation.csv")
+        pipe.run_continuity_and_edge_cases = lambda **kw: load("continuity_edge_cases.csv")
+        pipe.run_economic_arbitrage_checks = lambda **kw: load("economic_arbitrage_checks.csv")
+        pipe.run_rates_curve_integration_check = lambda: load("rates_curve_integration_check.csv")
+
+        with tempfile.TemporaryDirectory() as t:
+            cache = Path(t) / "cache"
+            shutil.copytree(base, cache)
+            out = Path(t) / "out"
+            pipe.DATA_DIR = cache
+
+            f = cache / "hypothetical_regimes_108.csv"
+            df = pd.read_csv(f)
+            df.loc[0, "proprietary_fine_usd"] += 1.0
+            df.to_csv(f, index=False)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = pipe.run_phase3_pipeline(out)
+
+            assert result["validation_summary"]["hypothetical_regimes_108_status"] == "FAILED"
+            assert result["validation_summary"]["overall_status"] == "FAILED"
+            assert result["validation_summary"]["hypothetical_regimes_108"]["max_abs_err_usd"] >= 0.99
+    finally:
+        pipe.run_analytical_limits_validation = orig_limits
+        pipe.run_continuity_and_edge_cases = orig_cont
+        pipe.run_economic_arbitrage_checks = orig_econ
+        pipe.run_rates_curve_integration_check = orig_rates
+        pipe.DATA_DIR = orig_data_dir
+
+
+def test_analytical_limits_v0_zero_nan_metadata():
+    """
+    Verifies that for v0 = 0.0, both abs_err_usd and max_abs_err_usd are NaN (resolving F3-L2).
+    """
+    limits_path = DATA_DIR / "analytical_limits_validation.csv"
+    assert limits_path.exists()
+    df = pd.read_csv(limits_path)
+    row_v0_0 = df[df["parameter_v0"] == 0.0].iloc[0]
+    assert np.isnan(row_v0_0["abs_err_usd"]), f"Expected NaN abs_err_usd, got {row_v0_0['abs_err_usd']}"
+    assert np.isnan(row_v0_0["max_abs_err_usd"]), f"Expected NaN max_abs_err_usd, got {row_v0_0['max_abs_err_usd']}"
+    assert row_v0_0["status_target_002"] == "N/A_NO_REF"
+    assert row_v0_0["ql_status"] == "UNSUPPORTED"
+
+
 def test_phase3_manifest_and_file_hashes():
     """
     Validates that phase3_execution_manifest.json exists, records all 10 CSV files,
@@ -362,8 +613,17 @@ def test_phase3_manifest_and_file_hashes():
     assert len(manifest["input_hashes"]) >= 5
     assert "execution_provenance" in manifest
     assert manifest["execution_provenance"]["prices_source_commit"] == "37bbd12d52819c765c64a950333962af9410073d"
+    assert manifest["execution_provenance"]["scipy_version"] == scipy.__version__
     assert "source_hashes" in manifest
     assert len(manifest["source_hashes"]) >= 3
+
+    # Source hashes normalized match
+    for key, expected_sha in manifest["source_hashes"].items():
+        name = key.removesuffix("_py") + ".py"
+        source_path = root_dir / "src" / "heston" / name
+        assert source_path.exists()
+        normalized_sha = compute_normalized_source_sha256(source_path)
+        assert normalized_sha == expected_sha, f"Source hash mismatch for {name}: expected {expected_sha}, got {normalized_sha}"
 
     output_files = manifest["output_files"]
     assert len(output_files) == 10, f"Expected 10 output files, got {len(output_files)}"
