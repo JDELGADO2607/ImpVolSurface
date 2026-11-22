@@ -35,3 +35,5 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-22 | PHASE_3 APPROVED tras reparacion3/3 | SHA09d9beb completo en informe; F3-M1 cerrado,60tests y corrida aislada aprobados;116archivos oficiales intactos; LOW temporal/editorial registrados, sin cuarta reparacion |
 | 2026-11-22 | PHASE_4 IN_PROGRESS, criterios fijados antes de ejecucion | PHASE_4_START.md;3refinamientos locales2/5/1, train60, holdouts22/15 congelados; optimizacion QL y contraste propio autorizados |
 | 2026-11-22 | PHASE_START4 entregado mediante Orca | ctx_fcd8d2585265/task_3c950a7c54fb; informe/spec commit0efd3fc accesibles, PR4 OPEN; recibir evento sin polling |
+| 2026-11-22 | PHASE_READY_FOR_AUDIT4 recibido | fefe46ebb7028aa786abf3a8fca7377d667efda4, worker_done msg_9016b866d6f0 |
+| 2026-11-22 | PHASE_4 REJECTED entrega inicial; reparacion1/3 autorizada |2HIGH/2MEDIUM/1LOW,76tests PASS/139.66s sin escrituras; APIs, reproduccion, gates y reporte pendientes. Conservar evidencia original verificable sin repetir optimizaciones innecesarias; no fase5 |

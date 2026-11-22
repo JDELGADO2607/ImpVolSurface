@@ -1,0 +1,67 @@
+
+===== controls =====
+
+PARAMETER_DELTA_EXACT_POC [ 2.21524160e-07 -3.66837071e-07  3.00799957e-07  2.74157031e-07
+ -3.36987020e-07]
+ACTUAL_MANIFEST_GATE legitimate PASS outputs 12
+ACTUAL_MANIFEST_GATE price_payload_plus_one PASS outputs 12
+ACTUAL_MANIFEST_GATE missing_economic PASS outputs 11
+ACTUAL_MANIFEST_GATE invalid_parameter PASS outputs 12
+ACTUAL_MANIFEST_GATE wrong_partition_count PASS outputs 12
+CLEAN_EXTRACTION_STEP3 FileNotFoundError Refinement JSON missing: C:\Users\CAROL\AppData\Local\Temp\tmp_s_4jt7h\refinement_A_res.json. Wait for optimization run to complete.
+FRESH_SOLVER_BRANCH TypeError Grid2D.__init__() got an unexpected keyword argument 's_min'
+CHANGED_V0_RETURNS_OLD_PRICES True
+BASELINE_METRICS price_heston_ql_fine 84 MAE 0.02312982874169171 RMSE 0.033894718166523806
+BASELINE_METRICS price_heston_prop_fine 84 MAE 0.0231092457746622 RMSE 0.03387522138719695
+BASELINE_METRICS price_flat_common_curve 84 MAE 0.039674335616287276 RMSE 0.06028916386405653
+BASELINE_METRICS price_flat_contract_rate 84 MAE 0.03902246175735788 RMSE 0.059404794698020014
+BASELINE_METRICS price_svi_historical_r3 84 MAE 0.06844166666666666 RMSE 0.08857928718976923
+RHO_SENSITIVITY [{"scenario_id":"RHO_PLUS_002","rho":-0.929807,"shock_val":0.02,"delta_sse_vs_base":0.0001500473},{"scenario_id":"RHO_MINUS_002","rho":-0.95,"shock_val":-0.02,"delta_sse_vs_base":-0.0000009594}]
+SOURCE_SOLVER_SIGNATURE (grid_config: Optional[Dict[str, Any]] = None, theta_adi: float = 0.3333333333333333) (strike: float, v0: float, n_s: int = 160, n_v: int = 80, s_max: Optional[float] = None, v_max: Optional[float] = None, d_s_scale: float = 0.1, d_v_scale: float = 0.5)
+TRAIN_TENORS 13 HOLDOUT_TENORS ['2026-12-24', '2027-02-19', '2027-09-17']
+OMITTED_OPTIMIZER_FILES ['refinement_A_res.json', 'refinement_B_res.json', 'refinement_C_res.json']
+DONE
+
+
+===== prices =====
+
+INDEPENDENT_QL_12_CONTRACTS [{"days":31,"strike":9.0,"poc_exact":0.0077794236,"poc_rounded":0.007779455,"refinement_A":0.007752667},{"days":31,"strike":12.33,"poc_exact":0.5996678398,"poc_rounded":0.5996682118,"refinement_A":0.5992768907},{"days":31,"strike":17.0,"poc_exact":4.67,"poc_rounded":4.67,"refinement_A":4.67},{"days":94,"strike":9.0,"poc_exact":0.1181915086,"poc_rounded":0.1181917648,"refinement_A":0.1179719785},{"days":94,"strike":12.33,"poc_exact":1.0189978711,"poc_rounded":1.0189985284,"refinement_A":1.0183220463},{"days":94,"strike":17.0,"poc_exact":4.6699979384,"poc_rounded":4.6699979389,"refinement_A":4.6699972644},{"days":430,"strike":9.0,"poc_exact":0.7352925308,"poc_rounded":0.7352935154,"refinement_A":0.7344310489},{"days":430,"strike":12.33,"poc_exact":2.0417251406,"poc_rounded":2.0417265629,"refinement_A":2.0403489409},{"days":430,"strike":17.0,"poc_exact":5.1017479301,"poc_rounded":5.1017490827,"refinement_A":5.1004807519},{"days":794,"strike":9.0,"poc_exact":1.1729923126,"poc_rounded":1.1729937212,"refinement_A":1.1717539724},{"days":794,"strike":12.33,"poc_exact":2.6368491912,"poc_rounded":2.6368510847,"refinement_A":2.6350740241},{"days":794,"strike":17.0,"poc_exact":5.6078160467,"poc_rounded":5.6078179032,"refinement_A":5.6059380668}]
+ROUNDING_MAX_USD 1.8935353680582523e-06 REFINEMENT_A_POC_MAX_USD 0.0018779799718169343
+ALL_LOCAL_REFINEMENTS_FAILED_SELECTION WINNER_POC_CONSERVED eligible_nonbenchmark 0
+DONE
+
+
+===== metrics =====
+
+OUTPUT_HASHES False
+RECALCULATED_METRICS strike_holdout 22 0.021108199892518692 0.026571943319201697
+RECALCULATED_METRICS tenor_holdout 15 0.020304486315723288 0.026195780353919645
+RECALCULATED_METRICS train 60 0.02573726190963425 0.037979063096091094
+PHASE3_COPIED_PRICES_MAX_DIFF prop_fine_price 4.440892098500626e-16
+PHASE3_COPIED_PRICES_MAX_DIFF ql_fine_price 0.0
+IMPROVEMENT_FLAT_PCT 41.75265844861363
+
+
+===== hashes =====
+
+HASH phase4_calibration_config.json exact False LF True CRLF False
+HASH heston_phase1_replay.csv exact True LF False CRLF True
+HASH heston_local_refinements.csv exact True LF False CRLF True
+HASH heston_candidates_fine_eval.csv exact True LF False CRLF True
+HASH heston_calibrated_parameters.json exact True LF False CRLF True
+HASH heston_pricing_full_puts.csv exact True LF False CRLF True
+HASH heston_pricing_summary_by_partition.csv exact True LF False CRLF True
+HASH heston_pricing_summary_by_tenor.csv exact True LF False CRLF True
+HASH heston_worst3_mesh_controls.csv exact True LF False CRLF True
+HASH heston_representative_economic_controls.csv exact True LF False CRLF True
+HASH heston_parameter_sensitivity.csv exact True LF False CRLF True
+HASH heston_baseline_comparison.csv exact True LF False CRLF True
+
+
+===== tests =====
+
+........................................................................ [ 94%]
+....                                                                     [100%]
+76 passed in 139.66s (0:02:19)
+
+HASH_CHANGES []
