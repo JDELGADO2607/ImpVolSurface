@@ -52,3 +52,5 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-22 | PHASE_5 READY y APPROVED con limitaciones |b4cb3d6840e1596ed656cad1768b642e936c9845,97puts/142calls,88/140IVinteriores;15putsreales y142callscontrastadas,20testsafectadosPASS;limiteprecision3dregistrado,no ronda adicional |
 | 2026-11-22 | PHASE_6 IN_PROGRESS, especificacion lista antes de resultados |PHASE_6_START.md,comparacion/cartera/greeks/stress/pipeline y cierre minimo;sin recalibrar o robustez adicional |
 | 2026-11-22 | PHASE_START6 aceptado porOrca |ctx_8a89c93e7fb9/task_81d6ea6c8cb9,informe5/encargo6d3d7a78publicos;esperar evento sin polling |
+| 2026-11-22 | PHASE_6y7 APPROVED calculos/reproduccion |4c63e19,comandoHeston30.1s/6tablascoinciden,6testsnuevosPASS,5patasQLconfirmanriesgos/hedge. No cambiosnumericos necesarios |
+| 2026-11-22 | Cierre8 IN_PROGRESS soloDocs |Reconciliarreporte/guionconCSV,por discrepanciasrealesdeprimas/Greeks/porcentajes;sinrecalcularni desarrollarfuncionalidades |

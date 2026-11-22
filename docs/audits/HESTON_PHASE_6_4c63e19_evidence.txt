@@ -1,0 +1,55 @@
+
+===== audit_phase6_real.log =====
+
+REAL_MODELS CALL 142 {'m1_eu_const_bs': 0.05679266223621642, 'm2_am_const_1d': 0.05679266223621642, 'm3_eu_heston': 0.08729127841786972, 'm4_am_heston': 0.08729127841786972}
+REAL_MODELS PUT 97 {'m1_eu_const_bs': 0.04951505819572264, 'm2_am_const_1d': 0.03738470463239214, 'm3_eu_heston': 0.0465628923081705, 'm4_am_heston': 0.023847251618034176}
+PUT_MAE_REDUCTION_AM_FLAT_PCT 36.2112076248113
+AGGREGATION_CHECK heston_value_usd 2.842170943040401e-14 596.1016898275653
+AGGREGATION_CHECK market_value_usd 0.0 616.0
+AGGREGATION_CHECK position_delta 5.684341886080802e-14 393.2198646271528
+AGGREGATION_CHECK position_gamma 4.263256414560601e-14 118.2381222147772
+AGGREGATION_CHECK position_sens_sigma0_1pp 3.197442310920451e-14 7.178160453738242
+AGGREGATION_CHECK position_theta_daily 3.2862601528904634e-14 -5.998177958942699
+STRESS_RECONCILE S0_Base_Null 0.0 0.0
+STRESS_RECONCILE S1_Spot_Down_5 -2.842170943040401e-14 0.0
+STRESS_RECONCILE S2_Spot_Up_5 -1.1368683772161603e-13 0.0
+STRESS_RECONCILE S3_Vol_Spike_5pp -9.947598300641403e-14 0.0
+STRESS_RECONCILE S4_Severe_Crisis 1.1368683772161603e-13 -1.1368683772161603e-13
+STRESS_RECONCILE S5_Bullish_Rally 0.0 0.0
+REFERENCE_LEG {'symbol': 'NU261218C00012000', 'price_diff': -4.440892098500626e-16, 'delta_ref': 0.6451796152297802, 'delta_diff': -1.3322676295501878e-15, 'gamma_ref': 0.23160320282059066, 'gamma_diff': 7.355227538141662e-15, 'sens_ref': 0.011920088400291684, 'sens_diff': -1.1622647289044608e-16, 'theta_ref': -0.010597948478028307, 'theta_diff': -6.938893903907228e-18}
+REFERENCE_LEG {'symbol': 'NU261218C00014000', 'price_diff': 1.1379786002407855e-15, 'delta_ref': 0.17778002317357858, 'delta_diff': 8.881784197001252e-16, 'gamma_ref': 0.1963186823326024, 'gamma_diff': 1.915134717478395e-15, 'sens_ref': 0.008260704096810477, 'sens_diff': -1.231653667943533e-16, 'theta_ref': -0.005898377657713713, 'theta_diff': -4.128641872824801e-16}
+REFERENCE_LEG {'symbol': 'NU261218P00012000', 'price_diff': 0.00028932602438674904, 'delta_ref': -0.3566859780171257, 'delta_diff': -5.7084308954125085e-05, 'gamma_ref': 0.23369863837395285, 'gamma_diff': 6.620362552250958e-06, 'sens_ref': 0.011939147878776729, 'sens_diff': 1.0269409638288818e-06, 'theta_ref': -0.009269444726983433, 'theta_diff': 2.7493252452662903e-06}
+REFERENCE_LEG {'symbol': 'NU270115C00013000', 'price_diff': 8.881784197001252e-16, 'delta_ref': 0.46287907665066785, 'delta_diff': -4.440892098500626e-16, 'gamma_ref': 0.19468290441706723, 'gamma_diff': 7.327471962526033e-15, 'sens_ref': 0.015769813474224348, 'sens_diff': 5.48172618408671e-16, 'theta_ref': -0.007626163504808159, 'theta_diff': -1.8587562045091488e-15}
+REFERENCE_LEG {'symbol': 'NU270115P00011000', 'price_diff': 0.0001498078418418758, 'delta_ref': -0.20337896889418067, 'delta_diff': 1.3796233907042987e-05, 'gamma_ref': 0.11841988299586842, 'gamma_diff': -4.2380002777384074e-05, 'sens_ref': 0.011356182875271154, 'sens_diff': 3.949452681752813e-06, 'theta_ref': -0.005440299794191361, 'theta_diff': 1.9027877823539138e-05}
+REFERENCE_NET_DELTA 393.1972208409025 PUBLISHED 393.2198646271528 ROUND_HEDGE -393
+DONE
+
+
+===== audit_phase6_reproduction.log =====
+
+REGENERATED_FINANCIAL_TABLE_MATCH models_comparison_detailed.csv 239
+REGENERATED_FINANCIAL_TABLE_MATCH models_comparison_summary.csv 6
+REGENERATED_FINANCIAL_TABLE_MATCH portfolio_greeks_and_valuation.csv 6
+REGENERATED_FINANCIAL_TABLE_MATCH portfolio_convergence_checks.csv 2
+REGENERATED_FINANCIAL_TABLE_MATCH portfolio_stress_leg_detail.csv 30
+REGENERATED_FINANCIAL_TABLE_MATCH portfolio_stress_scenarios.csv 6
+
+
+===== audit_phase6_tests.log =====
+
+......                                                                   [100%]
+6 passed in 3.85s
+
+
+===== python run_all.py --heston: final output =====
+
+5  S5_Bullish_Rally           14.1795           35.143688             824.034282      -726.8535                      97.180782                      145.206987             -48.026206
+
+--- Step 4: Generating Visualizations ---
+All figures successfully created.
+
+--- Step 5: Compiling Summary Metrics ---
+
+Manifest successfully compiled at data\heston\phase6\phase6_execution_manifest.json
+Phase 6 Pipeline completed in 30.1 seconds.
+================================================================================

@@ -1,6 +1,7 @@
 # Avance Heston
 
-PHASE_5 APPROVED: b4cb3d6840e1596ed656cad1768b642e936c9845 ultimoSHAaprobado,97puts/142calls,88/140IVinteriores. PHASE_6 IN_PROGRESS,dispatchctx_8a89c93e7fb9/task_81d6ea6c8cb9 aceptado;informe5/encargo6d3d7a78publicosyaccesibles.
-[Informe5](../audits/HESTON_PHASE_5_b4cb3d6.md),[encargo6](PHASE_6_START.md).15putsreales y142callscontrastadas;20testsafectadosPASS. Precisionultracorta3dlimitada,error0.002706USD;declarado,no nueva ronda. No usarIV0.01endpointcomo volatilidad identificada. F4-H2sigue limitacionaceptada.
-Resta integracion6:comparacion,cartera/griegas/stress,pipeline minimo.7/8cierreindispensable/exposicion10min;no nuevas funcionalidades,robustez ni experimentos repetidos. Calibracion y motor se conservan;no merge.
-Fases0-5aprobadas enalcanceindicado. Reparaciones0=1,1=3,2=1,3=3,4=3,5=0. Run run_0891738e9cf5;worker5ctx_7c22755f06ce/task_9d3cb57196ef terminado. Proximo despacho6y auditoria delSHA que reporte por evento,sin polling. PR4/PR5 OPEN.
+Fases6/7APPROVED para computacion/reproduccion en4c63e19583c740711fdf001f1ae7e6bd9d99d4b9, ultimoSHAaprobado. Pipeline python run_all.py --heston reproducido30.1s;6tablascoinciden;6tests6PASS;QL5patasconfirma precios/Greeks/hedge-393.
+Fase8 IN_PROGRESS,cierre SOLOdocumental:reporte6tiene patas/primas/Greeks distintosdeCSV yconteotests101vs100;mensaje88%no demostrado. Actualizar prosa/guion10min, no codigo/CSV/experimentos. [Informe6](../audits/HESTON_PHASE_6_4c63e19.md),[encargo](PHASE_7_8_CLOSEOUT.md).
+Datos reales:putsMAEHeston0.023847vsflatAm0.037385(mejora36.21%);calls0.087291vsflat0.056793(empeora);239Heston0.061542vsflatAm0.048916(empeora). No superioridadglobal ni rentabilidadhistorica. Valoropcionesmodelo596.10/observado616,delta393.22,residual0.22,capitalestimado5613.88.
+Implementacion5/6y verificacion7terminadas. PendientedespachoDocs8,luego revisiondiff e informefinalhumanreview. No nuevoscálculos,robustezni recalibracion. F4-H2yprecisionIV3daceptadasenlimitaciones.
+Run run_0891738e9cf5;worker6ctx_8a89c93e7fb9/task_81d6ea6c8cb9terminado. PR4/PR5OPEN;sinpolling/merge/forcepush.
