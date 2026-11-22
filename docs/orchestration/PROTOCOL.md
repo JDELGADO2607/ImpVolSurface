@@ -14,6 +14,23 @@ PHASE_START incluye fase, SHA inicial, objetivo, alcance, criterios, artefactos 
 
 Codex verifica GitHub, extrae el SHA y prueba independientemente el producto. Publica docs/audits/HESTON_PHASE_<N>_<SHA>.md en coordinación y emite PHASE_APPROVED, PHASE_REJECTED o PHASE_BLOCKED. Solo PHASE_APPROVED autoriza dependencia. Cada reparación publica SHA nuevo. Registrar hasta tres reparaciones y distinguir defecto, dato, modelo, diferencia irrelevante y mejora opcional.
 
+## Instrucciones específicas para fases y reparaciones
+
+Regla humana vigente, registrada el 22-nov-2026: los encargos futuros a Gemini deben ser extremadamente específicos para reducir ambigüedad, reparaciones evitables y tiempo de ejecución. Aplica también a reparaciones pendientes y debe recuperarse tras una compactación. Puede utilizarse TCREI u otro marco, sin imponer una plantilla innecesariamente extensa.
+
+Cada PHASE_START o encargo de reparación debe especificar:
+
+1. Objetivo verificable, fase, intento y SHA completo inicial publicado.
+2. Contexto mínimo y referencias precisas a criterios, informes, archivos y evidencias existentes.
+3. Cambios autorizados: archivos, interfaces y comportamientos afectados; componentes que deben conservarse.
+4. Método esperado: formulación matemática, convenciones financieras, unidades, tratamiento de datos e interfaces, según corresponda. Distinguir obligaciones, decisiones delegadas y asuntos que requieren consulta.
+5. Entregables concretos: código, pruebas, tablas, documentación, comandos reproducibles e informe asociado a un nuevo SHA publicado.
+6. Criterios de aceptación definidos antes de evaluar: muestras, referencias independientes, experimentos positivos y negativos pertinentes y tolerancias justificadas. No exigir pruebas ajenas al alcance material.
+7. Qué no debe ocurrir: cambios de muestra o tolerancias para favorecer métricas, clipping injustificado, artefactos antiguos presentados como nuevos, modificaciones fuera del alcance o avance a fases dependientes sin aprobación técnica.
+8. Condiciones de parada y formato de reporte del bloqueo; no improvisar una metodología distinta ni consumir rondas en mejoras opcionales.
+
+Priorizar la solución más sencilla que satisfaga los criterios. La urgencia no reduce el rigor ni sustituye la auditoría independiente. Referenciar documentos existentes en lugar de duplicar informes completos. Esta regla concreta los encargos y no amplía permisos ni modifica los límites de tres reparaciones o de revisión humana final.
+
 ## Interrupciones y parada
 
 Actualizar HANDOFF, tablero e historia al cambiar de fase y antes de interrupción/compactación cuando sea posible. Guardar logs completos y revisar resúmenes. No cerrar tareas por silencio. Fallos de transporte exigen recuperación por los comandos documentados del recibo, sin duplicar dispatch. No reautorizar reparaciones SVI por inercia.
