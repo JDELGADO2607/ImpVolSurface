@@ -1,0 +1,65 @@
+
+===== audit_phase5_real.log =====
+
+STATUS_PUTS {'CONVERGED': 88, 'CONVERGED_AT_LOWER_BRACKET': 9}
+STATUS_CALLS {'CONVERGED': 140, 'UNIDENTIFIABLE_VOL_TOO_HIGH': 1, 'CONVERGED_AT_LOWER_BRACKET': 1}
+MAX_ROOT_RESIDUAL put 9.997010703699516e-06
+MAX_ROOT_RESIDUAL call 4.655492334748601e-06
+REAL_METRICS puts 97 MAE 0.023847251618034176 RMSE 0.03403626589561799
+REAL_METRICS calls 142 MAE 0.08729127841786972 RMSE 0.128092072090881
+REAL_PUT_CHECK {'symbol': 'NU261218P00011000', 'K': 11.0, 'days': 31, 'iv': 0.4588996956984544, 'target': 0.1620978561962941, 'ql700': 0.16237619867370107, 'fd900': 0.16238096802028917, 'error_ql': 0.00027834247740696205, 'error_fine': 0.0002831118239950692}
+REAL_PUT_CHECK {'symbol': 'NU261218P00012000', 'K': 12.0, 'days': 31, 'iv': 0.4393837614660041, 'target': 0.4526898876424081, 'ql700': 0.4535628319955865, 'fd900': 0.4534778222622282, 'error_ql': 0.0008729443531784176, 'error_fine': 0.0007879346198201298}
+REAL_PUT_CHECK {'symbol': 'NU261218P00013000', 'K': 13.0, 'days': 31, 'iv': 0.4195705906100193, 'target': 0.9830283477865928, 'ql700': 0.9839575683345648, 'fd900': 0.9838642367780874, 'error_ql': 0.000929220547972065, 'error_fine': 0.000835888991494671}
+REAL_PUT_CHECK {'symbol': 'NU261218P00014000', 'K': 14.0, 'days': 31, 'iv': 0.3992619919466673, 'target': 1.747784165083474, 'ql700': 1.7483108181309492, 'fd900': 1.7482664481524364, 'error_ql': 0.000526653047475234, 'error_fine': 0.0004822830689623636}
+REAL_PUT_CHECK {'symbol': 'NU261218P00015000', 'K': 15.0, 'days': 31, 'iv': 0.3785103146051911, 'target': 2.673632563760992, 'ql700': 2.673783844298491, 'fd900': 2.673783458265578, 'error_ql': 0.0001512805374987991, 'error_fine': 0.00015089450458605214}
+REAL_PUT_CHECK {'symbol': 'NU270115P00011000', 'K': 11.0, 'days': 59, 'iv': 0.4578375211060096, 'target': 0.3285443294681472, 'ql700': 0.32887171229676426, 'fd900': 0.3288684228042957, 'error_ql': 0.00032738282861705104, 'error_fine': 0.0003240933361484677}
+REAL_PUT_CHECK {'symbol': 'NU270115P00012000', 'K': 12.0, 'days': 59, 'iv': 0.4394141834933078, 'target': 0.6669458947108632, 'ql700': 0.6676219805889169, 'fd900': 0.6675609737669005, 'error_ql': 0.0006760858780536783, 'error_fine': 0.0006150790560373043}
+REAL_PUT_CHECK {'symbol': 'NU270115P00013000', 'K': 13.0, 'days': 59, 'iv': 0.4210389148585357, 'target': 1.182869916658167, 'ql700': 1.183622633815846, 'fd900': 1.1835551029398912, 'error_ql': 0.0007527171576788838, 'error_fine': 0.0006851862817240928}
+REAL_PUT_CHECK {'symbol': 'NU270115P00014000', 'K': 14.0, 'days': 59, 'iv': 0.4025367661720718, 'target': 1.8767206248775328, 'ql700': 1.877342318085642, 'fd900': 1.877296800554543, 'error_ql': 0.0006216932081091198, 'error_fine': 0.0005761756770101822}
+REAL_PUT_CHECK {'symbol': 'NU270115P00015000', 'K': 15.0, 'days': 59, 'iv': 0.3836251398743361, 'target': 2.720060329573865, 'ql700': 2.7204211536529317, 'fd900': 2.720411829067797, 'error_ql': 0.0003608240790669015, 'error_fine': 0.0003514994939322058}
+REAL_PUT_CHECK {'symbol': 'NU261120P00011000', 'K': 11.0, 'days': 3, 'iv': 0.4494273901876212, 'target': 0.0004489743765269, 'ql700': 0.0003498249280531959, 'fd900': 0.00036452663245983537, 'error_ql': -9.914944847370406e-05, 'error_fine': -8.444774406706461e-05}
+REAL_PUT_CHECK {'symbol': 'NU261120P00011500', 'K': 11.5, 'days': 3, 'iv': 0.4484856293427255, 'target': 0.0084842186733272, 'ql700': 0.008387910027055103, 'fd900': 0.008420865494265725, 'error_ql': -9.630864627209641e-05, 'error_fine': -6.335317906147435e-05}
+REAL_PUT_CHECK {'symbol': 'NU261120P00012000', 'K': 12.0, 'days': 3, 'iv': 0.4435598949652165, 'target': 0.0701432001234935, 'ql700': 0.07195928178322243, 'fd900': 0.0717696330116515, 'error_ql': 0.0018160816597289353, 'error_fine': 0.0016264328881580026}
+REAL_PUT_CHECK {'symbol': 'NU261120P00012500', 'K': 12.5, 'days': 3, 'iv': 0.4342225610308454, 'target': 0.2865741345734081, 'ql700': 0.2892800450461085, 'fd900': 0.28897971057735555, 'error_ql': 0.0027059104727004124, 'error_fine': 0.002405576003947474}
+REAL_PUT_CHECK {'symbol': 'NU261120P00013000', 'K': 13.0, 'days': 3, 'iv': 0.4196795113536348, 'target': 0.6848306241053759, 'ql700': 0.6852868805166615, 'fd900': 0.6852204525458667, 'error_ql': 0.0004562564112856604, 'error_fine': 0.00038982844049084697}
+INDEPENDENT_BS_CALL_RESIDUAL_MAX 1.5275389397828576e-08
+DONE
+
+
+===== audit_phase5_extra.log =====
+
+python : C:\Users\CAROL\AppData\Local\Programs\Python\Python312\Lib\site-packages\scipy\interpolate\_cubic.py:332: 
+RuntimeWarning: overflow encountered in divide
+En línea: 15 Carácter: 15
++ '@; $extra5 | python - > audit_phase5_extra.log 2>&1; Get-Content aud ...
++               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\CAROL\...tered in divide:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  whmean = (w1/mk[:-1] + w2/mk[1:]) / (w1 + w2)
+COMMON_CURVE_QL192_CALL_DIFFERENCE_MAX 0.00040387493516647055
+REAL_3D_IV_REFINEMENT 0.4342225610308454 {'iv': 0.4285422173370698, 'status': 'CONVERGED', 'model_price_1d': 0.28657413656156977, 'residual_usd': 1.9881616908357103e-09, 'iterations': 7, 'notes': 'Brent terminated after 7 iterations, residual=1.99e-09'}
+
+
+===== audit_phase5_tests.log =====
+
+.......                                                                  [100%]
+============================== warnings summary ===============================
+tests/test_heston_phase5.py::test_american_put_iv_inversion_roundtrip
+  C:\Users\CAROL\AppData\Local\Programs\Python\Python312\Lib\site-packages\scipy\interpolate\_cubic.py:332: RuntimeWarning: overflow encountered in divide
+    whmean = (w1/mk[:-1] + w2/mk[1:]) / (w1 + w2)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+7 passed, 1 warning in 3.32s
+
+
+===== audit_phase5_regression.log =====
+
+....................                                                     [100%]
+============================== warnings summary ===============================
+tests/test_heston_phase5.py::test_american_put_iv_inversion_roundtrip
+  C:\Users\CAROL\AppData\Local\Programs\Python\Python312\Lib\site-packages\scipy\interpolate\_cubic.py:332: RuntimeWarning: overflow encountered in divide
+    whmean = (w1/mk[:-1] + w2/mk[1:]) / (w1 + w2)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+20 passed, 1 warning in 39.43s

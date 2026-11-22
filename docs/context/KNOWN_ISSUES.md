@@ -1,5 +1,7 @@
 # Hallazgos y aplicabilidad
 
+Fase5 b4cb3d6 APPROVED con limitaciones no bloqueantes según prioridad humana: inversión1D3d/K12.5cambia IV0.43422256->0.42854222al refinar; repricioQLdifiere0.002706USD(supera0.002), no afecta modeloHestonni cartera31/59d(maxmuestra0.00093). EndpointsIV0.01no identificados, no usarlos como señal/greek. Callsadaptadorfechas/integración difierehasta0.000404USDde curva común; detalles y reportes de cobertura corregir en síntesis6sin ronda5. Evidencia HESTON_PHASE_5_b4cb3d6.md. No tolerancia relajada ni precisión uniforme prometida.
+
 Estado humano vigente22-nov: F4-H2 sigue ABIERTO/PARCIALMENTE RESUELTO técnicamente, pero su escenario sintético se acepta como LIMITACIÓN para el alcance académico sobre datos reales auditados. El usuario ordenó continuar fase5 desde7f51a81, no una reparación4. No rebajar silenciosamente severidad histórica ni decir que está corregido; no bloquea por esa aceptación explícita. Ver H-011 y HESTON_PHASE_4_7f51a81_ACCEPTED_SCOPE.md. Nuevos escenarios de robustez se registran, sin desplazar el trabajo principal; errores reales sí deben corregirse.
 
 Referencia vigente [auditoría R3](https://github.com/JDELGADO2607/ImpVolSurface/blob/e1b4f5bf9b306e2213a4858598499ef45d284d66/docs/audits/CODEX_AUDIT_R3_3d81ff1.md), evidencia y scripts enlazados dentro de ella. No se declara ningún problema eliminado hasta probar la ruta Heston implementada. Módulos y líneas exactas constan en el informe fijado.
