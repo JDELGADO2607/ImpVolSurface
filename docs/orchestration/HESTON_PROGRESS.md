@@ -1,9 +1,9 @@
 # Avance Heston
 
-Ultimo SHA aprobado654d1c2d05a0301dc3068cdc34219df3d42d2af7 (PHASE_1 APPROVED tras3 reparaciones).
-PHASE_2 REJECTED en cd5ed3e08794af474cee1d56a5862eb1a8647d79, reparacion1/3. CONTEXT_SETUP y PHASE_0 aprobados; fases3-8 NOT_STARTED.
-Dos MEDIUM: F2-M1 interfaz devuelve calls no soportadas y sensibilidades no calculadas/ambiguas; F2-M2 garantias de LCP/M-matrices no demostradas y secuencia documental incorrecta. F2-L1 LOW de frontera/interpolacion se acepta como limitacion inicial sin reparacion obligatoria.
-34tests PASS, hashes oficiales intactos,12smoke reproducidos; max error vs QL mas fino0.000330390USD. Nucleo puts favorable, interfaz/rigor documental pendientes.
-[Informe](../audits/HESTON_PHASE_2_cd5ed3e.md). [Encargo original](PHASE_2_START.md). No ampliar a calls/griegas ni redisenar MCS-IT para corregir afirmaciones.
-Proxima accion reparacion focalizada, SHA nuevo y auditoria. Fase3 significa validacion independiente extensa; calibracion propia solo despues, en fase4.
-Run run_0891738e9cf5, reparacion1 fase2 ctx_f4c5135b9258, task task_8c9497f9ae15; informe commit2628fa18911293d2167ed56a37aedbb1df3b00fb. Cuota restante no expuesta. PR5/PR4 abiertos, no merge.
+Fase activa PHASE_3 IN_PROGRESS: validacion independiente amplia; NO calibracion. Ultimo SHA aprobadoea0df6f097904352e5345bb6fbc712008e319bf2.
+CONTEXT_SETUP/PHASE_0/PHASE_1/PHASE_2 APPROVED. Reparaciones fase0=1,fase1=3,fase2=1,fase3=0. Fases4-8 NOT_STARTED.
+F2-M1 y aspectos materiales de F2-M2 cerrados. F2-L1 LOW limites pequenos de interpolacion/frontera y F2-L2 LOW guion/cifras pendientes, aceptados para etapa inicial, no defensa final.
+38tests PASS sin escrituras oficiales; API puts valida y precios iniciales reproducidos. No habilita calibracion ni griegas operativas.
+[Auditoria fase2](../audits/HESTON_PHASE_2_ea0df6f.md). [Criterios congelados fase3](PHASE_3_START.md):97contratos y108precios en6regimenes,limites y refinamientos,objetivo0.002USD con referencia medida.
+Proxima accion Gemini entrega validacion y SHA nuevo; Codex audita antes de fase4. Sin merge y revision humana final pendiente.
+Run run_0891738e9cf5, ultima entrega ctx_f4c5135b9258. Registrar dispatch fase3. PR5/PR4 OPEN. Cuota restante no expuesta.

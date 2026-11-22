@@ -1,6 +1,6 @@
 # Marco matemático
 
-Estado existente BS europeo, EDP americana 1D, Brent y SVI. Estado actualizado: PoC Heston QuantLib aprobada en654d1c2; solver2D propio pendiente de fase2.
+Estado existente BS europeo, EDP americana 1D, Brent y SVI. Estado actualizado: PoC Heston QuantLib aprobada en654d1c2; solver2D MCS-IT propio con aprobacion inicial enea0df6f, pendiente validacion amplia de fase3.
 
 En BS, dS=(r-q)S dt+sigma S dW y V_tau=L_BS V, con L_BS=0.5 sigma² S² V_SS+(r-q)S V_S-rV. Calls q=0 con tasas no negativas admiten la valoración europea. Puts requieren ejercicio óptimo, payoff g=(K-S)^+ y V=sup E_Q[D g(S_exercise)]. El motor existente combina Crank–Nicolson, Rannacher y penalización. CRR ofrece contraste independiente. Brent resuelve P_constante(sigma)-P_objetivo=0 con bracket y diagnóstico de error de precio separado del error EDP.
 

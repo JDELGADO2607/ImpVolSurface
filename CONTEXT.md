@@ -6,7 +6,7 @@ Referencia de implementación SVI congelada `3d81ff18cae3a9f8dc74c174015fed17031
 
 El usuario decidió explorar Heston clásico después de la revisión humana. Motivos aceptados son concavidad recurrente, complejidad de reparaciones, dinámica común entre strikes y plazos y aprendizaje de diferencias finitas 2D. La prueba inicial usará QuantLib y precios de puts americanas para incorporar ejercicio anticipado en la calibración neutral al riesgo. Heston fue sugerencia del profesor según declaración del usuario. La selección de SVI del documento inicial queda reemplazada para esta migración.
 
-Existen BS europeo, EDP americana 1D, CRR, Brent, limpieza de cadena, HAR-RV, cartera, stress, estrategias hipotéticas y superficie SVI. Se conservan como referencias con sus limitaciones. La PoC QuantLib esta implementada y aprobada tecnicamente en654d1c2d05a0301dc3068cdc34219df3d42d2af7; el solver propio2D sigue pendiente y se inicia en fase2. Los estados detallados estan en HANDOFF.
+Existen BS europeo, EDP americana 1D, CRR, Brent, limpieza de cadena, HAR-RV, cartera, stress, estrategias hipotéticas y superficie SVI. Se conservan como referencias con sus limitaciones. La PoC QuantLib esta implementada y aprobada tecnicamente en654d1c2d05a0301dc3068cdc34219df3d42d2af7; el solver propio de puts tiene aprobacion inicial de fase2 enea0df6f097904352e5345bb6fbc712008e319bf2, pendiente de validacion amplia de fase3. Los estados detallados estan en HANDOFF.
 
 La cadena es transversal y asíncrona. Últimos trades carecen de bid/ask ejecutables fiables. Bloomberg aporta contraste. El histórico del subyacente permite estudiar volatilidad realizada, sin panel histórico de opciones para backtesting.
 

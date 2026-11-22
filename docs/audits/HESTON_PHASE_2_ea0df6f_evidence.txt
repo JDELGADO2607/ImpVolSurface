@@ -1,0 +1,23 @@
+===== API and diagnostic replay =====
+UNSUPPORTED_REJECTED 'C' 0.0
+UNSUPPORTED_REJECTED 'C' 0.08493150684931507
+UNSUPPORTED_REJECTED 'CALL' 0.0
+UNSUPPORTED_REJECTED 'CALL' 0.08493150684931507
+UNSUPPORTED_REJECTED 'binary' 0.0
+UNSUPPORTED_REJECTED 'binary' 0.08493150684931507
+UNSUPPORTED_REJECTED 'X' 0.0
+UNSUPPORTED_REJECTED 'X' 0.08493150684931507
+UNSUPPORTED_REJECTED '' 0.0
+UNSUPPORTED_REJECTED '' 0.08493150684931507
+REPLAY_MAX 6.661338147750939e-15
+PUT_ALIAS_DELTA 0.0
+TEMPORAL_CONTROL [{'m_t': 20, 'dt': 0.0125, 'max_algebraic_comp_residual': 0.0, 'max_price_step_defect_core': 0.005184013837272138, 'norm_per_year': 0.41472110698177106, 'convergence_ratio': None}, {'m_t': 40, 'dt': 0.00625, 'max_algebraic_comp_residual': 0.0, 'max_price_step_defect_core': 0.000993024509752309, 'norm_per_year': 0.15888392156036943, 'convergence_ratio': 2.6102144440348165}, {'m_t': 80, 'dt': 0.003125, 'max_algebraic_comp_residual': 0.0, 'max_price_step_defect_core': 0.00020224647570294963, 'norm_per_year': 0.06471887222494388, 'convergence_ratio': 2.4549859430203815}]
+TEMPORAL_TABLE_MAX 4.9629354445523965e-17
+ARTIFACT_HASHES [('smoke_test_results.csv', True), ('mesh_convergence.csv', True), ('limit_cases.csv', True), ('stencil_validation.csv', True), ('temporal_consistency.csv', True)]
+DONE
+
+===== pytest and official hashes =====
+......................................                                   [100%]
+38 passed in 59.79s
+
+HASH_CHANGES []
