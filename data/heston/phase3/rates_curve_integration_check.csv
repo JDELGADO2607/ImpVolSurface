@@ -1,14 +1,34 @@
-segment_id,t_start_years,t_end_years,dt_years,discount_start,discount_end,forward_rate_mid,discount_integrated_midpoint,absolute_discrepancy,status
-CMT_1_to_2,0.08333333333333333,0.125,0.04166666666666667,0.9966032439435591,0.9947279419078882,0.0452031911928519,0.9947279419078882,0.0,PASS
-CMT_2_to_3,0.125,0.16666666666666666,0.04166666666666666,0.9947279419078882,0.9929500546122529,0.04293382182538926,0.9929500546122529,0.0,PASS
-CMT_3_to_4,0.16666666666666666,0.25,0.08333333333333334,0.9929500546122529,0.9892909257289837,0.0443029852671739,0.9892909257289837,0.0,PASS
-CMT_4_to_5,0.25,0.3333333333333333,0.08333333333333331,0.9892909257289837,0.9858044164037855,0.04236570707917619,0.9858044164037855,0.0,PASS
-CMT_5_to_6,0.3333333333333333,0.5,0.16666666666666669,0.9858044164037855,0.9784257130277385,0.04507865737814767,0.9784257130277385,0.0,PASS
-CMT_6_to_7,0.5,1.0,0.5,0.9784257130277385,0.955519265494,0.047379877010970045,0.955519265494,0.0,PASS
-CMT_7_to_8,1.0,2.0,1.0,0.955519265494,0.9093879702128853,0.04948311317760206,0.9093879702128853,0.0,PASS
-CMT_8_to_9,2.0,3.0,1.0,0.9093879702128853,0.8661928340639722,0.04866425713122659,0.8661928340639722,0.0,PASS
-CMT_9_to_10,3.0,5.0,2.0,0.8661928340639722,0.7847002288896535,0.049402892539969365,0.7847002288896536,1.1102230246251565e-16,PASS
-CMT_10_to_11,5.0,7.0,2.0,0.7847002288896535,0.707321763589511,0.05190804864999832,0.707321763589511,0.0,PASS
-CMT_11_to_12,7.0,10.0,3.0,0.707321763589511,0.6022378565763808,0.05361106521961954,0.6022378565763808,0.0,PASS
-CMT_12_to_13,10.0,20.0,10.0,0.6022378565763808,0.3269425060536551,0.06108681448923951,0.3269425060536551,0.0,PASS
-CMT_13_to_14,20.0,30.0,10.0,0.3269425060536551,0.1944249515679767,0.051973809749569645,0.1944249515679767,0.0,PASS
+test_type,tenor_label,tau_years,n_steps,grid_type,discount_integrated,discount_reference,discrepancy,absolute_discrepancy,status,notes
+Nodal_Interval_Integration,CMT_1_to_2,0.125,1,analytical_piecewise_constant,0.9947279419078882,0.9947279419078882,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_2_to_3,0.16666666666666666,1,analytical_piecewise_constant,0.9929500546122529,0.9929500546122529,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_3_to_4,0.25,1,analytical_piecewise_constant,0.9892909257289837,0.9892909257289837,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_4_to_5,0.3333333333333333,1,analytical_piecewise_constant,0.9858044164037855,0.9858044164037855,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_5_to_6,0.5,1,analytical_piecewise_constant,0.9784257130277385,0.9784257130277385,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_6_to_7,1.0,1,analytical_piecewise_constant,0.955519265494,0.955519265494,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_7_to_8,2.0,1,analytical_piecewise_constant,0.9093879702128853,0.9093879702128853,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_8_to_9,3.0,1,analytical_piecewise_constant,0.8661928340639722,0.8661928340639722,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_9_to_10,5.0,1,analytical_piecewise_constant,0.7847002288896536,0.7847002288896535,1.1102230246251565e-16,1.1102230246251565e-16,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_10_to_11,7.0,1,analytical_piecewise_constant,0.707321763589511,0.707321763589511,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_11_to_12,10.0,1,analytical_piecewise_constant,0.6022378565763808,0.6022378565763808,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_12_to_13,20.0,1,analytical_piecewise_constant,0.3269425060536551,0.3269425060536551,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Nodal_Interval_Integration,CMT_13_to_14,30.0,1,analytical_piecewise_constant,0.1944249515679767,0.1944249515679767,0.0,0.0,PASS,Constant forward rate between adjacent knots
+Actual_Solver_Step_Integration,31d,0.08493150684931507,60,default,0.9965320452941502,0.9965312493914185,7.95902731720588e-07,7.95902731720588e-07,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,31d,0.08493150684931507,100,fine,0.996530811645187,0.9965312493914185,-4.37746231485292e-07,4.37746231485292e-07,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,31d,0.08493150684931507,160,extrafine,0.9965312742633692,0.9965312493914185,2.487195072120585e-08,2.487195072120585e-08,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,94d,0.25753424657534246,77,default,0.9889783675828385,0.9889752007057708,3.1668770676951397e-06,3.1668770676951397e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,94d,0.25753424657534246,155,fine,0.9889757372856594,0.9889752007057708,5.365798885215156e-07,5.365798885215156e-07,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,94d,0.25753424657534246,232,extrafine,0.988974118904686,0.9889752007057708,-1.081801084823475e-06,1.081801084823475e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,212d,0.5808219178082191,174,default,0.9746924480194553,0.9746861601863422,6.287833113072239e-06,6.287833113072239e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,212d,0.5808219178082191,348,fine,0.9746887562402473,0.9746861601863422,2.5960539050684517e-06,2.5960539050684517e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,212d,0.5808219178082191,523,extrafine,0.9746840202755229,0.9746861601863422,-2.139910819320967e-06,2.139910819320967e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,430d,1.178082191780822,353,default,0.947144286301038,0.9471361616596624,8.124641375562014e-06,8.124641375562014e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,430d,1.178082191780822,707,fine,0.947135357676735,0.9471361616596624,-8.039829274553156e-07,8.039829274553156e-07,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,430d,1.178082191780822,1060,extrafine,0.9471383310677446,0.9471361616596624,2.1694080821754724e-06,2.1694080821754724e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,794d,2.175342465753425,653,default,0.9016565617126009,0.901661256307157,-4.6945945560983304e-06,4.6945945560983304e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,794d,2.175342465753425,1305,fine,0.9016615892373426,0.901661256307157,3.329301856425104e-07,3.329301856425104e-07,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+Actual_Solver_Step_Integration,794d,2.175342465753425,1958,extrafine,0.901659912536754,0.901661256307157,-1.3437704029506392e-06,1.3437704029506392e-06,PASS_WITHIN_TOLERANCE,Midpoint Riemann quadrature across forward step discontinuities
+QuantLib_Adapter_Comparison,31d,0.08493150684931507,0,quantlib_term_structure,0.9965312493914185,0.9965312493914185,0.0,0.0,PASS,QuantLib YieldTermStructureHandle discount vs proprietary yield curve
+QuantLib_Adapter_Comparison,94d,0.25753424657534246,0,quantlib_term_structure,0.9889752007057708,0.9889752007057708,0.0,0.0,PASS,QuantLib YieldTermStructureHandle discount vs proprietary yield curve
+QuantLib_Adapter_Comparison,212d,0.5808219178082191,0,quantlib_term_structure,0.9746861601863422,0.9746861601863422,0.0,0.0,PASS,QuantLib YieldTermStructureHandle discount vs proprietary yield curve
+QuantLib_Adapter_Comparison,430d,1.178082191780822,0,quantlib_term_structure,0.9471361616596624,0.9471361616596624,0.0,0.0,PASS,QuantLib YieldTermStructureHandle discount vs proprietary yield curve
+QuantLib_Adapter_Comparison,794d,2.175342465753425,0,quantlib_term_structure,0.901661256307157,0.901661256307157,0.0,0.0,PASS,QuantLib YieldTermStructureHandle discount vs proprietary yield curve

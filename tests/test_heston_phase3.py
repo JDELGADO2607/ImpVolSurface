@@ -139,8 +139,11 @@ def test_analytical_limits_exact_xi0_and_degenerate_v0():
     """
     Validates analytical limit cases:
     1. Exact xi = 0.0 under flat rates r=0.0 and r=0.05 matches BS, CRR 5000, and 1D FDM 800 within 0.0020 USD.
-    2. Degenerate boundary v0 = 0.0 produces finite positive price under forward drift kappa*theta > 0.
-    3. Payoff reproduction at tau = 0 exact to machine precision (< 1e-12 USD).
+    2. Degenerate boundary v0 = 0.0 produces finite positive price under forward drift kappa*theta > 0,
+       documents real QuantLib exception (RuntimeError: 0: invalid value), sets N/A for comparative error,
+       and verifies multi-level mesh refinement (160x80 -> 240x120 -> 320x160).
+    3. Sequence v0 in {0.04, 0.01, 0.005, 0.001, 0.0001} passes <= 0.0020 USD vs QuantLib.
+    4. Payoff reproduction at tau = 0 exact to machine precision (< 1e-12 USD).
     """
     limits_path = DATA_DIR / "analytical_limits_validation.csv"
     assert limits_path.exists(), "analytical_limits_validation.csv does not exist!"
@@ -150,13 +153,32 @@ def test_analytical_limits_exact_xi0_and_degenerate_v0():
     df_xi0 = df[df["test_type"] == "Exact_xi0_Limit"]
     assert len(df_xi0) == 12, f"Expected 12 xi=0 tests, got {len(df_xi0)}"
     assert (df_xi0["status_002"] == "PASS").all()
+    assert (df_xi0["status_target_002"] == "PASS").all()
     assert df_xi0["max_abs_err_usd"].max() <= 0.0020
+    assert (df_xi0["qualitative_limit_status"] == "PASS_ANALYTIC_CONSISTENCY").all()
 
     # 2. Degenerate v0=0 sequence
     df_v0 = df[df["test_type"] == "Degenerate_Boundary_v0_Sequence"]
     assert len(df_v0) == 6, f"Expected 6 v0 tests, got {len(df_v0)}"
-    assert (df_v0["status_002"] == "PASS").all()
-    # Confirm monotonicity as v0 -> 0+
+    assert (df_v0["qualitative_limit_status"] == "PASS_STABLE_LIMIT").all()
+
+    # Check v0=0 row: QuantLib exception documented and status N/A_NO_REF
+    row_v0_0 = df_v0[df_v0["parameter_v0"] == 0.0].iloc[0]
+    assert row_v0_0["ql_status"] == "UNSUPPORTED"
+    assert "RuntimeError" in str(row_v0_0["ql_exception"])
+    assert np.isnan(row_v0_0["ql_reference_usd"])
+    assert row_v0_0["status_target_002"] == "N/A_NO_REF"
+    # Mesh refinement convergence for v0=0
+    assert row_v0_0["prop_price_160x80"] < row_v0_0["prop_price_240x120"] <= row_v0_0["prop_price_320x160"]
+    assert 0.1951 < row_v0_0["prop_price_320x160"] < 0.1955
+
+    # Check v0 > 0 rows: QuantLib supported and pass <= 0.0020 USD
+    df_v0_pos = df_v0[df_v0["parameter_v0"] > 0.0]
+    assert (df_v0_pos["ql_status"] == "SUPPORTED").all()
+    assert (df_v0_pos["status_target_002"] == "PASS").all()
+    assert df_v0_pos["abs_err_usd"].max() <= 0.0020
+
+    # Confirm monotonicity of proprietary price as v0 -> 0+
     prices_v0 = df_v0["american_prop_2d"].values
     assert np.all(np.diff(prices_v0) <= 0.0), "Option price must decrease monotonically as initial variance v0 decreases!"
 
@@ -164,6 +186,8 @@ def test_analytical_limits_exact_xi0_and_degenerate_v0():
     df_t0 = df[df["test_type"] == "Payoff_At_T0"]
     assert len(df_t0) == 5
     assert (df_t0["status_002"] == "PASS").all()
+    assert (df_t0["status_target_002"] == "PASS").all()
+    assert (df_t0["qualitative_limit_status"] == "PASS_EXACT_PAYOFF").all()
     assert df_t0["max_abs_err_usd"].max() < 1e-12
 
 
@@ -189,11 +213,17 @@ def test_continuity_and_fractional_maturity_27_5d():
 def test_economic_properties_and_butterfly_uncertainty_propagation():
     """
     Validates economic shape properties on raw unclipped prices across 45 grid points:
-    1. Intrinsic lower bound: V_AM >= max(K - S0, 0)
-    2. Early exercise premium: V_AM >= V_EU
-    3. Strike monotonicity: dP/dK >= 0
-    4. Butterfly convexity with propagated numerical grid uncertainty:
+    1. Finiteness: np.isfinite
+    2. Upper bound: V_AM <= K
+    3. Intrinsic lower bound: V_AM >= max(K - S0, 0)
+    4. Early exercise premium: V_AM >= V_EU
+    5. Strike monotonicity: dP/dK >= 0
+    6. Butterfly convexity with propagated numerical grid uncertainty:
        B_i >= -Tol_B where Tol_B = alpha*eps_lo + (1-alpha)*eps_hi + eps_mid.
+    7. Calendar monotonicity across tenors:
+       Evaluates all 36 transitions. Verifies that 4 small raw negative drops
+       are within empirical pairwise uncertainty (Tol_cal = eps_j + eps_{j+1}),
+       and zero violations exist beyond numerical uncertainty.
     """
     econ_path = DATA_DIR / "economic_arbitrage_checks.csv"
     assert econ_path.exists(), "economic_arbitrage_checks.csv does not exist!"
@@ -202,34 +232,118 @@ def test_economic_properties_and_butterfly_uncertainty_propagation():
     assert len(df) == 45, f"Expected 45 economic check points, got {len(df)}"
     assert (df["status_economic"] == "PASS").all(), "Not all economic checks passed!"
 
-    # Intrinsic lower bound violations must be zero within machine/interpolation precision
+    # 1. Finiteness & Upper Bound
+    assert np.isfinite(df[["price_american", "price_european"]]).all().all()
+    assert (df["finiteness_check"] == "PASS").all()
+    assert (df["upper_bound_violation"] == 0.0).all()
+    assert float((df["price_american"] - df["strike"]).max()) <= 0.0
+
+    # 2. Intrinsic lower bound violations must be zero within numerical tolerance
     assert (df["lower_bound_violation"] < 1e-4).all()
-    # EEP negative violations must be zero
+
+    # 3. EEP negative violations must be zero
     assert (df["eep_negative_violation"] < 1e-4).all()
-    # Strike monotonicity violations must be zero
+
+    # 4. Strike monotonicity violations must be zero
     assert (df["strike_monotonicity_violation"] == 0.0).all()
-    # Butterfly spread violations after propagating numerical uncertainty must be zero
+
+    # 5. Butterfly spread violations after propagating numerical uncertainty must be zero
     assert (df["butterfly_violation"] == 0.0).all()
+
+    # 6. Calendar monotonicity transitions
+    comparisons = []
+    for K, g in df.groupby("strike"):
+        g = g.sort_values("maturity_years")
+        diff = np.diff(g.price_american)
+        eps = g.empirical_truncation_eps.to_numpy()
+        tol = eps[1:] + eps[:-1]
+        for i, z in enumerate(diff):
+            comparisons.append((K, g.iloc[i].tenor_label, g.iloc[i+1].tenor_label, z, tol[i]))
+
+    assert len(comparisons) == 36, f"Expected 36 calendar transitions, got {len(comparisons)}"
+    # Confirm exactly 4 small raw negative drops on deep ITM puts
+    neg_raw = [x for x in comparisons if x[3] < 0]
+    assert len(neg_raw) == 4, f"Expected 4 raw negative drops, got {len(neg_raw)}"
+    # Confirm worst raw drop is ~ -2.098e-5 USD at K=17 (31d -> 94d)
+    worst_drop = min(comparisons, key=lambda x: x[3])
+    assert worst_drop[0] == 17.0 and worst_drop[1] == "31d" and worst_drop[2] == "94d"
+    assert -2.5e-5 < worst_drop[3] < -1.5e-5
+    # Confirm zero violations beyond empirical uncertainty
+    violations_beyond = [x for x in comparisons if x[3] < -x[4]]
+    assert len(violations_beyond) == 0, f"Found calendar violations beyond empirical tolerance: {violations_beyond}"
+    assert (df["calendar_violation"] == 0.0).all()
 
 
 def test_rates_curve_step_integration_across_cmt_knots():
     """
-    Validates step integration of continuous forward rate r(t = T - tau)
-    across the 14 CMT knot dates with zero discrepancy (< 1e-12).
+    Validates rates curve integration check across 3 distinct test types (33 total rows):
+    1. Nodal interval integration (13 rows): constant forward between CMT knots (< 1e-12).
+    2. Actual solver step quadrature (15 rows): midpoint Riemann sum across forward step
+       discontinuities under default, fine, and extra-fine resolutions (< 1e-4).
+    3. QuantLib adapter comparison (5 rows): YieldTermStructureHandle discount vs proprietary (< 1e-12).
     """
     rates_path = DATA_DIR / "rates_curve_integration_check.csv"
     assert rates_path.exists(), "rates_curve_integration_check.csv does not exist!"
     df = pd.read_csv(rates_path)
 
-    assert len(df) == 13, f"Expected 13 CMT segments, got {len(df)}"
-    assert (df["status"] == "PASS").all()
-    assert (df["absolute_discrepancy"] < 1e-12).all()
+    assert len(df) == 33, f"Expected 33 rates check rows, got {len(df)}"
+
+    # 1. Nodal
+    df_nodal = df[df["test_type"] == "Nodal_Interval_Integration"]
+    assert len(df_nodal) == 13
+    assert (df_nodal["status"] == "PASS").all()
+    assert (df_nodal["discrepancy"] < 1e-12).all()
+
+    # 2. Actual solver steps
+    df_steps = df[df["test_type"] == "Actual_Solver_Step_Integration"]
+    assert len(df_steps) == 15
+    assert (df_steps["status"] == "PASS_WITHIN_TOLERANCE").all()
+    assert (df_steps["discrepancy"].abs() < 1e-4).all()
+    # Confirm quadrature errors are on the order of 10^-7 to 10^-6
+    assert df_steps["discrepancy"].abs().max() < 1e-5
+
+    # 3. QuantLib adapter
+    df_ql = df[df["test_type"] == "QuantLib_Adapter_Comparison"]
+    assert len(df_ql) == 5
+    assert (df_ql["status"] == "PASS").all()
+    assert (df_ql["discrepancy"].abs() < 1e-12).all()
+
+
+def test_negative_aggregator_rejects_worst3_failure():
+    """
+    Negative unit test: verifies that the pipeline aggregator does NOT hardcode favorable statuses.
+    Injects a corrupted fixture (status FAIL, error 1.0 USD) and asserts that:
+    - worst_3_refinement_status becomes FAILED.
+    - overall_status becomes FAILED.
+    """
+    import tempfile, contextlib, io
+    import src.heston.pipeline_phase3 as pipe
+
+    base = DATA_DIR
+    load = lambda n: pd.read_csv(base / n)
+    a = load("market_97_puts_validation.csv")
+    b = load("market_97_summary_by_tenor.csv")
+    c = load("market_97_summary_by_partition.csv")
+    bad = load("market_worst3_refinement.csv")
+    bad.loc[0, "abs_err_extrafine_vs_ql1000"] = 1.0
+    bad.loc[0, "status_extrafine_target"] = "FAIL"
+
+    orig_m97 = pipe.run_market_97_validation
+    try:
+        pipe.run_market_97_validation = lambda **kw: (a, b, c, bad)
+        with tempfile.TemporaryDirectory() as t, contextlib.redirect_stdout(io.StringIO()):
+            result = pipe.run_phase3_pipeline(Path(t))
+
+        assert result["validation_summary"]["worst_3_refinement_status"] == "FAILED"
+        assert result["validation_summary"]["overall_status"] == "FAILED"
+    finally:
+        pipe.run_market_97_validation = orig_m97
 
 
 def test_phase3_manifest_and_file_hashes():
     """
     Validates that phase3_execution_manifest.json exists, records all 10 CSV files,
-    and all SHA-256 hashes match disk files exactly.
+    contains required input hashes and execution provenance, and all SHA-256 hashes match disk files.
     """
     manifest_path = DATA_DIR / "phase3_execution_manifest.json"
     assert manifest_path.exists(), "phase3_execution_manifest.json does not exist!"
@@ -238,8 +352,18 @@ def test_phase3_manifest_and_file_hashes():
 
     assert manifest["phase"] == "PHASE_3_BROAD_INDEPENDENT_VALIDATION_HESTON_2D"
     assert manifest["directive"] == "NUMERICAL VALIDATION ONLY - ZERO CALIBRATION"
+    assert manifest["validation_summary"]["overall_status"] == "PASSED"
+    assert manifest["validation_summary"]["worst_3_refinement_status"] == "ALL_CONVERGED_WITHIN_002"
     assert manifest["validation_summary"]["market_97_puts"]["pct_within_target"] == 100.0
     assert manifest["validation_summary"]["hypothetical_regimes_108"]["pct_within_target"] == 100.0
+
+    # Input hashes and code provenance
+    assert "input_hashes" in manifest
+    assert len(manifest["input_hashes"]) >= 5
+    assert "execution_provenance" in manifest
+    assert manifest["execution_provenance"]["prices_source_commit"] == "37bbd12d52819c765c64a950333962af9410073d"
+    assert "source_hashes" in manifest
+    assert len(manifest["source_hashes"]) >= 3
 
     output_files = manifest["output_files"]
     assert len(output_files) == 10, f"Expected 10 output files, got {len(output_files)}"
