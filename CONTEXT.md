@@ -1,5 +1,7 @@
 # Contexto vigente
 
+**Version academica terminada22-nov-2026: HESTON_IMPLEMENTATION_COMPLETE_AWAITING_HUMAN_REVIEW.** Revision definitiva2a9143ba55f1e17b165fa7132d954227635e6538, PR5sin merge. [Auditoria final independiente](docs/audits/HESTON_FINAL_INDEPENDENT_AUDIT.md) y HANDOFF definen estado vigente; las referencias de avance anteriores son historia. No continuar implementacion ni robustez hasta decisionhumana. Comando de resultados: `python run_all.py --heston`.
+
 Actualización humana22-nov-2026: referencia de implementación7f51a811ae5815dadf8c26b46f707e9f7cb0d05c, fase4aceptada sobre datos reales con F4-H2 como limitación conocida, no corregida. Se levanta HOLD y se inicia fase5(superficie). Prioridad rigor matemático/numérico necesario, no hardening adicional. Restan dos etapas de implementación(superficie/integración), con comprobaciones y síntesis académica al cierre. [Decisión](docs/audits/HESTON_PHASE_4_7f51a81_ACCEPTED_SCOPE.md), [encargo5](docs/orchestration/PHASE_5_START.md).
 
 La tarea estudia valoración, IV, riesgo y escenarios de opciones americanas NU. El mapeo académico disponible está en [requisitos](docs/context/PROJECT_REQUIREMENTS.md). La defensa dura diez minutos.

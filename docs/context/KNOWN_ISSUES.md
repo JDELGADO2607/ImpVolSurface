@@ -1,5 +1,7 @@
 # Hallazgos y aplicabilidad
 
+Cierre academico2a9143b: F6-M1corregido en tablas/primas/Greeks y comparativas del informe, sin cambios numericos. No nueva ronda por dos residuos editoriales: el guion debe explicar SSEsin ponderar60train/97evaluadas y residuoTaylor,no ganancia causal pura de convexidad. Formulacion correcta en HESTON_FINAL_INDEPENDENT_AUDIT.md. F4-H2y precisionIV3d siguenlimitaciones aceptadas. Revision humana final pendiente, no merge ni nuevos trabajos automaticos.
+
 Fase6/7 APPROVED4c63e19para computacion/reproduccion;referenciaQL5patasdelta393.197vs393.220mismohedge-393,putsmaxerrorprecio0.000289USD. F6-M1documentalpendiente en cierre8: reporte6patas/primas/greeks/convergenciano coincideCSV;corregirantesdefensa, no tocar modelos. MejoraMAEputs36.21%vsflatamericano,n088%;calls yresultado239empeoranfrenteflat. Capitalestimacionmodelpremiums/Taylor2S1sigma0/thetafreeze debenidentificarse. Cierreunicamenteprosa/tablas desdeartefactos, sin recalibracion. Evidencia HESTON_PHASE_6_4c63e19.md.
 
 Fase5 b4cb3d6 APPROVED con limitaciones no bloqueantes según prioridad humana: inversión1D3d/K12.5cambia IV0.43422256->0.42854222al refinar; repricioQLdifiere0.002706USD(supera0.002), no afecta modeloHestonni cartera31/59d(maxmuestra0.00093). EndpointsIV0.01no identificados, no usarlos como señal/greek. Callsadaptadorfechas/integración difierehasta0.000404USDde curva común; detalles y reportes de cobertura corregir en síntesis6sin ronda5. Evidencia HESTON_PHASE_5_b4cb3d6.md. No tolerancia relajada ni precisión uniforme prometida.
