@@ -1,5 +1,7 @@
 # Protocolo de coordinación vigente
 
+Prioridad humana definitiva22-nov: NO reabrir0–4 ni repetir calibración/auditorías aprobadas; completar5(superficie) y6(comparación,griegas,stress) reutilizando lo existente.7/8se reducen a coherencia de resultados principales, tablas/figuras necesarias, limitaciones y exposición10min. Rechazar solo por error material demostrado en valoración, calibración, consistencia financiera, reproducción básica o conclusión importante; defectos menores/robustez artificial no bloquean. Antes de pedir trabajo: «¿Es realmente necesario para que funcione, sea defendible y explicable en diez minutos?»; si no, no solicitarlo. Comunicación/informes breves, sin documentación duplicada, frameworks, hardening ni ampliación metodológica. Continuación autónoma y simplificaciones compatibles autorizadas; conservar rigor, revisión humana final y no merge. Esta instrucción prevalece sobre exigencias anteriores de pruebas o documentación innecesarias.
+
 Autorización humana de 21-nov-2026 permite a Codex dirigir y aprobar técnicamente fases ordinarias Heston, pedir reparaciones y continuar. Sustituye la pausa humana tras cada ronda SVI. Revisión humana final o bloqueo metodológico fundamental detiene el trabajo. Ningún cambio documental amplía ese alcance.
 
 Roles y escritura según AGENTS.md. Coordinación y auditorías en rama independiente, implementación Gemini en su propio worktree. Evitar escrituras simultáneas de documentos compartidos mediante asignación y transferencia de commits.

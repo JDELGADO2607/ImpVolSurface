@@ -12,8 +12,8 @@ Estados permitidos NOT_STARTED, IN_PROGRESS, READY_FOR_AUDIT, APPROVED, REJECTED
 | 4 | Calibración definitiva global y refinamiento | 3 | APPROVED | 3 |
 | 5 | Precios Heston e IV equivalentes por tipo | 4 | IN_PROGRESS | 0 |
 | 6 | Integración en comparación, griegas, cartera y stress | 5 | NOT_STARTED | 0 |
-| 7 | Regeneración global, integridad y auditoría | 6 | NOT_STARTED | 0 |
-| 8 | Síntesis académica, documento y defensa de diez minutos | 7 | NOT_STARTED | 0 |
+| 7 | Comprobar resultados principales y regenerar tablas/figuras necesarias | 6 | NOT_STARTED | 0 |
+| 8 | Limitaciones y exposición académica de diez minutos, cierre mínimo | 7 | NOT_STARTED | 0 |
 
 Los [criterios](docs/context/ACCEPTANCE_CRITERIA.md) gobiernan la revisión. Fase 1 es un gate de viabilidad, admite detener la migración por limitación fundamental. Fase 4 puede calibrar con QuantLib si el coste del solver propio obliga, con validación posterior de precios propios.
 
