@@ -36,7 +36,7 @@ Supuestos los comunes y los que se congelen en fase 0. Consecuencias Conservar E
 
 ## H-005 — ADI y ejercicio
 
-Fecha 2026-11-21. Estado PROPOSED.
+Fecha 2026-11-21. Estado SUPERSEDED por H-005A; se conserva la propuesta original.
 Problema adi y ejercicio. Alternativas mcs, hv, penalización, splitting it.
 Decisión MCS con obstáculo IT es candidato sujeto a comparación y documentación. Justificación y evidencia Literatura en marco matemático.
 Supuestos los comunes y los que se congelen en fase 0. Consecuencias Decisión concreta antes de fase 2.
@@ -81,3 +81,13 @@ D08 del [alcance inicial](../00_Alcance_y_auditoria.md) queda SUPERSEDED por H-0
 Las garantías de DEC-009/010/014/016 específicas de SVI quedan SUPERSEDED para diseño Heston y cuestionadas para R3 por auditoría. DEC-015 de cuarentena sigue describiendo comportamiento histórico, sin definir la muestra nueva.
 DEC-001/003/004/005/007/012 conservan utilidad, su aplicabilidad se confirma por fase. DEC-008/013/017 y documentación de tasas tienen defectos abiertos, no equivalen a implementación certificada.
 La pausa humana obligatoria entre rondas SVI queda SUPERSEDED para las fases ordinarias Heston por H-009. Las puertas antiguas son historia y no aprueban ni bloquean por sí mismas una fase nueva.
+
+## H-005A - Metodo para implementar el solver2D
+
+Fecha2026-11-21. Estado ACCEPTED para implementacion experimental en fase2, no validacion final.
+Problema concretar un algoritmo publicado despues de aprobar PoC. Alternativas MCS-IT, HV-IT o proyeccion simple. Decision MCS con theta_ADI=1/3 y obstaculo Ikonen-Toivanen, con etapas y multiplicador documentados. Justificacion alcance academico, termino cruzado y referencia primaria Haentjens/In t Hout, https://arxiv.org/pdf/1309.0110, secciones3-4. No se acepta proyeccion final aislada como implementacion IT.
+Supuestos malla/fronteras justificadas y curva determinista comun. Consecuencias resolver sistemas por direccion, tratar frontera v=0 degenerada y tasas en t=T-tau; someter a pruebas antes de calibrar. Evidencia de viabilidad del modelo: auditoria HESTON_PHASE_1_654d1c2.md. La estabilidad y precision del codigo propio aun no estan demostradas. Detalle vigente PHASE_2_START.md.
+
+## Concrecion de H-006/H-007 tras fases0/1
+
+Fecha2026-11-21, estado ACCEPTED, sin reemplazar fuentes historicas. Curva determinista CMT17-nov con repricing de instrumentos sinteticos y descuento comun; no bonos individuales observados ni bootstrap completo de instrumentos de mercado. Fase0 SHA0fb8758 aprobada. Muestra97 puts,60train/22strike-holdout/15tenor-holdout,142calls externas; codigo y reglas de seleccion en SHA654d1c2, no nuevos filtros para mejorar ajuste. Evidencias en auditorias de fases0/1. Los parametros son Q, con identificacion limitada y rho cercano al limite; no exigir Feller por ello.

@@ -1,9 +1,8 @@
 # Avance Heston
 
-PHASE_0 APPROVED, ultimo SHA aprobado0fb87583c6f4023049a4e6f4ae5c36c7aad247d3.
-PHASE_1 REJECTED, SHA3a294af73f0215e0435223d20015545245164bdf. Reparacion3/3, ultimo intento ordinario.
-F1-01/F1-03 resueltos en dominio probado; F1-02 residual LOW; F1-04 HIGH parcial: se selecciona fila exenta de replay, SSE declarada0 frente a real0.586187USD2.
-22tests aprobados sin cambios de hashes oficiales; precios publicados intactos frente a af105d1, gate de ajuste favorable.
-[Informe](../audits/HESTON_PHASE_1_3a294af.md).
-Siguiente accion reparacion3 focalizada de validacion/seleccion cache y lineas documentales. Nuevo SHA y auditoria antes de fase2. Si persiste defecto material no abrir cuarta ronda automatica.
-Run run_0891738e9cf5, reparacion3 activa ctx_6b652fb70838, task task_01bc5eea818d; informe commit eafb0551f9aa9b2861def21c33584485f12c108f. Cuota restante no expuesta.
+Fase actual PHASE_2 IN_PROGRESS, motor propio2D MCS-IT. Ultimo SHA aprobado654d1c2d05a0301dc3068cdc34219df3d42d2af7.
+CONTEXT_SETUP y PHASE_0 APPROVED. PHASE_1 APPROVED tras3 reparaciones. PHASE_2 intento inicial,0 reparaciones. PHASE_3-8 NOT_STARTED.
+F1-01,F1-02,F1-03,F1-04 cerrados para el alcance PoC; sin hallazgos materiales abiertos que bloqueen fase2. Limites de identificacion/datos y benchmark SVI historico declarados; no equivalen a aprobacion global.
+[Auditoria fase1](../audits/HESTON_PHASE_1_654d1c2.md). [Encargo fase2](PHASE_2_START.md). H-005A acepta MCS-IT experimental; no autoriza calibracion definitiva antes de validar en fase3.
+Proxima accion Gemini implementa y entrega SHA nuevo; Codex audita extraccion limpia. Objetivo final humano pendiente, PR5 y PR4 abiertos, sin merge.
+Run run_0891738e9cf5, ultima entrega ctx_6b652fb70838. Registrar dispatch fase2. Cuota restante no expuesta.

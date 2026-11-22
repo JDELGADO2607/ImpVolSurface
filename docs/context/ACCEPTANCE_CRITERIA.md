@@ -19,8 +19,13 @@ Precisar en fase 0 la matriz de benchmark y partición sin fuga. Para fase 1, va
 
 La convergencia requiere al menos tres resoluciones y variación separada de espacio, tiempo y dominio cuando el caso lo requiera. Una coincidencia entre dos motores a una resolución no basta. Error comparativo se confronta con estimaciones independientes de ambos motores. Los fallos económicos deben exceder error numérico justificado para clasificarse materiales.
 
-No hay tolerancias numéricas definitivas aprobadas todavía. No ejecutar selección oportunista de resultados para fijarlas después. No aceptar un mínimo artificial de tamaño de muestra. Reducciones justificadas de dominio conservan cobertura y comparación común.
+Estado inicial SUPERSEDED: las tolerancias vigentes se fijan por fase en los informes aprobados y especificaciones enlazadas abajo. No ejecutar selección oportunista de resultados para fijarlas después. No aceptar un mínimo artificial de tamaño de muestra. Reducciones justificadas de dominio conservan cobertura y comparación común.
 
 Una limitación de modelo/datos puede documentarse y aceptarse si el objetivo académico continúa siendo viable. Bloqueos fundamentales detienen la siguiente fase. Máximo tres reparaciones razonables por fase.
 
 Gate PoC fijado antes de calibracion en [auditoria 0fb8758](../audits/HESTON_PHASE_0_0fb8758.md). MAE train 0,080/RMSE0,120 USD, holdout por split MAE0,100, presupuesto numerico0,002. Diagnosticos relativos no constituyen rechazo aislado. Ver informe para dominios y limitaciones.
+
+## Gate predeclarado para fases2/3
+
+Fase2 implementa, no autoriza calibracion. Especificacion PHASE_2_START.md: doce smoke valuations (K11/12.33/15,31/94d, europeas y americanas) a vector PoC y curva comunes, max error inicial0.01USD frente a referencia refinada; equivale a un tick para detectar errores de implementacion. Ademas stencils, payoff, obstaculo, frontera v0, xi0/v0=theta y refinamiento separado.
+Fase3 realizara matriz mas amplia independiente, objetivo0.002USD (un quinto de tick) con error de referencia y dominio medidos. Estos umbrales corresponden a gates distintos, no a relajar un criterio tras ver resultados. No presentar precision inicial como validacion definitiva. No sustituir convergencia por coincidencia puntual. Fase3 se especificara por completo antes de ejecutar su seleccion de casos.

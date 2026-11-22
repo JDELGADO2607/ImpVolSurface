@@ -21,3 +21,8 @@
 | outputs/tables y outputs/figures | Artefactos R3 publicados | Mantener separados de nuevos Heston |
 
 Flujo actual Excel → limpieza → IV por contrato → superficie SVI → precios/cartera/stress/estrategias → tablas/figuras. El historial diario alimenta HAR-RV por otra ruta. Bibliotecas fijadas en requirements.txt. Heston todavía no tiene módulos comprometidos. Gemini definirá rutas mínimas en fase 0 y actualizará este mapa por transferencia acordada, sin anticipar componentes ficticios.
+
+## Actualizacion al aprobar fase1
+
+La descripcion anterior corresponde al estado inicial historico. En la rama de implementacion, SHA654d1c2, existen src/heston/rates_curve.py (curva y adaptador diario QuantLib), option_selection.py (seleccion trazable), data_split.py (particiones), baseline_pricing.py, pipeline_phase0.py, heston_model.py (motores QuantLib), calibration.py (multistart) y pipeline_phase1.py (validacion de cache y evaluaciones). Entradas/salidas aisladas data/heston/ y data/heston/phase1/. Tests test_heston_phase0.py y test_heston_phase1.py. Dependencias requirements-heston.txt.
+Estos archivos estan en la rama de implementacion, no se copian como codigo a coordinacion. El solver propio aun no existe en el SHA aprobado; Gemini lo incorporara en fase2 y proporcionara mapa actualizado con commit verificable.

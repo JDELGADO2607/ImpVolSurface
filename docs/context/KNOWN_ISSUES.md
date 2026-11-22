@@ -20,3 +20,7 @@ SHA de detección de todas estas filas `3d81ff18cae3a9f8dc74c174015fed17031a8da8
 R2 en 855eb1cfbd300ddf488bd02d348883f5eac756b8 tenía B1/H1–H5/M1–M3/L1–L2. La matriz completa de resolución y reproducción está en el informe R3. H5 (put K14,75 a 31/37d), M3 (fuga HAR corta) y L1 (cifras straddle Base) se resolvieron en sus contraejemplos concretos. H5 no es demostración global. M3 dejó el nuevo error de muestra vacía L-R3-2. Las restantes resoluciones son parciales o abiertas según esa matriz.
 
 Estados admitidos Abierto, Resuelto, Parcialmente resuelto, No verificable y Obsoleto por cambio metodológico. Congelar SVI no convierte automáticamente sus hallazgos en obsoletos para el benchmark histórico.
+
+## Estado especifico Heston al aprobar fase1
+
+F0-01/F0-02/F0-03 cerrados para la linea base en0fb8758. F1-01,F1-02,F1-03,F1-04 cerrados para PoC en654d1c2; evidencia y reproduccion en HESTON_PHASE_1_654d1c2.md y sus referencias historicas. Los cierres no se trasladan al benchmark SVI ni a modulos financieros aun no integrados. Limitaciones abiertas de datos/identificacion se aceptan para viabilidad, sin prometer parametros unicos ni exactitud global.

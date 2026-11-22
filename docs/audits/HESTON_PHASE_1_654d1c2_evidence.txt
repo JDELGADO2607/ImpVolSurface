@@ -1,0 +1,21 @@
+===== independent cache validation =====
+VALID_CACHE_SELECTED 2 {'v0': 0.18613777847584, 'kappa': 2.7254603668370714, 'theta': 0.2136796992000426, 'xi': 0.4817847258429695, 'rho': -0.9498066630129804, 'feller_ratio': 5.017958620178884, 'feller_satisfied': True, 'spot_vol': 0.4314368765831683, 'long_term_vol': 0.4622550153324922}
+FINE_TABLE_DELTA 9.71445146547012e-17
+REPLAY 1 0.08806700976234906 stored 0.0880670097623484 delta 6.661338147750939e-16
+REPLAY 2 0.08664898485384938 stored 0.0866489848538466 delta 2.7755575615628914e-15
+REPLAY 3 0.5861874690884654 stored 0.5861874690882811 delta 1.8429702208777599e-13
+REPLAY 4 0.08904358807667545 stored 0.0890435880766701 delta 5.35682609381638e-15
+REPLAY 5 0.08779177256160134 stored 0.0877917725615952 delta 6.13398221105399e-15
+REPLAY_MAX 1.8429702208777599e-13
+STATUS2_ZERO_REJECTED Cache validation failed: start 4 cached SSE 0.00000000 USD^2 does not match replayed SSE 0.08904359 USD^2 on calibration grid (diff = 8.90e-02 USD^2).
+INVALID_RMSE_REJECTED nan Cache validation failed: start 5 has invalid final_rmse = nan. RMSE must be non-negative and finite.
+INVALID_RMSE_REJECTED inf Cache validation failed: start 5 has invalid final_rmse = inf. RMSE must be non-negative and finite.
+INVALID_RMSE_REJECTED -1.0 Cache validation failed: start 5 has invalid final_rmse = -1.0. RMSE must be non-negative and finite.
+INPUT_HASHES True
+DONE
+
+===== pytest and hashes =====
+.........................                                                [100%]
+25 passed in 27.74s
+
+HASH_CHANGES []
