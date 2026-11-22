@@ -1,0 +1,23 @@
+{
+  "puts_total": 97,
+  "puts_heston_converged": 88,
+  "puts_heston_unidentifiable": 9,
+  "puts_market_converged": 96,
+  "puts_both_converged_for_iv_diff": 88,
+  "puts_price_mae_usd": 0.023847251618034176,
+  "puts_price_rmse_usd": 0.03403626589561799,
+  "puts_iv_mae_pct": 2.519825260995121,
+  "puts_iv_rmse_pct": 5.005159806040342,
+  "calls_total": 142,
+  "calls_heston_converged": 140,
+  "calls_market_converged": 138,
+  "calls_both_converged_for_iv_diff": 137,
+  "calls_price_mae_usd": 0.08729127841786971,
+  "calls_price_rmse_usd": 0.128092072090881,
+  "calls_iv_mae_pct": 12.753105721271199,
+  "calls_iv_rmse_pct": 30.63941979781942,
+  "grid_35_puts_converged": 29,
+  "grid_35_calls_converged": 33,
+  "control_cases_discrepancy_max_usd": 0.0009101083094256168,
+  "control_cases_passed_all": true
+}

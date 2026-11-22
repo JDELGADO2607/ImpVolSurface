@@ -1,0 +1,69 @@
+{
+  "phase": "PHASE_5",
+  "description": "Equivalent Implied Volatility Surface from Heston Model",
+  "timestamp_utc": "2026-11-22T14:52:04.139210+00:00",
+  "input_files": {
+    "calibrated_parameters": {
+      "path": "data\\heston\\phase4\\heston_calibrated_parameters.json",
+      "sha256": "8ec92916e726317358563c1c62f729d3770dd60c026d2854cb33fbbba9ebb705"
+    },
+    "phase4_full_puts": {
+      "path": "data\\heston\\phase4\\heston_pricing_full_puts.csv",
+      "sha256": "252207054c5001608a470bab4ad6e601e431a0aa92f80ea316687afe07256d2b"
+    },
+    "calls_contrast": {
+      "path": "data\\heston\\data_split_calls_contrast.csv",
+      "sha256": "1ec1d2fd455aa5c31e464be8bb1e630a3080126e93ac5ad85fb6a3442aaeed07"
+    }
+  },
+  "output_files": {
+    "control_cases_1d_quantlib": {
+      "path": "data\\heston\\phase5\\control_cases_1d_quantlib.csv",
+      "rows": 6,
+      "sha256": "7c20571a4042102a3fc09f79c4759c065db3e552b80ae9b5a916c550fe17cef3"
+    },
+    "mesh_sensitivity_1d_controls": {
+      "path": "data\\heston\\phase5\\mesh_sensitivity_1d_controls.csv",
+      "rows": 6,
+      "sha256": "0aaf57e00f37b3390389b507f7dc3e664b02bf767341b7c16e1d58393ac04b3f"
+    },
+    "heston_iv_surface_97_puts": {
+      "path": "data\\heston\\phase5\\heston_iv_surface_97_puts.csv",
+      "rows": 97,
+      "sha256": "cefc9c2b2296fba3a242736af6a318be7f8519c9489b19b08d68405b46f811ea"
+    },
+    "heston_iv_surface_142_calls": {
+      "path": "data\\heston\\phase5\\heston_iv_surface_142_calls.csv",
+      "rows": 142,
+      "sha256": "f702e0bb8fd336e09c7c7577bb07ebd8e37c202306077a2ce77848b425c2b296"
+    },
+    "heston_descriptive_grid_35_puts": {
+      "path": "data\\heston\\phase5\\heston_descriptive_grid_35_puts.csv",
+      "rows": 35,
+      "sha256": "b345206b20703d98bfa97bec1871b7197042c73937b005bf1c24c753ace3a385"
+    },
+    "heston_descriptive_grid_35_calls": {
+      "path": "data\\heston\\phase5\\heston_descriptive_grid_35_calls.csv",
+      "rows": 35,
+      "sha256": "5b39a7059538c7f290afc6f8f0a431be422b3cc7b249f4d6587b76f52c22a35d"
+    },
+    "phase5_summary_metrics": {
+      "path": "data\\heston\\phase5\\phase5_summary_metrics.json",
+      "sha256": "a3baebfc0a7027454b23a52c985b74173683f1c2ea19c9f610775f9f0624b47d"
+    }
+  },
+  "figures": [
+    "figures\\phase5\\heston_iv_surface_puts_3d.png",
+    "figures\\phase5\\heston_iv_surface_calls_3d.png",
+    "figures\\phase5\\heston_iv_smile_slices.png",
+    "figures\\phase5\\heston_iv_grid_35_points.png"
+  ],
+  "calibrated_parameters_used": {
+    "v0": 0.18613777847584,
+    "kappa": 2.72546036683707,
+    "theta": 0.21367969920004,
+    "xi": 0.48178472584297,
+    "rho": -0.94980666301298
+  },
+  "runtime_seconds": 255.04
+}

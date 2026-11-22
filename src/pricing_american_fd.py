@@ -36,7 +36,7 @@ def fd_american_grid(
     S_ref: float,
     K: float,
     tau: float,
-    r: float,
+    r: float | Any,
     sigma: float,
     q: float = 0.0,
     M: int = 300,
@@ -50,6 +50,7 @@ def fd_american_grid(
 ) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
     """
     Solves the American PDE on a fixed spatial grid S in [0, S_max].
+    Supports scalar risk-free rate r or deterministic yield curve (evaluating r(t = T - tau)).
     Returns (S_grid, V, diagnostics).
     """
     kind = kind.upper()
@@ -81,10 +82,16 @@ def fd_american_grid(
         }
         return S_grid, V_star.copy(), diag
 
+    # Helper for rate and discount queries
+    is_curve = hasattr(r, 'get_instantaneous_forward_rate') or callable(r)
+
     # Degenerate volatility case
     if sigma <= 1e-12:
-        df = np.exp(-r * tau)
-        fwd = S_grid * np.exp((r - q) * tau)
+        if hasattr(r, 'get_discount_factor'):
+            df = r.get_discount_factor(tau)
+        else:
+            df = np.exp(-float(r) * tau)
+        fwd = S_grid * np.exp(-q * tau) / df if df > 0 else S_grid
         if kind == 'C':
             V_deg = np.maximum(S_grid - K, df * np.maximum(fwd - K, 0.0))
         else:
@@ -105,9 +112,13 @@ def fd_american_grid(
 
     # Spatial operator L coefficients for interior nodes j = 1, ..., M-1
     j = np.arange(1, M)
-    alpha = 0.5 * (sigma ** 2) * (j ** 2) - 0.5 * (r - q) * j
-    beta = -(sigma ** 2) * (j ** 2) - r
-    gamma = 0.5 * (sigma ** 2) * (j ** 2) + 0.5 * (r - q) * j
+    j2 = j ** 2
+    sig2 = sigma ** 2
+    if not is_curve:
+        r_const = float(r)
+        alpha = 0.5 * sig2 * j2 - 0.5 * (r_const - q) * j
+        beta = -sig2 * j2 - r_const
+        gamma = 0.5 * sig2 * j2 + 0.5 * (r_const - q) * j
 
     # Time stepping schedule with Rannacher smoothing
     dt = tau / N
@@ -134,6 +145,19 @@ def fd_american_grid(
     V_star_int = V_star[1:M]
 
     for step_dt, theta in steps:
+        if is_curve:
+            tau_mid = current_tau + 0.5 * step_dt
+            t_cal = max(tau - tau_mid, 1e-6)
+            if hasattr(r, 'get_instantaneous_forward_rate'):
+                r_step = float(r.get_instantaneous_forward_rate(t_cal))
+            elif callable(r):
+                r_step = float(r(t_cal))
+            else:
+                r_step = float(r)
+            alpha = 0.5 * sig2 * j2 - 0.5 * (r_step - q) * j
+            beta = -sig2 * j2 - r_step
+            gamma = 0.5 * sig2 * j2 + 0.5 * (r_step - q) * j
+
         current_tau += step_dt
         explicit_weight = 1.0 - theta
         implicit_weight = theta
@@ -145,7 +169,11 @@ def fd_american_grid(
         # Boundary conditions at current_tau
         if kind == 'C':
             V_0_new = 0.0
-            V_M_new = S_max - K * np.exp(-r * current_tau)
+            if hasattr(r, 'get_discount_factor'):
+                df_cur = r.get_discount_factor(current_tau)
+            else:
+                df_cur = np.exp(-float(r) * current_tau)
+            V_M_new = S_max - K * df_cur
         else:
             V_0_new = K
             V_M_new = 0.0
@@ -247,7 +275,7 @@ def fd_american_price(
     S0: float,
     K: float,
     tau: float,
-    r: float,
+    r: float | Any,
     sigma: float,
     q: float = 0.0,
     M: int = 300,
@@ -264,6 +292,7 @@ def fd_american_price(
     """
     Prices an American option using Crank-Nicolson PDE with Rannacher smoothing,
     penalty iteration (Forsyth & Vetzal, 2002), and PCHIP safe interpolation.
+    Supports scalar r or DeterministicYieldCurve term structure.
     """
     S_grid, V, diag = fd_american_grid(
         kind=kind,
@@ -305,7 +334,7 @@ def price_american_option(
     S: float,
     K: float,
     tau: float,
-    r: float,
+    r: float | Any,
     sigma: float,
     q: float = 0.0,
     method: str = "auto",
@@ -321,9 +350,18 @@ def price_american_option(
     """
     kind = kind.upper()
     if method == "auto":
-        if kind == 'C' and q <= 1e-8 and r >= -1e-8:
-            from src.pricing_bs import bs_price
-            return bs_price('C', S, K, tau, r, sigma, q)
+        if kind == 'C' and q <= 1e-8:
+            if isinstance(r, (int, float)) and r >= -1e-8:
+                from src.pricing_bs import bs_price
+                return bs_price('C', S, K, tau, r, sigma, q)
+            elif hasattr(r, 'get_zero_rate'):
+                from src.pricing_bs import bs_price
+                return bs_price('C', S, K, tau, r.get_zero_rate(tau), sigma, q)
+            else:
+                return fd_american_price(
+                    kind, S, K, tau, r, sigma, q,
+                    M=M, N=N, S_max=S_max, interp_method=interp_method
+                )
         else:
             return fd_american_price(
                 kind, S, K, tau, r, sigma, q,
