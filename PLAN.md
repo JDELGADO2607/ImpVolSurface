@@ -8,8 +8,8 @@ Estados permitidos NOT_STARTED, IN_PROGRESS, READY_FOR_AUDIT, APPROVED, REJECTED
 | 0 | Congelacion, datos, tasas, dependencias y baseline | CONTEXT_SETUP | APPROVED | 1 |
 | 1 | PoC QuantLib puts americanas | 0 | APPROVED | 3 |
 | 2 | Solver propio 2D, ADI y obstáculo | 1 | APPROVED | 1 |
-| 3 | Validación independiente del solver contra QuantLib | 2 | REJECTED | 3 |
-| 4 | Calibración definitiva global y refinamiento | 3 | NOT_STARTED | 0 |
+| 3 | Validación independiente del solver contra QuantLib | 2 | APPROVED | 3 |
+| 4 | Calibración definitiva global y refinamiento | 3 | IN_PROGRESS | 0 |
 | 5 | Precios Heston e IV equivalentes por tipo | 4 | NOT_STARTED | 0 |
 | 6 | Integración en comparación, griegas, cartera y stress | 5 | NOT_STARTED | 0 |
 | 7 | Regeneración global, integridad y auditoría | 6 | NOT_STARTED | 0 |

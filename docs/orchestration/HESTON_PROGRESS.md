@@ -1,9 +1,9 @@
 # Avance Heston
 
-Ultimo SHA aprobadoea0df6f097904352e5345bb6fbc712008e319bf2 (PHASE_2). PHASE_3 REJECTED en344ae4af1460ec2bc2ae6a28eac382f3c12c32ae, reparacion3/3 ultimo intento ordinario. Fase4/calibracion no autorizada.
-CONTEXT_SETUP/PHASE_0/PHASE_1/PHASE_2 APPROVED. Reparaciones fase0=1,fase1=3,fase2=1,fase3=3. Fases4-8 NOT_STARTED.
-F3-M1 MEDIUM parcial: error1/NaN y etiquetas ahora controlados, pero origen invalido permitePASSED, precios economicos reutilizados no se verifican y dependencias de precio solo se registran sin comparacion. F3-M2 cerrado materialmente; F3-L2 metadata resuelto; F3-L1 temporal LOW aceptado.
-56tests PASS sin escrituras oficiales;7tablas precio intactas37bbd12. Motor/precios actuales favorables, no recalibrar ni redisenar para reparar validacion.
-[Informe](../audits/HESTON_PHASE_3_344ae4a.md). [Criterios](PHASE_3_START.md).
-Proxima accion corregir tres guardas o eliminar reutilizacion y ejecutar evaluacion fresca aislada, con origen verdadero. Nuevo SHA y auditoria. Si persiste defecto material tras reparacion3, no cuarta ronda automatica; registrar bloqueo y causa/alternativa.
-Run run_0891738e9cf5, reparacion3 fase3 activa ctx_d42b25ff3875, task task_3ef280157c05; informe commit5678fc786361a51a399d262bba073ceffc24f10e. PR5/PR4 OPEN. Cuota restante no expuesta. Sin merge.
+Ultimo SHA tecnicamente aprobado:09d9beb060a4a80d9dc4ae7035407cbc8e81e061 (PHASE_3). Fase4 IN_PROGRESS; especificacion lista, pendiente registro de dispatch.
+CONTEXT_SETUP y fases0-3 APPROVED. Reparaciones0=1,1=3,2=1,3=3. Fases5-8 NOT_STARTED.
+F3-M1 RESUELTO; F3-M2 cerrado materialmente; F3-L2 RESUELTO. F3-L1 temporal y F3-L3 editorial LOW aceptados, pendientes de integracion/sintesis. No defectos materiales abiertos de fase3; no aprobacion global de PR ni parametros futuros.
+60tests PASS/171.55s, corrida aislada PASS, contraejemplos integridad rechazados,116archivos oficiales sin cambios. Siete tablas de precios byte-identicas37bbd12; no cambios de motor ni recalibracion en la reparacion.
+[Informe](../audits/HESTON_PHASE_3_09d9beb.md). [Encargo4 detallado](PHASE_4_START.md). [Protocolo](PROTOCOL.md).
+Proxima accion entregar PHASE_START4: tres refinamientos locales, mismos datos/curva/bounds, seleccion solo train, evaluacion holdout posterior y control numerico final propio/QL. No fase5 antes de PHASE_APPROVED de nuevo SHA.
+Run run_0891738e9cf5. Ultimo worker fase3 ctx_d42b25ff3875/task_3ef280157c05 terminado. PR4/PR5 OPEN. Sin merge/force-push. Cuota restante no expuesta.

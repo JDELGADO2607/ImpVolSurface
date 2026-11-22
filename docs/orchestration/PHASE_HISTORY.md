@@ -32,3 +32,5 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | Reparacion2 fase3 dispatch aceptado | ctx_5771a878bb22, task_f597110b247e; informe77ed682 accesible, PR4 OPEN |
 | 2026-11-21 | PHASE_3 REJECTED tras reparacion2; reparacion3/3 autorizada | 344ae4a,56tests PASS; guardas de integridad/economia/fuente pendientes, errores numericos y metadata corregidos; motor intacto |
 | 2026-11-21 | Reparacion3 fase3 dispatch aceptado, ultimo intento ordinario | ctx_d42b25ff3875, task_3ef280157c05; informe5678fc7 accesible, PR4 OPEN; alternativa fresh autorizada sin infraestructura adicional |
+| 2026-11-22 | PHASE_3 APPROVED tras reparacion3/3 | SHA09d9beb completo en informe; F3-M1 cerrado,60tests y corrida aislada aprobados;116archivos oficiales intactos; LOW temporal/editorial registrados, sin cuarta reparacion |
+| 2026-11-22 | PHASE_4 IN_PROGRESS, criterios fijados antes de ejecucion | PHASE_4_START.md;3refinamientos locales2/5/1, train60, holdouts22/15 congelados; optimizacion QL y contraste propio autorizados |
