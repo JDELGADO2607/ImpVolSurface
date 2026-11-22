@@ -6,4 +6,4 @@ F2-M1 y aspectos materiales de F2-M2 cerrados. F2-L1 LOW limites pequenos de int
 38tests PASS sin escrituras oficiales; API puts valida y precios iniciales reproducidos. No habilita calibracion ni griegas operativas.
 [Auditoria fase2](../audits/HESTON_PHASE_2_ea0df6f.md). [Criterios congelados fase3](PHASE_3_START.md):97contratos y108precios en6regimenes,limites y refinamientos,objetivo0.002USD con referencia medida.
 Proxima accion Gemini entrega validacion y SHA nuevo; Codex audita antes de fase4. Sin merge y revision humana final pendiente.
-Run run_0891738e9cf5, ultima entrega ctx_f4c5135b9258. Registrar dispatch fase3. PR5/PR4 OPEN. Cuota restante no expuesta.
+Run run_0891738e9cf5, fase3 activa ctx_4970fa04f5d2, task task_47d1d8249cd0; auditoria/criterios commit8ddc5542cec09d0c79ac63ac87a1080c97e37ffa. PR5/PR4 OPEN. Cuota restante no expuesta.
