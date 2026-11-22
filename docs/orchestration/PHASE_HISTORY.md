@@ -54,3 +54,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-22 | PHASE_START6 aceptado porOrca |ctx_8a89c93e7fb9/task_81d6ea6c8cb9,informe5/encargo6d3d7a78publicos;esperar evento sin polling |
 | 2026-11-22 | PHASE_6y7 APPROVED calculos/reproduccion |4c63e19,comandoHeston30.1s/6tablascoinciden,6testsnuevosPASS,5patasQLconfirmanriesgos/hedge. No cambiosnumericos necesarios |
 | 2026-11-22 | Cierre8 IN_PROGRESS soloDocs |Reconciliarreporte/guionconCSV,por discrepanciasrealesdeprimas/Greeks/porcentajes;sinrecalcularni desarrollarfuncionalidades |
+| 2026-11-22 | Cierre8soloDocs aceptado porOrca |ctx_b8e32e0e2f37/task_8e3e3419895f,informe/encargo2d1f7bfaccesibles;esperar evento y revisar diff,no mas calculos |
