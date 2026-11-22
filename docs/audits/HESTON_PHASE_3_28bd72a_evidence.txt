@@ -1,0 +1,44 @@
+===== audit_cache_gate.log =====
+CACHE_PROBE legitimate original_hash_matches True overall PASSED market_status PASSED market_max_err 0.0005457561607178 prices_source 37bbd12d52819c765c64a950333962af9410073d
+CACHE_PROBE raw_price_changed original_hash_matches False overall PASSED market_status PASSED market_max_err 0.0005457561607178 prices_source 37bbd12d52819c765c64a950333962af9410073d
+ACTUAL_PRICE_ERROR_ROW0 1.0
+CACHE_PROBE numeric_failure_label_PASS original_hash_matches False overall PASSED market_status PASSED market_max_err 1.0 prices_source 37bbd12d52819c765c64a950333962af9410073d
+DONE
+
+
+===== audit_diagnostics.log =====
+BITWISE_PRICES market_97_puts_validation.csv True
+BITWISE_PRICES market_97_summary_by_tenor.csv True
+BITWISE_PRICES market_97_summary_by_partition.csv True
+BITWISE_PRICES market_worst3_refinement.csv True
+BITWISE_PRICES hypothetical_regimes_108.csv True
+BITWISE_PRICES regimes_mesh_refinement.csv True
+BITWISE_PRICES continuity_edge_cases.csv True
+OUTPUT_HASHES True
+INPUT_HASH puts_selected_clean True
+INPUT_HASH options_clean True
+INPUT_HASH treasury_cmt_raw True
+INPUT_HASH rates_treasury_manifest True
+INPUT_HASH data_split_manifest True
+INPUT_HASH phase0_manifest True
+INPUT_HASH phase1_manifest True
+SOURCE_HASH pipeline_phase3.py exact False lf_match True crlf_match False
+SOURCE_HASH solver_2d.py exact False lf_match True crlf_match False
+SOURCE_HASH heston_model.py exact False lf_match True crlf_match False
+SOURCE_HASH rates_curve.py exact False lf_match True crlf_match False
+CALENDAR_REPLAY_MAX 1.1102230246251565e-16
+CALENDAR_COUNT 36 RAW_NEGATIVE 4 TOL_VIOLATIONS 0
+
+   Evaluating Rates Curve step integration across CMT knots...
+RATES_REPLAY_MAX 8.470329472543003e-22
+QL_CONTINUOUS_D_MAX 2.634242888044369e-06
+V0_ZERO_ROWS [{'abs_err_usd': nan, 'max_abs_err_usd': 0.0, 'status_target_002': 'N/A_NO_REF', 'ql_status': 'UNSUPPORTED', 'ql_exception': "RuntimeError('0: invalid value')"}]
+SCIPY_METADATA scipy.stats._continuous_distns
+DONE
+
+
+===== audit_tests.log =====
+.................................................                        [100%]
+49 passed in 107.89s (0:01:47)
+
+HASH_CHANGES []
