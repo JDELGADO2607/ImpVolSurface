@@ -365,4 +365,8 @@ def run_pipeline(
     return 0
 
 if __name__ == "__main__":
+    if "--heston" in sys.argv:
+        from src.heston.pipeline_phase6 import run_phase6_pipeline
+        manifest = run_phase6_pipeline()
+        sys.exit(0 if manifest else 1)
     run_pipeline(raise_on_error=True)
