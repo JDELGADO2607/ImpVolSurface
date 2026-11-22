@@ -1,0 +1,48 @@
+===== audit_integrity.log =====
+GATE_CASE legitimate overall PASSED source 37bbd12d52819c765c64a950333962af9410073d market PASSED economic PASSED
+GATE_CASE old_price_plus_one overall FAILED source UNVERIFIED_OR_FRESH_EXECUTION market FAILED economic PASSED
+GATE_CASE old_error_one overall FAILED source UNVERIFIED_OR_FRESH_EXECUTION market FAILED economic PASSED
+GATE_CASE paired_price_and_reference overall PASSED source UNVERIFIED_OR_FRESH_EXECUTION market PASSED economic PASSED
+STRICT_TRUE_REJECTS SnapshotIntegrityError
+GATE_CASE economic_prices_replaced overall PASSED source 37bbd12d52819c765c64a950333962af9410073d market PASSED economic PASSED
+SOURCE_CONTROL_LEGITIMATE_ROOT (True, 'All inputs and parameter dependencies verified against snapshot')
+CHANGED_PRICING_SOURCE_VERIFICATION True All inputs and parameter dependencies verified against snapshot theta_ADI_changed_1_3_to_1_2
+DONE
+
+
+===== audit_diagnostics.log =====
+BITWISE_PRICES market_97_puts_validation.csv True
+BITWISE_PRICES market_97_summary_by_tenor.csv True
+BITWISE_PRICES market_97_summary_by_partition.csv True
+BITWISE_PRICES market_worst3_refinement.csv True
+BITWISE_PRICES hypothetical_regimes_108.csv True
+BITWISE_PRICES regimes_mesh_refinement.csv True
+BITWISE_PRICES continuity_edge_cases.csv True
+OUTPUT_HASHES True
+INPUT_HASH puts_selected_clean True
+INPUT_HASH options_clean True
+INPUT_HASH treasury_cmt_raw True
+INPUT_HASH rates_treasury_manifest True
+INPUT_HASH data_split_manifest True
+INPUT_HASH phase0_manifest True
+INPUT_HASH phase1_manifest True
+SOURCE_HASH pipeline_phase3.py exact False lf_match True crlf_match False
+SOURCE_HASH solver_2d.py exact False lf_match True crlf_match False
+SOURCE_HASH heston_model.py exact False lf_match True crlf_match False
+SOURCE_HASH rates_curve.py exact False lf_match True crlf_match False
+CALENDAR_REPLAY_MAX 1.1102230246251565e-16
+CALENDAR_COUNT 36 RAW_NEGATIVE 4 TOL_VIOLATIONS 0
+
+   Evaluating Rates Curve step integration across CMT knots...
+RATES_REPLAY_MAX 8.470329472543003e-22
+QL_CONTINUOUS_D_MAX 2.634242888044369e-06
+V0_ZERO_ROWS [{'abs_err_usd': nan, 'max_abs_err_usd': nan, 'status_target_002': 'N/A_NO_REF', 'ql_status': 'UNSUPPORTED', 'ql_exception': "RuntimeError('0: invalid value')"}]
+SCIPY_METADATA 1.18.0
+DONE
+
+
+===== audit_tests.log =====
+........................................................                 [100%]
+56 passed in 123.05s (0:02:03)
+
+HASH_CHANGES []

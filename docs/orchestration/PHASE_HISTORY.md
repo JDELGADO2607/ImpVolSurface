@@ -30,3 +30,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | Reparacion1 fase3 dispatch aceptado | ctx_4c5de8c1d790, task_0b31f3ad8f73; informefb3f5c6 accesible, PR4 OPEN |
 | 2026-11-21 | PHASE_3 REJECTED tras reparacion1; reparacion2 autorizada | 28bd72a,49tests PASS,controles mejorados; F3-M1 pendiente por reuse no verificado/gate etiquetas; precios publicos intactos |
 | 2026-11-21 | Reparacion2 fase3 dispatch aceptado | ctx_5771a878bb22, task_f597110b247e; informe77ed682 accesible, PR4 OPEN |
+| 2026-11-21 | PHASE_3 REJECTED tras reparacion2; reparacion3/3 autorizada | 344ae4a,56tests PASS; guardas de integridad/economia/fuente pendientes, errores numericos y metadata corregidos; motor intacto |
