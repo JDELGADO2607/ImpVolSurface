@@ -1,0 +1,96 @@
+===== audit_samples.log =====
+MARKET_SAMPLE {'symbol': 'NU271217P00020000', 'replay_fine': np.float64(0.0), 'replay_default': np.float64(8.881784197001252e-16), 'replay_reference': np.float64(0.0), 'fine_error': 0.0005457561607178363, 'default_error': 0.0006833028918693529}
+MARKET_SAMPLE {'symbol': 'NU270617P00017000', 'replay_fine': np.float64(0.0), 'replay_default': np.float64(0.0), 'replay_reference': np.float64(0.0), 'fine_error': 0.00034567564768650527, 'default_error': 0.00035617749382144126}
+MARKET_SAMPLE {'symbol': 'NU280121P00015000', 'replay_fine': np.float64(0.0), 'replay_default': np.float64(0.0), 'replay_reference': np.float64(0.0), 'fine_error': 0.000279626224537477, 'default_error': 0.00029267459353965464}
+MARKET_SAMPLE {'symbol': 'NU261218P00012000', 'replay_fine': np.float64(5.551115123125783e-17), 'replay_default': np.float64(5.551115123125783e-17), 'replay_reference': np.float64(0.0), 'fine_error': -2.8509848794655568e-05, 'default_error': -0.00014276888776842966}
+MARKET_SAMPLE {'symbol': 'NU261218P00015000', 'replay_fine': np.float64(-4.440892098500626e-16), 'replay_default': np.float64(0.0), 'replay_reference': np.float64(0.0), 'fine_error': 0.0001873324022954037, 'default_error': 0.00026194639419241383}
+MARKET_SAMPLE {'symbol': 'NU290119P00008000', 'replay_fine': np.float64(0.0), 'replay_default': np.float64(0.0), 'replay_reference': np.float64(0.0), 'fine_error': 1.0793357093197287e-05, 'default_error': -0.00018826852239939296}
+MARKET_SAMPLE {'symbol': 'NU261224P00011500', 'replay_fine': np.float64(5.551115123125783e-17), 'replay_default': np.float64(5.551115123125783e-17), 'replay_reference': np.float64(5.551115123125783e-17), 'fine_error': -4.814895060767377e-06, 'default_error': -8.618237982577215e-05}
+MARKET_SAMPLE {'symbol': 'NU261218P00014000', 'replay_fine': np.float64(0.0), 'replay_default': np.float64(-2.220446049250313e-16), 'replay_reference': np.float64(0.0), 'fine_error': 4.39853707843163e-05, 'default_error': -1.657498171980798e-05}
+REGIME_SAMPLE A American 17.0 430.0 price_replay 0.0 ref_replay192_vs_saved 0.0 error 0.00037470196443400994
+REGIME_SAMPLE A American 9.0 10.0 price_replay 0.0 ref_replay192_vs_saved -1.6940658945086007e-21 error 7.182039479219701e-07
+REGIME_SAMPLE B American 17.0 430.0 price_replay 0.0 ref_replay192_vs_saved 0.0 error 0.00024530713153314565
+REGIME_SAMPLE B American 9.0 10.0 price_replay 0.0 ref_replay192_vs_saved 0.0 error 1.0178651661773396e-07
+REGIME_SAMPLE C American 17.0 430.0 price_replay 0.0 ref_replay192_vs_saved -8.881784197001252e-16 error 0.00023119994196907356
+REGIME_SAMPLE C American 9.0 10.0 price_replay 0.0 ref_replay192_vs_saved 0.0 error -7.963341434775576e-10
+REGIME_SAMPLE D American 12.33 430.0 price_replay 0.0 ref_replay192_vs_saved 0.0 error 0.00013571831109271404
+REGIME_SAMPLE D American 9.0 10.0 price_replay 0.0 ref_replay192_vs_saved 0.0 error 1.3227427136395396e-13
+REGIME_SAMPLE E European 12.33 430.0 price_replay 0.0 ref_replay192_vs_saved -6.661338147750939e-16 error -0.00050934038165662
+REGIME_SAMPLE E American 9.0 10.0 price_replay 2.5849394142282115e-26 ref_replay192_vs_saved 0.0 error 1.7608920186949796e-10
+REGIME_SAMPLE F American 17.0 430.0 price_replay 0.0 ref_replay192_vs_saved 0.0 error 0.0003399791469611557
+REGIME_SAMPLE F American 9.0 10.0 price_replay 5.567378155713065e-17 ref_replay192_vs_saved 3.968179951296946e-17 error 2.82684274021598e-06
+QL_V0_ACTUAL_EXCEPTION 0.0 RuntimeError('0: invalid value')
+V0_BOUNDARY_GRID 0.0 160 80 0.1951226005191026 ref_delta nan
+V0_BOUNDARY_GRID 0.0 240 120 0.19536735777467032 ref_delta nan
+V0_BOUNDARY_GRID 0.0 320 160 0.19542376248542428 ref_delta nan
+QL_V0_SUPPORTED 0.0001 0.1955741274682424
+V0_BOUNDARY_GRID 0.0001 160 80 0.19557143463036422 ref_delta -2.692837878182086e-06
+V0_BOUNDARY_GRID 0.0001 240 120 0.19580416549839147 ref_delta 0.00023003803014906565
+V0_BOUNDARY_GRID 0.0001 320 160 0.19585452881502527 ref_delta 0.0002804013467828659
+DONE
+
+
+===== audit_europeans.log =====
+EUROPEAN_REGIME A K 17.0 days 430.0 own_replay 0.0 ql192_replay -4.440892098500626e-15 integration_delta -4.440892098500626e-15 own_error -0.00016880525443685457
+EUROPEAN_REGIME B K 17.0 days 430.0 own_replay 0.0 ql192_replay 0.0 integration_delta 0.0 own_error -0.00016700774604316848
+EUROPEAN_REGIME C K 9.0 days 430.0 own_replay 0.0 ql192_replay -1.6653345369377348e-15 integration_delta -1.6653345369377348e-15 own_error -0.00018814520156351655
+EUROPEAN_REGIME D K 12.33 days 430.0 own_replay 0.0 ql192_replay 4.440892098500626e-16 integration_delta 4.440892098500626e-16 own_error -5.4677463042662744e-05
+EUROPEAN_REGIME E K 12.33 days 430.0 own_replay 0.0 ql192_replay -6.661338147750939e-16 integration_delta -6.661338147750939e-16 own_error -0.00050934038165662
+EUROPEAN_REGIME F K 17.0 days 430.0 own_replay 0.0 ql192_replay -2.6645352591003757e-15 integration_delta -2.6645352591003757e-15 own_error -0.00018075333579403718
+DONE
+
+
+===== audit_diagnostics.log =====
+CALENDAR_PAIR_COUNT 36
+CALENDAR_MIN (17.0, '31d', '94d', np.float64(-2.097945556034375e-05), np.float64(0.00019382989744529298))
+CALENDAR_NEGATIVE_RAW [(17.0, '3d', '31d', np.float64(-1.1659521970130982e-06), np.float64(1.2805890750478e-05)), (17.0, '31d', '94d', np.float64(-2.097945556034375e-05), np.float64(0.00019382989744529298)), (20.42, '3d', '31d', np.float64(-1.6092614512075443e-06), np.float64(2.2083436626019193e-05)), (20.42, '31d', '94d', np.float64(-1.5652718268199806e-06), np.float64(1.7903101268146315e-05))]
+CALENDAR_VIOLATIONS_BEYOND_EMPIRICAL []
+UPPER_BOUND_WORST -6.413530445656988
+FINITENESS True
+DEFAULT_MARKET_MAX 0.0006833028918684647 DEFAULT_MARKET_MAE 8.452015179348709e-05
+COVERAGE 97 97
+REGIME_COUNTS {('A', 'American'): 9, ('A', 'European'): 9, ('B', 'American'): 9, ('B', 'European'): 9, ('C', 'American'): 9, ('C', 'European'): 9, ('D', 'American'): 9, ('D', 'European'): 9, ('E', 'American'): 9, ('E', 'European'): 9, ('F', 'American'): 9, ('F', 'European'): 9}
+ACTUAL_STEP_DISCOUNT 31 60 D_error 7.95902731720588e-07
+ACTUAL_STEP_DISCOUNT 31 100 D_error -4.37746231485292e-07
+ACTUAL_STEP_DISCOUNT 31 160 D_error 2.487195072120585e-08
+ACTUAL_STEP_DISCOUNT 94 77 D_error 3.1668770676951397e-06
+ACTUAL_STEP_DISCOUNT 94 155 D_error 5.365798885215156e-07
+ACTUAL_STEP_DISCOUNT 94 232 D_error -1.081801084823475e-06
+ACTUAL_STEP_DISCOUNT 212 174 D_error 6.287833113072239e-06
+ACTUAL_STEP_DISCOUNT 212 348 D_error 2.5960539050684517e-06
+ACTUAL_STEP_DISCOUNT 212 523 D_error -2.139910819320967e-06
+ACTUAL_STEP_DISCOUNT 430 353 D_error 8.124641375562014e-06
+ACTUAL_STEP_DISCOUNT 430 707 D_error -8.039829274553156e-07
+ACTUAL_STEP_DISCOUNT 430 1060 D_error 2.1694080821754724e-06
+ACTUAL_STEP_DISCOUNT 794 653 D_error -4.6945945560983304e-06
+ACTUAL_STEP_DISCOUNT 794 1305 D_error 3.329301856425104e-07
+ACTUAL_STEP_DISCOUNT 794 1958 D_error -1.3437704029506392e-06
+WORST3_OWN_SEQUENCE NU271217P00020000 7.689637159082967 7.689499612351816 7.689414282295661 ERROR_FIXED_QL1000 0.0005709914212284062 0.00043344469007777775 0.00034811463392259157
+WORST3_OWN_SEQUENCE NU270617P00017000 4.763799863291386 4.763789361445251 4.763774114979383 ERROR_FIXED_QL1000 0.0002495950179852713 0.0002390931718503353 0.00022384670598274425
+WORST3_OWN_SEQUENCE NU280121P00015000 3.6286098144307606 3.6285967660617584 3.628627555709431 ERROR_FIXED_QL1000 0.00019033438060844787 0.00017728601160627022 0.00020807565927905003
+HASHES [('market_97_puts_validation.csv', True), ('market_97_summary_by_tenor.csv', True), ('market_97_summary_by_partition.csv', True), ('market_worst3_refinement.csv', True), ('hypothetical_regimes_108.csv', True), ('regimes_mesh_refinement.csv', True), ('analytical_limits_validation.csv', True), ('continuity_edge_cases.csv', True), ('economic_arbitrage_checks.csv', True), ('rates_curve_integration_check.csv', True)]
+MANIFEST_HAS_INPUT_HASHES False MANIFEST_HAS_CODE_ID False
+
+
+===== audit_negative_gate.log =====
+NEGATIVE_AGGREGATOR_WORST_INPUT {'abs_err_extrafine_vs_ql1000': 1.0, 'status_extrafine_target': 'FAIL'}
+NEGATIVE_AGGREGATOR_SUMMARY ALL_CONVERGED_WITHIN_002
+
+
+===== audit_continuity.log =====
+ADAPTIVE_TIME_GRID_JUMP 1e-06 steps 60 61 left 0.9075711166314138 right 0.9075136935895073 price_difference -5.742304190647918e-05 quotient -28.71152095323959
+ADAPTIVE_TIME_GRID_JUMP 1e-08 steps 60 61 left 0.9075732399816533 right 0.9075115707114101 price_difference -6.166927024320312e-05 quotient -3083.463512160156
+ADAPTIVE_TIME_GRID_JUMP 1e-10 steps 60 61 left 0.9075732612151316 right 0.9075115494825995 price_difference -6.171173253211037e-05 quotient -308558.66266055184
+
+
+===== audit_fixed_grid.txt =====
+FIXED_M120_CONTINUITY (0.9075863100882434, 0.9075863105171378, 4.2889436446813534e-10, 2.1444718223406767)
+
+===== audit_epsilon.txt =====
+EMPIRICAL_EPS_VS_REFINED_REFERENCE {'eps': np.float64(6.308219333295284e-05), 'comparison_error': np.float64(0.0004895105479834072), 'ratio': np.float64(7.759884717383423)}
+
+===== audit_tests.log =====
+................................................                         [100%]
+48 passed in 77.90s (0:01:17)
+
+HASH_CHANGES []

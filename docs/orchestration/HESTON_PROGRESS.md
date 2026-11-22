@@ -1,9 +1,9 @@
 # Avance Heston
 
-Fase activa PHASE_3 IN_PROGRESS: validacion independiente amplia; NO calibracion. Ultimo SHA aprobadoea0df6f097904352e5345bb6fbc712008e319bf2.
-CONTEXT_SETUP/PHASE_0/PHASE_1/PHASE_2 APPROVED. Reparaciones fase0=1,fase1=3,fase2=1,fase3=0. Fases4-8 NOT_STARTED.
-F2-M1 y aspectos materiales de F2-M2 cerrados. F2-L1 LOW limites pequenos de interpolacion/frontera y F2-L2 LOW guion/cifras pendientes, aceptados para etapa inicial, no defensa final.
-38tests PASS sin escrituras oficiales; API puts valida y precios iniciales reproducidos. No habilita calibracion ni griegas operativas.
-[Auditoria fase2](../audits/HESTON_PHASE_2_ea0df6f.md). [Criterios congelados fase3](PHASE_3_START.md):97contratos y108precios en6regimenes,limites y refinamientos,objetivo0.002USD con referencia medida.
-Proxima accion Gemini entrega validacion y SHA nuevo; Codex audita antes de fase4. Sin merge y revision humana final pendiente.
-Run run_0891738e9cf5, fase3 activa ctx_4970fa04f5d2, task task_47d1d8249cd0; auditoria/criterios commit8ddc5542cec09d0c79ac63ac87a1080c97e37ffa. PR5/PR4 OPEN. Cuota restante no expuesta.
+Ultimo SHA aprobadoea0df6f097904352e5345bb6fbc712008e319bf2 (PHASE_2). PHASE_3 REJECTED en37bbd12d52819c765c64a950333962af9410073d, reparacion1/3. Calibracion fase4 aun no autorizada.
+CONTEXT_SETUP/PHASE_0/PHASE_1/PHASE_2 APPROVED. Reparaciones fase0=1,fase1=3,fase2=1,fase3=1. Fases4-8 NOT_STARTED.
+F3-M1 MEDIUM agregacion falsa/controles omitidos y trazabilidad; F3-M2 MEDIUM estimacion empirica presentada como cota/global y convergencia no siempre monotona; F3-L1 LOW salto de precio por malla temporal adaptativa, aceptado bajo presupuesto y pendiente control para griegas/superficie.
+48tests PASS sin escrituras oficiales. Mercado97/108regimenes datos completos; muestra independiente reproduce precios bajo0.002USD. Sin defecto material del motor demostrado; reparar validador/conclusiones sin recalibrar o alterar muestra.
+[Informe](../audits/HESTON_PHASE_3_37bbd12.md). [Criterios congelados](PHASE_3_START.md).
+Proxima accion reparacion focalizada y nuevo SHA. Reutilizacion explicita de precios verificados permitida con procedencia/hashes, no gestor general ni falsa regeneracion integral. No merge ni calibracion hasta aprobar fase3.
+Run run_0891738e9cf5, ultima entrega ctx_4970fa04f5d2 completada. Registrar dispatch reparacion1. PR5/PR4 OPEN. Cuota restante no expuesta.
