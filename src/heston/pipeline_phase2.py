@@ -39,7 +39,7 @@ except ImportError:
 
 from src.heston.rates_curve import get_official_yield_curve, SPOT_PRICE, DIVIDEND_YIELD
 from src.heston.heston_model import HestonParams, HestonOptionPricer
-from src.heston.solver_2d import Heston2DSolver, Grid2D
+from src.heston.solver_2d import Heston2DSolver, Grid2D, compute_temporal_consistency_defect
 
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "heston" / "phase2"
@@ -123,9 +123,13 @@ def run_smoke_tests(
             "abs_error_cents": abs_diff_eu * 100.0,
             "delta": res_eu.delta,
             "gamma": res_eu.gamma,
+            "d_price_d_v0": res_eu.d_price_d_v0,
             "vega": res_eu.vega,
+            "theta": res_eu.theta,
             "wall_time_sec": res_eu.wall_time_seconds,
             "max_feasibility_viol": res_eu.max_feasibility_violation,
+            "max_multiplier_viol": res_eu.max_multiplier_violation,
+            "max_algebraic_comp_residual": res_eu.max_algebraic_complementarity_residual,
             "max_comp_residual": res_eu.max_complementarity_residual,
             "gate_threshold_usd": 0.0100,
             "status": status_eu
@@ -154,9 +158,13 @@ def run_smoke_tests(
             "abs_error_cents": abs_diff_am * 100.0,
             "delta": res_am.delta,
             "gamma": res_am.gamma,
+            "d_price_d_v0": res_am.d_price_d_v0,
             "vega": res_am.vega,
+            "theta": res_am.theta,
             "wall_time_sec": res_am.wall_time_seconds,
             "max_feasibility_viol": res_am.max_feasibility_violation,
+            "max_multiplier_viol": res_am.max_multiplier_violation,
+            "max_algebraic_comp_residual": res_am.max_algebraic_complementarity_residual,
             "max_comp_residual": res_am.max_complementarity_residual,
             "gate_threshold_usd": 0.0100,
             "status": status_am
@@ -228,7 +236,9 @@ def run_mesh_convergence(
                 "price_am": res_am.price,
                 "early_exercise_premium": res_am.price - res_eu.price,
                 "delta_am": res_am.delta,
+                "d_price_d_v0_am": res_am.d_price_d_v0,
                 "vega_am": res_am.vega,
+                "max_algebraic_comp_residual_am": res_am.max_algebraic_complementarity_residual,
                 "comp_residual_am": res_am.max_complementarity_residual,
                 "feasibility_viol_am": res_am.max_feasibility_violation,
                 "wall_time_sec": res_am.wall_time_seconds
@@ -243,7 +253,7 @@ def run_limit_cases(
 ) -> pd.DataFrame:
     """
     Tests mathematical and financial limits:
-    1. Black-Scholes limit: xi -> 0, v0 = theta vs analytical Black-Scholes formula.
+    1. Black-Scholes limit: exact xi = 0.0 and asymptotic xi = 1e-5 vs analytical BS.
     2. Zero correlation limit: rho = 0.0 vs calibrated rho = -0.9498.
     3. Expiration limit: T = 0 payoff reproduction.
     """
@@ -251,9 +261,33 @@ def run_limit_cases(
     curve = get_official_yield_curve(method="bootstrap")
     records = []
 
-    # 1. Black-Scholes limit
     theta_bs = 0.20
     sigma_bs = np.sqrt(theta_bs)
+
+    # 1a. Exact xi = 0.0 limit
+    params_xi0 = HestonParams(v0=theta_bs, kappa=2.0, theta=theta_bs, xi=0.0, rho=0.0)
+    for K in [11.0, 12.33, 15.0]:
+        for T in [31.0 / 365.0, 94.0 / 365.0]:
+            D = curve.get_discount_factor(T)
+            d1 = (np.log(SPOT_PRICE / (K * D)) + 0.5 * theta_bs * T) / (sigma_bs * np.sqrt(T))
+            d2 = d1 - sigma_bs * np.sqrt(T)
+            bs_analytic = K * D * norm.cdf(-d2) - SPOT_PRICE * norm.cdf(-d1)
+
+            res_fd = solver.price(K, T, params_xi0, curve, is_american=False, n_s=160, n_v=80, m_t=100)
+            err = res_fd.price - bs_analytic
+
+            records.append({
+                "limit_test": "Black_Scholes_Exact_xi0",
+                "strike": K,
+                "maturity_years": T,
+                "benchmark_analytic_usd": bs_analytic,
+                "solver_price_usd": res_fd.price,
+                "abs_error_usd": abs(err),
+                "error_cents": err * 100.0,
+                "status": "PASS" if abs(err) < 0.0020 else "FAIL"
+            })
+
+    # 1b. Asymptotic Black-Scholes limit (xi = 1e-5)
     params_bs = HestonParams(v0=theta_bs, kappa=2.0, theta=theta_bs, xi=1e-5, rho=0.0)
 
     for K in [11.0, 12.33, 15.0]:
@@ -394,6 +428,20 @@ def run_stencil_validation() -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def run_temporal_consistency(
+    solver: Optional[Heston2DSolver] = None,
+    params: Optional[HestonParams] = None
+) -> pd.DataFrame:
+    """
+    Computes independent interior trapezoidal PDE consistency defect table across
+    M in {20, 40, 80} on the core interior domain (8 < S < 18, 0.04 < v < 0.40).
+    """
+    solver = solver or Heston2DSolver()
+    params = params or get_phase1_poc_params()
+    records = compute_temporal_consistency_defect(solver=solver, params=params)
+    return pd.DataFrame(records)
+
+
 def run_phase2_pipeline(output_dir: Optional[Path] = None) -> Dict[str, Any]:
     """
     Orchestrates end-to-end execution of Phase 2, exporting all diagnostic datasets
@@ -422,7 +470,7 @@ def run_phase2_pipeline(output_dir: Optional[Path] = None) -> Dict[str, Any]:
     print(f"   Mesh convergence completed: {len(df_conv)} evaluations exported.")
 
     # 3. Degenerate Limit Cases
-    print("\n3. Running Degenerate Limit Cases (BS, rho=0, tau=0)...")
+    print("\n3. Running Degenerate Limit Cases (BS exact xi0, BS asymptotic, rho=0, tau=0)...")
     df_limits = run_limit_cases()
     limits_path = output_dir / "limit_cases.csv"
     df_limits.to_csv(limits_path, index=False)
@@ -435,7 +483,14 @@ def run_phase2_pipeline(output_dir: Optional[Path] = None) -> Dict[str, Any]:
     df_stencils.to_csv(stencils_path, index=False)
     print(f"   Stencil validation completed: all stencils verified.")
 
-    # 5. Build Execution Manifest
+    # 5. Temporal Consistency Defect (LCP & PDE Trapezoidal Consistency Diagnostic)
+    print("\n5. Running Temporal Consistency Defect study (M in {20, 40, 80})...")
+    df_temporal = run_temporal_consistency()
+    temporal_path = output_dir / "temporal_consistency.csv"
+    df_temporal.to_csv(temporal_path, index=False)
+    print(f"   Temporal consistency completed: {len(df_temporal)} refinements exported.")
+
+    # 6. Build Execution Manifest
     t_pipeline_total = time.perf_counter() - t_pipeline_start
     manifest = {
         "phase": "PHASE_2_PROPRIETARY_HESTON_SOLVER_2D",
@@ -455,7 +510,8 @@ def run_phase2_pipeline(output_dir: Optional[Path] = None) -> Dict[str, Any]:
             "smoke_test_results.csv": compute_file_sha256(smoke_path),
             "mesh_convergence.csv": compute_file_sha256(conv_path),
             "limit_cases.csv": compute_file_sha256(limits_path),
-            "stencil_validation.csv": compute_file_sha256(stencils_path)
+            "stencil_validation.csv": compute_file_sha256(stencils_path),
+            "temporal_consistency.csv": compute_file_sha256(temporal_path)
         }
     }
 

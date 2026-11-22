@@ -59,12 +59,31 @@ from src.heston.heston_model import HestonParams
 
 @dataclass
 class Heston2DSolverResult:
-    """Detailed output and diagnostics from proprietary 2D Heston solver."""
+    """
+    Detailed output and diagnostics from proprietary 2D Heston solver.
+    
+    Sensitivities (delta, gamma, d_price_d_v0):
+    These are preliminary grid-based finite-difference diagnostics evaluated at (spot, v0).
+    They are NOT validated for trading book hedging or dynamic risk management in Phase 2.
+    
+    Units:
+    - price: USD
+    - delta: dPrice / dS (unitless / USD per USD)
+    - gamma: d^2Price / dS^2 (1 / USD)
+    - d_price_d_v0: dPrice / dv0 (USD / unit variance, NOT IV vega)
+    - vega: backward-compatible alias for d_price_d_v0 (USD / unit variance)
+    - theta: None (not available in Phase 2; preliminary placeholder removed)
+    - max_algebraic_complementarity_residual: max |lambda * (U - g)| (USD^2 / year)
+    - max_complementarity_residual: backward-compatible alias (USD^2 / year)
+    - max_feasibility_violation: max(g - U, 0) (USD)
+    - max_multiplier_violation: max(-lambda, 0) (USD / year)
+    """
     price: float
     delta: float
     gamma: float
+    d_price_d_v0: float
     vega: float
-    theta: float
+    theta: Optional[float]
     option_type: str
     is_american: bool
     strike: float
@@ -81,6 +100,7 @@ class Heston2DSolverResult:
     wall_time_seconds: float
     max_feasibility_violation: float
     max_multiplier_violation: float
+    max_algebraic_complementarity_residual: float
     max_complementarity_residual: float
     grid_s: np.ndarray
     grid_v: np.ndarray
@@ -304,18 +324,46 @@ class Heston2DSolver:
         n_s, n_v, m_t : int, optional
             Mesh node counts. Default: n_s=160, n_v=80, m_t=max(60, int(300*T)).
         """
+        if option_type.upper() not in ("P", "PUT"):
+            raise ValueError(
+                f"Option type '{option_type}' is not supported by Heston2DSolver. "
+                "The 2D solver is currently authorized strictly for Put options ('P' or 'PUT'). "
+                "Call pricing is not supported in Phase 2."
+            )
+
         t_start = time.perf_counter()
         
         if maturity_years <= 0.0:
-            payoff_val = max(strike - spot, 0.0) if option_type.upper() == "P" else max(spot - strike, 0.0)
+            payoff_val = max(strike - spot, 0.0)
             return Heston2DSolverResult(
-                price=payoff_val, delta=-1.0 if (option_type.upper() == "P" and spot < strike) else 0.0,
-                gamma=0.0, vega=0.0, theta=0.0, option_type=option_type, is_american=is_american,
-                strike=strike, maturity_years=0.0, spot=spot, v0=params.v0, params=params,
-                n_s=0, n_v=0, m_t=0, s_max=0.0, v_max=0.0, theta_adi=self.theta_adi,
-                wall_time_seconds=0.0, max_feasibility_violation=0.0, max_multiplier_violation=0.0,
-                max_complementarity_residual=0.0, grid_s=np.array([spot]), grid_v=np.array([params.v0]),
-                grid_v_surface=np.array([[payoff_val]]), grid_lambda=np.array([[0.0]])
+                price=payoff_val,
+                delta=-1.0 if spot < strike else 0.0,
+                gamma=0.0,
+                d_price_d_v0=0.0,
+                vega=0.0,
+                theta=None,
+                option_type="P",
+                is_american=is_american,
+                strike=strike,
+                maturity_years=0.0,
+                spot=spot,
+                v0=params.v0,
+                params=params,
+                n_s=0,
+                n_v=0,
+                m_t=0,
+                s_max=0.0,
+                v_max=0.0,
+                theta_adi=self.theta_adi,
+                wall_time_seconds=0.0,
+                max_feasibility_violation=0.0,
+                max_multiplier_violation=0.0,
+                max_algebraic_complementarity_residual=0.0,
+                max_complementarity_residual=0.0,
+                grid_s=np.array([spot]),
+                grid_v=np.array([params.v0]),
+                grid_v_surface=np.array([[payoff_val]]),
+                grid_lambda=np.array([[0.0]])
             )
             
         # Default grid dimensions
@@ -339,12 +387,8 @@ class Heston2DSolver:
         st_S = grid.st_s
         st_v = grid.st_v
         
-        # Payoff at tau = 0
-        if option_type.upper() == "P":
-            g = np.maximum(strike - grid.s_mesh, 0.0)
-        else:
-            g = np.maximum(grid.s_mesh - strike, 0.0)
-            
+        # Payoff at tau = 0 (Put option only)
+        g = np.maximum(strike - grid.s_mesh, 0.0)
         U = g.copy()
         lambd = np.zeros_like(U)
         
@@ -452,13 +496,10 @@ class Heston2DSolver:
             r_val = _get_rate(t_cal)
             
             # Boundary at S = 0 for put
-            if option_type.upper() == "P":
-                if is_american:
-                    b_S0 = strike
-                else:
-                    b_S0 = strike * _get_discount(maturity_years) / _get_discount(max(maturity_years - tau_m, 1e-6))
+            if is_american:
+                b_S0 = strike
             else:
-                b_S0 = 0.0
+                b_S0 = strike * _get_discount(maturity_years) / _get_discount(max(maturity_years - tau_m, 1e-6))
                 
             # Update A1 tridiagonals with current r
             coeff_SS = 0.5 * v[None, :] * (S[1:-1, None] ** 2)
@@ -544,10 +585,11 @@ class Heston2DSolver:
         h_v_greek = 0.01 * max(params.v0, 0.01)
         p_plus_v = float(interp((spot, min(params.v0 + h_v_greek, grid.v_max - 1e-4))))
         p_minus_v = float(interp((spot, max(params.v0 - h_v_greek, 1e-6))))
-        vega_val = (p_plus_v - p_minus_v) / (2.0 * h_v_greek)
+        d_price_d_v0_val = (p_plus_v - p_minus_v) / (2.0 * h_v_greek)
+        vega_val = d_price_d_v0_val  # backward-compatible alias for d_price_d_v0 (USD / unit variance)
         
-        # Approximate Theta from last time step
-        theta_val = 0.0  # Optional future expansion
+        # Theta is not available in Phase 2 (preliminary placeholder removed)
+        theta_val = None
         
         wall_time = time.perf_counter() - t_start
         
@@ -555,9 +597,10 @@ class Heston2DSolver:
             price=price_val,
             delta=delta_val,
             gamma=gamma_val,
+            d_price_d_v0=d_price_d_v0_val,
             vega=vega_val,
             theta=theta_val,
-            option_type=option_type,
+            option_type="P",
             is_american=is_american,
             strike=strike,
             maturity_years=maturity_years,
@@ -573,9 +616,111 @@ class Heston2DSolver:
             wall_time_seconds=wall_time,
             max_feasibility_violation=max_feas,
             max_multiplier_violation=max_mult,
+            max_algebraic_complementarity_residual=max_comp,
             max_complementarity_residual=max_comp,
             grid_s=S,
             grid_v=v,
             grid_v_surface=U,
             grid_lambda=lambd
         )
+
+
+def compute_temporal_consistency_defect(
+    solver: Optional[Heston2DSolver] = None,
+    strike: float = 12.33,
+    maturity_years: float = 0.25,
+    params: Optional[HestonParams] = None,
+    rate: float = 0.05,
+    m_t_values: Tuple[int, ...] = (20, 40, 80),
+    n_s: int = 80,
+    n_v: int = 40,
+    s_core_range: Tuple[float, float] = (8.0, 18.0),
+    v_core_range: Tuple[float, float] = (0.04, 0.40)
+) -> List[Dict[str, Any]]:
+    """
+    Computes the independent interior trapezoidal PDE consistency defect:
+        E = U_n - U_{n-1} - dt * [ 0.5 * (L_h U_n + L_h U_{n-1}) + 0.5 * (lambda_n + lambda_{n-1}) ]
+    on the interior core domain (s_core_range, v_core_range).
+    
+    This diagnostic verifies that the temporal time-stepping error behaves as O(dt^2)
+    and distinguishes the continuous PDE consistency defect from the algebraic
+    Ikonen-Toivanen complementarity identity lambda * (U - g) == 0.
+    """
+    solver = solver or Heston2DSolver()
+    params = params or HestonParams(
+        v0=0.18613777847584,
+        kappa=2.7254603668370714,
+        theta=0.2136796992000426,
+        xi=0.4817847258429695,
+        rho=-0.9498066630129804
+    )
+    
+    def _derivative_weights(x: np.ndarray, order: int) -> np.ndarray:
+        w = []
+        for i in range(1, len(x) - 1):
+            dx = x[i - 1:i + 2] - x[i]
+            mat = np.stack((np.ones(3), dx, dx * dx))
+            target = np.array([0.0, 1.0, 0.0]) if order == 1 else np.array([0.0, 0.0, 2.0])
+            w.append(np.linalg.solve(mat, target))
+        return np.asarray(w)
+
+    def _apply_L(res: Heston2DSolverResult) -> np.ndarray:
+        U = res.grid_v_surface
+        S = res.grid_s
+        v = res.grid_v
+        a = _derivative_weights(S, 1)
+        b = _derivative_weights(S, 2)
+        d = _derivative_weights(v, 1)
+        e = _derivative_weights(v, 2)
+        
+        ds = sum(a[:, j, None] * U[j:len(S) - 2 + j, :] for j in range(3))
+        dss = sum(b[:, j, None] * U[j:len(S) - 2 + j, :] for j in range(3))
+        dv = sum(d[None, :, j] * U[:, j:len(v) - 2 + j] for j in range(3))
+        dvv = sum(e[None, :, j] * U[:, j:len(v) - 2 + j] for j in range(3))
+        mixed = sum(d[None, :, j] * ds[:, j:len(v) - 2 + j] for j in range(3))
+        
+        SS = S[1:-1, None]
+        vv = v[None, 1:-1]
+        u = U[1:-1, 1:-1]
+        
+        return (
+            0.5 * vv * (SS ** 2) * dss[:, 1:-1]
+            + rate * SS * ds[:, 1:-1]
+            + 0.5 * (params.xi ** 2) * vv * dvv[1:-1, :]
+            + params.kappa * (params.theta - vv) * dv[1:-1, :]
+            + params.rho * params.xi * vv * SS * mixed
+            - rate * u
+        )
+
+    results = []
+    prev_norm = None
+    for N in m_t_values:
+        T = maturity_years
+        dt = T / N
+        r = solver.price(strike, T, params, rate, is_american=True, n_s=n_s, n_v=n_v, m_t=N)
+        prev = solver.price(strike, T - dt, params, rate, is_american=True, n_s=n_s, n_v=n_v, m_t=N - 1)
+        
+        u = r.grid_v_surface[1:-1, 1:-1]
+        up = prev.grid_v_surface[1:-1, 1:-1]
+        lam = 0.5 * (r.grid_lambda + prev.grid_lambda)[1:-1, 1:-1]
+        
+        defect = u - up - dt * (0.5 * (_apply_L(r) + _apply_L(prev)) + lam)
+        mask = (
+            (r.grid_s[1:-1, None] > s_core_range[0]) & (r.grid_s[1:-1, None] < s_core_range[1]) &
+            (r.grid_v[None, 1:-1] > v_core_range[0]) & (r.grid_v[None, 1:-1] < v_core_range[1])
+        )
+        max_defect_core = float(np.max(np.abs(defect[mask])))
+        norm_per_year = max_defect_core / dt
+        ratio = (prev_norm / norm_per_year) if prev_norm is not None else None
+        prev_norm = norm_per_year
+        
+        results.append({
+            "m_t": N,
+            "dt": dt,
+            "max_algebraic_comp_residual": r.max_algebraic_complementarity_residual,
+            "max_price_step_defect_core": max_defect_core,
+            "norm_per_year": norm_per_year,
+            "convergence_ratio": ratio
+        })
+        
+    return results

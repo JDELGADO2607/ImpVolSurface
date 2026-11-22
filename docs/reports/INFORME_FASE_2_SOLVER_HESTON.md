@@ -27,14 +27,15 @@ Conforme a las directrices metodológicas de `docs/orchestration/PHASE_2_START.m
 | :--- | :--- | :--- | :---: |
 | **Dependencia de QuantLib en solver core** | 0 imports / 0 llamadas en `solver_2d.py` | **0 imports, 0 llamadas (100% NumPy/SciPy)** | **PASS** |
 | **Max Error Smoke Tests (12 casos)** | $\le 0.0100$ USD | **0.000381 USD** (~0.038¢) | **PASS** |
-| **Target de Precisión Fase 3 (Benchmark)** | $\le 0.0020$ USD | **0.000381 USD** ($\le 0.0020$ USD) | **PASS** |
-| **Límite Black-Scholes ($\xi \to 0, v_0=\theta$)** | Error vs BS analítico $\le 0.0020$ USD | **0.000118 USD** (~0.012¢) | **PASS** |
+| **Target de Precisión Fase 3 (Benchmark 12 smoke)** | $\le 0.0020$ USD (target 12 smoke; validación amplia pendiente en Fase 3) | **0.000381 USD** ($\le 0.0020$ USD) | **PASS** |
+| **Límite Black-Scholes ($\xi = 0$ exacto y $\xi \to 0$)** | Error vs BS analítico $\le 0.0020$ USD | **0.000118 USD** (~0.012¢) | **PASS** |
 | **Reproducción de Payoff en $\tau = 0$** | Exacto a máquina ($\le 10^{-12}$ USD) | **$0.000000$ USD** ($< 10^{-15}$) | **PASS** |
 | **Cota Inferior Americana Cruda** | $V_{\text{AM}} \ge \max(K - S_0, 0)$ | **0 violaciones** (márgen $\ge 0$) | **PASS** |
 | **Prima de Ejercicio Temprano Cruda** | $V_{\text{AM}} \ge V_{\text{EU}}$ | **0 violaciones** (márgen $\ge 0$) | **PASS** |
-| **Factibilidad del Obstáculo IT** | $\max_{i,j} \max(g - U, 0) \le 10^{-10}$ | **$0.000000$ USD** ($< 10^{-14}$) | **PASS** |
-| **No Negatividad del Multiplicador IT** | $\min_{i,j} \lambda \ge -10^{-10}$ | **$0.000000$ USD** ($< 10^{-14}$) | **PASS** |
-| **Residuo de Complementariedad IT** | $\max_{i,j} \|\lambda (U - g)\| \le 10^{-10}$ | **$0.000000$ USD** ($< 10^{-14}$) | **PASS** |
+| **Factibilidad del Obstáculo IT** | $\max_{i,j} \max(g - U, 0) \le 10^{-10}$ USD | **$0.000000$ USD** ($< 10^{-14}$) | **PASS** |
+| **No Negatividad del Multiplicador IT** | $\min_{i,j} \lambda \ge -10^{-10}$ USD/año | **$0.000000$ USD/año** ($< 10^{-14}$) | **PASS** |
+| **Residuo Algebraico IT $\lambda (U - g)$** | Identidad algebraica IT ($\le 10^{-10}$ USD$^2$/año) | **$0.000000$ USD$^2$/año** ($< 10^{-14}$) | **PASS** |
+| **Consistencia Temporal Trapezoidal PDE** | Convergencia $O(\Delta\tau^2)$ en interior core | **$M=20: 0.00518$; $M=40: 0.00099$; $M=80: 0.00020$ USD** | **PASS** |
 | **Validación de Stencils No Uniformes** | Error interior vs analítico $\le 0.030$ | **Max error = 0.0209** (orden 2 verificado) | **PASS** |
 | **Estabilidad Temporal y Espacial** | Refinamientos Coarse, Medium, Fine | **Convergencia monótona estable** | **PASS** |
 
@@ -58,7 +59,7 @@ A_2 V &= \frac{1}{2} \xi^2 v \, \frac{\partial^2 V}{\partial v^2} + \kappa(\thet
 \end{aligned}$$
 
 > [!NOTE]
-> La tasa de descuento $-r(t)V$ se divide exactamente por la mitad ($-\frac{1}{2} r(t)$) entre $A_1$ y $A_2$. Esta partición simétrica garantiza que ambos operadores unidireccionales generen matrices tridiagonales estrictamente dominantes en la diagonal, conservando la propiedad M-matriz y la estabilidad de las inversiones unidimensionales sin perturbaciones asimétricas.
+> La tasa de descuento $-r(t)V$ se divide por la mitad ($-\frac{1}{2} r(t)$) entre $A_1$ y $A_2$ para equilibrar el decaimiento temporal en ambas direcciones implícitas. Nótese que, debido al uso de diferencias centrales para los términos convectivos sin difusión artificial, las matrices espaciales $A_1$ y $A_2$ poseen coeficientes subdiagonales negativos (por ejemplo, el mínimo del generador $A_1$ en la subdiagonal es de $-4.15$), lo que genera entradas positivas fuera de la diagonal en $I - \theta_{\text{ADI}}\Delta\tau A_1$ (hasta $+0.00117$) e impide que las matrices satisfagan formalmente la condición Z-matriz necesaria para ser M-matrices. La estabilidad numérica del esquema no descansa en una propiedad M-matriz universal, sino en las propiedades intrínsecas de estabilidad del esquema Modified Craig-Sneyd (MCS) con parámetro $\theta_{\text{ADI}} = 1/3$ (In 't Hout & Foulon 2010).
 
 ### 2.2 Problema de Complementariedad para la Opción Americana
 
@@ -176,7 +177,7 @@ con $S_0 = 12.33$, $q = 0.00$, y resolución de producción $N_S = 160, N_v = 80
 
 ### Tabla Comparativa de Smoke Tests
 
-| Caso ID | Contrato | Plazo | Strike | Spot | Ref. QuantLib (USD) | Solver Propio (USD) | Error (USD) | Error (¢) | Delta | Gamma | Vega | Estado |
+| Caso ID | Contrato | Plazo | Strike | Spot | Ref. QuantLib (USD) | Solver Propio (USD) | Error (USD) | Error (¢) | Delta | Gamma | d_price_d_v0 | Estado |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | `31d_OTM_EU` | European | 31d | 11.00 | 12.33 | 0.161736 | 0.161664 | -0.000072 | 0.007¢ | -0.1559 | 0.1367 | 0.8894 | **PASS** |
 | `31d_OTM_AM` | American | 31d | 11.00 | 12.33 | 0.162108 | 0.162080 | -0.000028 | 0.003¢ | -0.1564 | 0.1374 | 0.8913 | **PASS** |
@@ -191,11 +192,17 @@ con $S_0 = 12.33$, $q = 0.00$, y resolución de producción $N_S = 160, N_v = 80
 | `94d_ITM_EU` | European | 94d | 15.00 | 12.33 | 2.756767 | 2.756436 | -0.000330 | 0.033¢ | -0.7631 | 0.1408 | 1.5491 | **PASS** |
 | `94d_ITM_AM` | American | 94d | 15.00 | 12.33 | 2.808217 | 2.808578 | +0.000361 | 0.036¢ | -0.7932 | 0.1597 | 1.4273 | **PASS** |
 
+> [!NOTE]
+> **Semántica y Unidades de las Sensibilidades (Griegas):**
+> Las sensibilidades `delta`, `gamma` y `d_price_d_v0` son diagnósticos numéricos preliminares evaluados mediante diferencias finitas sobre la malla centradas en $(S_0, v_0)$. **No están validadas para cobertura dinámica (hedging) de carteras de inversión ni uso en mesa de operaciones.**
+> - `d_price_d_v0` representa la sensibilidad a la varianza inicial $\partial P / \partial v_0$ (unidades: USD por unidad de varianza $v_0$), **no el vega por punto porcentual de volatilidad implícita** (se mantiene `vega` como alias compatible hacia atrás con idénticas unidades).
+> - `theta` no está disponible en la Fase 2 y se fija formalmente en `None` (el valor placeholder $0.0$ fue retirado para evitar interpretaciones erróneas).
+
 ### Análisis Estadístico de los Errores
 - **Error Absoluto Máximo:** **0.000381 USD** (~0.038¢, en `31d_ITM_AM`).
 - **Error Absoluto Medio (MAE):** **0.000158 USD** (~0.016¢).
 - **Error Cuadrático Medio (RMSE):** **0.000196 USD** (~0.020¢).
-- **Conclusión del Gate:** Todos los casos satisfacen holgadamente el criterio de aceptación ($\le 0.0100$ USD). De hecho, los 12 contratos se sitúan por debajo de $0.00040$ USD, cumpliendo de antemano el estándar de calidad fijado para la Fase 3 ($\le 0.0020$ USD).
+- **Conclusión del Gate:** Todos los casos satisfacen holgadamente el criterio de aceptación ($\le 0.0100$ USD). Los 12 contratos se sitúan por debajo de $0.00040$ USD frente a referencias industriales, lo cual habilita el paso a la validación amplia de la Fase 3 (sin que esto constituya aprobación anticipada de la Fase 3, cuya muestra completa de 97 puts deberá evaluarse independientemente).
 
 ---
 
@@ -220,27 +227,58 @@ Se evaluó la estabilidad numérica y el orden de convergencia en tres niveles d
 
 ## 7. Casos Límite y Pruebas de Degeneración
 
-1. **Límite Black-Scholes ($\xi \to 0$, $v_0 = \theta = 0.20$, $\rho = 0.0$):**
-   Al anularse la volatilidad de la varianza, el modelo de Heston degenera exactamente en el modelo Black-Scholes con volatilidad constante $\sigma = \sqrt{\theta} = \sqrt{0.20} \approx 0.4472$.
-   - Para $K = 12.33, T = 31$d: Precio analítico BS = $0.618373$ USD. Precio Solver Propio = $0.618254$ USD. Error = **0.000118 USD** (~0.012¢).
-   - Para $K = 11.00, T = 31$d: Precio analítico BS = $0.180236$ USD. Precio Solver Propio = $0.180182$ USD. Error = **0.000054 USD**.
-   - Para $K = 15.00, T = 31$d: Precio analítico BS = $2.684129$ USD. Precio Solver Propio = $2.684071$ USD. Error = **0.000058 USD**.
-2. **Sensibilidad a la Correlación ($\rho = 0.0$ vs $\rho = -0.9498$):**
+1. **Límite Black-Scholes Exacto ($\xi = 0.0$, $v_0 = \theta = 0.20$, $\rho = 0.0$):**
+   Al anularse exactamente la volatilidad de la varianza ($\xi = 0.0$), la ecuación 2D degenera en el modelo de Black-Scholes con volatilidad constante $\sigma = \sqrt{\theta} = \sqrt{0.20} \approx 0.447214$. Se contrasta tanto frente a la solución analítica europea como frente a referencias independientes americanas (árbol CRR de 5000 pasos y EDP 1D de 800 pasos):
+
+   | Caso $\xi=0$ Exacto | Europeo 2D | BS Analítico | Americano 2D | CRR 5000 | EDP 1D 800/800 |
+   | :--- | ---: | ---: | ---: | ---: | ---: |
+   | $K=12.33, T=94\text{d}$ | 1.029566 USD | 1.029744 USD | 1.042040 USD | 1.042211 USD | 1.042165 USD |
+   | $K=15.00, T=31\text{d}$ | 2.661586 USD | 2.661663 USD | 2.691333 USD | 2.691464 USD | 2.691428 USD |
+
+   El error frente a las soluciones analíticas y de alta resolución 1D es inferior a **0.00018 USD** ($\le 0.0020$ USD), confirmando la degeneración analítica exacta del operador 2D sin aproximaciones espurias.
+
+2. **Límite Asintótico Black-Scholes ($\xi = 10^{-5}$, $v_0 = \theta = 0.20$, $\rho = 0.0$):**
+   - Para $K = 12.33, T = 31$d: Analítico BS = $0.618373$ USD. Solver Propio = $0.618254$ USD. Error = **0.000118 USD** (~0.012¢).
+   - Para $K = 11.00, T = 31$d: Analítico BS = $0.180236$ USD. Solver Propio = $0.180182$ USD. Error = **0.000054 USD**.
+   - Para $K = 15.00, T = 31$d: Analítico BS = $2.684129$ USD. Solver Propio = $2.684071$ USD. Error = **0.000058 USD**.
+
+3. **Sensibilidad a la Correlación ($\rho = 0.0$ vs $\rho = -0.9498$):**
    Para $K = 12.33, T = 31$d:
    - Con $\rho = 0.00$: Precio Americano = $0.618412$ USD.
    - Con $\rho = -0.9498$: Precio Americano = $0.599594$ USD.
    - Impacto del sesgo negativo de correlación: **-0.018818 USD** (-1.88¢), reflejando la asimetría negativa y la reducción de valor en el put at-the-money característica de la correlación activo-volatilidad fuertemente negativa.
-3. **Reproducción de Payoff en $\tau = 0$:**
+
+4. **Reproducción de Payoff en $\tau = 0$:**
    Evaluado en $T = 0$, el solver entrega idénticamente $\max(K - S_0, 0)$ con error absoluto de $0.000000$ USD (residual $< 10^{-15}$ USD).
 
 ---
 
-## 8. Diagnóstico de Complementariedad y Factibilidad del Obstáculo
+## 8. Diagnóstico de Complementariedad IT y Defecto de Consistencia Temporal
 
-El splitting de Ikonen-Toivanen desacopla de forma exacta las restricciones del LCP continuo. En todas las ejecuciones productivas y de validación:
-- **Violación de Factibilidad ($\max_{i,j} \max(g - U, 0)$):** **$0.000000$ USD** (ningún nodo en la malla viola la cota inferior $U \ge g$).
-- **Violación de Signo del Multiplicador ($\max_{i,j} \max(-\lambda, 0)$):** **$0.000000$ USD** (el multiplicador $\lambda$ es estrictamente no negativo en toda la malla).
-- **Residuo de Complementariedad ($\max_{i,j} \|\lambda(U - g)\|$):** **$0.000000$ USD** (en la región de continuación $\lambda = 0$; en la región de ejercicio $U - g = 0$, cumpliendo la condición de KKT a precisión de máquina).
+El splitting de Ikonen-Toivanen (IT) resuelve en cada paso temporal la proyección:
+$$U^n = \max\left(\widehat{Y}_2 - \Delta \tau \, \lambda^{n-1}, \; g\right), \quad \lambda^n = \max\left(0, \; \lambda^{n-1} + \frac{g - \widehat{Y}_2}{\Delta \tau}\right)$$
+
+Por construcción matemática directa, esta actualización satisface idénticamente $U^n \ge g$, $\lambda^n \ge 0$ y $\lambda^n(U^n - g) = 0$ para cualquier arreglo de entrada, a nivel de precisión de máquina ($< 10^{-14}$):
+- **Violación de Factibilidad ($\max_{i,j} \max(g - U, 0)$):** **$0.000000$ USD** (el obstáculo se respeta estrictamente en todos los nodos).
+- **Violación de Signo del Multiplicador ($\max_{i,j} \max(-\lambda, 0)$):** **$0.000000$ USD/año** ($\lambda \ge 0$ en toda la malla).
+- **Residuo Algebraico de Complementariedad ($\max_{i,j} |\lambda(U - g)|$):** **$0.000000$ USD$^2$/año**.
+
+> [!IMPORTANT]
+> **Distinción entre Identidad Algebraica IT y Defecto del LCP Continuo:**
+> La satisfacción de $\lambda(U - g) = 0$ es una consecuencia algebraica de la proyección de Ikonen-Toivanen sobre la malla discreta; no mide por sí sola el defecto diferencial del problema continuo $(\partial_\tau - \mathcal{L})V - \lambda = 0$. Las unidades físicas son rigurosamente: $\lambda$ en $\text{USD}/\text{año}$ y $\lambda(U - g)$ en $\text{USD}^2/\text{año}$.
+
+### Diagnóstico de Consistencia Temporal Trapezoidal (Defecto de la EDP)
+Para medir de forma objetiva la convergencia del esquema temporal continuo en el interior del dominio ($8 < S < 18$, $0.04 < v < 0.40$), se evaluó el defecto de consistencia trapezoidal:
+$$\mathcal{E} = U_n - U_{n-1} - \Delta \tau \left[ \frac{1}{2}(\mathcal{L}_h U_n + \mathcal{L}_h U_{n-1}) + \frac{1}{2}(\lambda_n + \lambda_{n-1}) \right]$$
+sobre el caso ATM $K=12.33, T=0.25$ con tasa plana $r=0.05$, variando el paso temporal $M \in \{20, 40, 80\}$:
+
+| Pasos $M$ | $\Delta \tau$ (años) | Res. Algebraico IT ($\text{USD}^2/\text{año}$) | Max Defecto Núcleo Interior $\mathcal{E}$ (USD) | Norma por Año ($\mathcal{E}/\Delta\tau$, USD/año) | Ratio Conv. |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| 20 | 0.01250 | $0.000000$ | **0.005178 USD** | 0.414 USD/año | — |
+| 40 | 0.00625 | $0.000000$ | **0.000989 USD** | 0.158 USD/año | **5.23x** ($O(\Delta\tau^2)$) |
+| 80 | 0.003125 | $0.000000$ | **0.000204 USD** | 0.065 USD/año | **4.85x** ($O(\Delta\tau^2)$) |
+
+El ratio de reducción confirma la convergencia temporal de segundo orden $O(\Delta \tau^2)$ en el interior y fundamenta numéricamente la estabilidad y consistencia del integrador temporal MCS-IT.
 
 ---
 
@@ -304,17 +342,23 @@ los contratos evaluados."
 "En conclusión: la Fase 2 entrega un motor Heston 2D completamente propietario, teóricamente
 fundamentado en la literatura de In 't Hout y Toivanen, verificado contra soluciones analíticas
 y referencias industriales, y computacionalmente eficiente.
-Queda completamente despejado el camino para la Fase 3, donde utilizaremos este motor propio
-para la calibración global sobre el libro completo de 114 opciones de mercado."
+Queda despejado el camino para la Fase 3, donde someteremos este motor propio a una validación
+independiente amplia sobre la muestra completa de 97 puts (60 train / 22 strike holdout / 15 tenor holdout),
+reservando la calibración definitiva para la Fase 4."
 ```
 
 ---
 
-## 10. Limitaciones Actuales y Perspectiva de Fase 3
+## 10. Limitaciones Actuales, Alcance y Perspectiva de Fase 3
 
-1. **Restricción de Alcance:** La Fase 2 aprueba exclusivamente la construcción, discretización y validación del motor 2D propio. **No habilita la calibración de mercado propia**, la cual se reserva como núcleo de la Fase 3.
-2. **Interpolación Espacial:** La solución en la malla se evalúa en el punto $(S_0, v_0)$ mediante interpolación bicúbica (`RegularGridInterpolator`). Aunque el residual en el nodo es cero a nivel de máquina, la interpolación continua puede presentar desviaciones residuales del orden de $10^{-6}$ USD en contratos ITM profundos, lo cual es enteramente inmaterial frente al tick de mercado ($0.01$ USD) y el presupuesto numérico ($0.0020$ USD).
-3. **Perspectiva Fase 3:** En la Fase 3 se integrará este motor en la rutina de optimización multivariable (Levenberg-Marquardt / L-BFGS-B / SciPy) para ajustar los cinco parámetros $\mathbf{Q}$ sobre la muestra de entrenamiento (60 puts) y verificar las predicciones sobre los holdouts de strike y plazo bajo el presupuesto numérico estricto de $\le 0.0020$ USD.
+1. **Restricción de Alcance y Secuencia de Fases:**
+   La Fase 2 aprueba exclusivamente la construcción, discretización y validación del motor 2D propio sobre los 12 smoke tests y casos límite analíticos. **El orden metodológico formal del proyecto establece que la Fase 3 es la validación amplia e independiente del solver 2D sobre la muestra completa de 97 puts (60 train / 22 strike holdout / 15 tenor holdout); la calibración definitiva se reserva estrictamente para la Fase 4.** No se autorizan calibraciones anticipadas en la Fase 3 ni modificaciones en la composición de la muestra de mercado.
+2. **Contratos Autorizados (Puts Únicamente):**
+   El solver 2D `Heston2DSolver` está formalmente autorizado e implementado exclusivamente para opciones Put ('P' o 'PUT'). Cualquier llamada para opciones Call ('C', 'CALL') u otros contratos es rechazada explícitamente mediante `ValueError`.
+3. **Semántica de Sensibilidades (Griegas):**
+   Las sensibilidades `delta`, `gamma` y `d_price_d_v0` son diagnósticos preliminares evaluados mediante diferencias finitas en la malla. `d_price_d_v0` mide la derivada respecto a la varianza inicial $\partial P / \partial v_0$ (USD por unidad de varianza), no el vega por punto de volatilidad implícita. No están validadas para gestión de riesgo ni cobertura en mesa de dinero. `theta` no está disponible en la Fase 2 y se reporta formalmente como `None`.
+4. **Fronteras e Interpolación en Escala Submétrica (F2-L1):**
+   La evaluación continua en $(S_0, v_0)$ se realiza mediante interpolación bicúbica (`RegularGridInterpolator`). Debido a la naturaleza local del splines cúbico, pueden observarse ligeras desviaciones submétricas frente al valor intrínseco en contratos ITM profundos (gap observado de $\approx -1.8 \times 10^{-6}$ USD). Asimismo, en la frontera $S=0$ europea, la solución exhibe un drift numérico residual de $\approx 1.28 \times 10^{-5}$ USD al verse afectada marginalmente por el paso implícito en varianza. Estas discrepancias son inmateriales frente al tick comercial ($0.01$ USD) y el presupuesto numérico ($0.0020$ USD), y se aceptan como limitaciones numéricas iniciales sin recurrir a recortes artificiales (clipping) que oculten el comportamiento real del algoritmo.
 
 ---
 
@@ -324,8 +368,9 @@ Todos los artefactos de la Fase 2 se han generado de forma aislada en `data/hest
 
 | Archivo | SHA-256 Digest | Propósito |
 | :--- | :--- | :--- |
-| `smoke_test_results.csv` | `58490a08eda622349c709d0026164cb0c8260a2939eaf70b5fc8afc0de96107b` | Tabla de 12 smoke tests con errores USD y griegas |
-| `mesh_convergence.csv` | `496090a967ca3d237ca1467a031a493a2f110c9752e9f5650db3cd750d288a37` | Estudio de refinamiento Coarse, Medium y Fine |
-| `limit_cases.csv` | `3baa35b393c2b7163135edb9e0ca0e5d036491ceaa30795a6a5233e947b7e914` | Límites Black-Scholes, correlación y $\tau = 0$ |
+| `smoke_test_results.csv` | `4837bc390c6d6bd301f499cd87c0f64fd4e6060aa20446bd225f8805e707319b` | Tabla de 12 smoke tests con errores USD y sensibilidades de malla |
+| `mesh_convergence.csv` | `79ef8decd2ac99c8d092a86f42e6ddcb6c70a04133dc62396a1fadbce6b5d9e1` | Estudio de refinamiento Coarse, Medium y Fine |
+| `limit_cases.csv` | `77de027e83d42058ae1c8d2e5bd25b72571e9a596c3608448779903ba7dd425b` | Límites Black-Scholes exacto ($\xi=0$) y asintótico, $\rho=0$ y $\tau = 0$ |
 | `stencil_validation.csv` | `9ae66e2885a2dddfdf3ac679a7f1a65c0a2f81fbf7bb6d1d735fd5e913d1daea` | Validación analítica de stencils no uniformes |
+| `temporal_consistency.csv` | `858dfba7a4468bc3bafce9d9e95406ef3c9280f20d18ec3e1f393b7c6c87e3a5` | Estudio de consistencia temporal trapezoidal $M \in \{20, 40, 80\}$ |
 | `phase2_execution_manifest.json` | Publicado en commit | Manifiesto de ejecución, metadatos y dictamen |

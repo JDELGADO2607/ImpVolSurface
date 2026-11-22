@@ -34,7 +34,12 @@ except ImportError:
 
 from src.heston.rates_curve import get_official_yield_curve, SPOT_PRICE
 from src.heston.heston_model import HestonParams, HestonOptionPricer
-from src.heston.solver_2d import Heston2DSolver, Grid2D, Heston2DSolverResult
+from src.heston.solver_2d import (
+    Heston2DSolver,
+    Grid2D,
+    Heston2DSolverResult,
+    compute_temporal_consistency_defect
+)
 from src.heston.pipeline_phase2 import get_phase1_poc_params, run_stencil_validation
 
 
@@ -223,4 +228,90 @@ def test_ikonen_toivanen_complementarity_residuals():
 
     assert res_am.max_feasibility_violation < 1e-10, f"Feasibility violation: {res_am.max_feasibility_violation}"
     assert res_am.max_multiplier_violation < 1e-10, f"Multiplier violation: {res_am.max_multiplier_violation}"
-    assert res_am.max_complementarity_residual < 1e-10, f"Complementarity residual: {res_am.max_complementarity_residual}"
+    assert res_am.max_algebraic_complementarity_residual < 1e-10, f"Algebraic complementarity: {res_am.max_algebraic_complementarity_residual}"
+    assert res_am.max_complementarity_residual < 1e-10, f"Complementarity residual alias: {res_am.max_complementarity_residual}"
+
+
+def test_unsupported_option_types_rejected():
+    """
+    Audit Finding F2-M1: Verifies that Heston2DSolver explicitly rejects Call options
+    and unsupported contract types with a ValueError, rather than returning unphysical prices.
+    """
+    solver = Heston2DSolver()
+    curve = get_official_yield_curve(method="bootstrap")
+    params = get_phase1_poc_params()
+
+    for invalid_type in ["C", "c", "CALL", "call", "binary", "asian"]:
+        with pytest.raises(ValueError, match="not supported by Heston2DSolver"):
+            solver.price(12.33, 31.0 / 365.0, params, curve, option_type=invalid_type)
+
+
+def test_greek_semantics_and_theta_availability():
+    """
+    Audit Finding F2-M1:
+    - Theta is not available in Phase 2 and must be None.
+    - Sensitivity to initial variance is d_price_d_v0 (USD / unit variance), with vega as alias.
+    - Result class docstring explicitly documents that sensitivities are preliminary grid diagnostics.
+    """
+    solver = Heston2DSolver()
+    curve = get_official_yield_curve(method="bootstrap")
+    params = get_phase1_poc_params()
+
+    res = solver.price(12.33, 31.0 / 365.0, params, curve, is_american=True, n_s=160, n_v=80, m_t=100)
+
+    assert res.theta is None, f"Expected theta to be None in Phase 2, got {res.theta}"
+    assert res.d_price_d_v0 > 0.0, f"Expected d_price_d_v0 > 0, got {res.d_price_d_v0}"
+    assert res.vega == res.d_price_d_v0, f"Expected vega alias to match d_price_d_v0: {res.vega} vs {res.d_price_d_v0}"
+    assert "preliminary" in Heston2DSolverResult.__doc__.lower(), "Heston2DSolverResult docstring must warn about preliminary sensitivities"
+
+
+def test_exact_zero_xi_limit():
+    """
+    Audit Finding F2-M2:
+    Verifies that with xi = 0.0 exactly (not just 1e-5), v0 = theta = 0.20, kappa = 2.0, rho = 0.0,
+    the European put prices match the analytical Black-Scholes formula within 0.0020 USD.
+    """
+    solver = Heston2DSolver()
+    rate = 0.05
+    theta_val = 0.20
+    sigma_val = np.sqrt(theta_val)
+    params_exact_0 = HestonParams(v0=theta_val, kappa=2.0, theta=theta_val, xi=0.0, rho=0.0)
+
+    for K in [11.0, 12.33, 15.0]:
+        for T in [31.0 / 365.0, 94.0 / 365.0]:
+            disc = np.exp(-rate * T)
+            d1 = (np.log(SPOT_PRICE / (K * disc)) + 0.5 * theta_val * T) / (sigma_val * np.sqrt(T))
+            d2 = d1 - sigma_val * np.sqrt(T)
+            bs_exact = K * disc * norm.cdf(-d2) - SPOT_PRICE * norm.cdf(-d1)
+
+            res = solver.price(K, T, params_exact_0, rate, is_american=False, n_s=160, n_v=80, m_t=100)
+            diff = abs(res.price - bs_exact)
+
+            assert diff < 0.0020, f"Exact xi=0 BS limit error {diff:.6f} exceeds 0.0020 USD for K={K}, T={T}"
+
+
+def test_temporal_consistency_defect_convergence():
+    """
+    Audit Finding F2-M2:
+    Verifies the independent interior trapezoidal PDE consistency defect:
+        E = U_n - U_{n-1} - dt * [ 0.5 * (L_h U_n + L_h U_{n-1}) + 0.5 * (lambda_n + lambda_{n-1}) ]
+    across M in {20, 40, 80} on the core interior domain (8 < S < 18, 0.04 < v < 0.40).
+    Demonstrates that:
+    1. The continuous PDE defect strictly decreases with temporal refinement (O(dt^2) rate).
+    2. The algebraic IT complementarity residual is zero, confirming the conceptual difference.
+    """
+    params = get_phase1_poc_params()
+    records = compute_temporal_consistency_defect(params=params, m_t_values=(20, 40, 80))
+
+    assert len(records) == 3
+    # Verify monotonic reduction in max interior defect
+    defect_20 = records[0]["max_price_step_defect_core"]
+    defect_40 = records[1]["max_price_step_defect_core"]
+    defect_80 = records[2]["max_price_step_defect_core"]
+
+    assert defect_40 < defect_20, f"Expected defect(40) < defect(20): {defect_40} vs {defect_20}"
+    assert defect_80 < defect_40, f"Expected defect(80) < defect(40): {defect_80} vs {defect_40}"
+
+    # Verify algebraic residual is zero at machine precision
+    for r in records:
+        assert r["max_algebraic_comp_residual"] < 1e-10, f"Algebraic residual {r['max_algebraic_comp_residual']} >= 1e-10"
