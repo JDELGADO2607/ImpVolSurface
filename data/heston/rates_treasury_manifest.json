@@ -1,0 +1,13 @@
+{
+  "source": "US Department of the Treasury Daily Treasury Par Yield Curve Rates",
+  "reference_date": "2026-11-17",
+  "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?field_tdr_date_value_month=202611&type=daily_treasury_yield_curve",
+  "availability_window_est": "Estimated publication window between 17:00 and 18:00 EST (OTC closing bids ~15:30 EST)",
+  "alignment_policy": "Contemporaneous closing ex-post alignment (standard for EOD mark-to-model books)",
+  "method": "Exact coupon-bond bootstrap with log-linear discount factor interpolation",
+  "max_reprice_error_cents": 0.0,
+  "max_residual_usd": 1.7053025658242404e-13,
+  "all_bonds_reprice_machine_zero": true,
+  "raw_cmt_file": "treasury_cmt_2026_11_17_raw.json",
+  "raw_cmt_sha256": "87e1d8653fb68224bee2becd9032d2d1e7c75e5bf23e66b8b1c8370ecd97d175"
+}

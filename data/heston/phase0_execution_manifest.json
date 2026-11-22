@@ -1,0 +1,138 @@
+{
+  "phase": "PHASE_0",
+  "title": "Heston Migration Preparation and Baseline Baseline",
+  "execution_timestamp": "2026-11-21 16:51:06 EST",
+  "elapsed_seconds": 11.65,
+  "environment": {
+    "python_version": "3.12.6",
+    "quantlib_available": true,
+    "quantlib_version": "1.44",
+    "requirements_file": "requirements-heston.txt",
+    "platform": "win32"
+  },
+  "inputs": {
+    "raw_excel": {
+      "path": "data\\raw\\Opciones_Completo.xlsx",
+      "sha256": "306f8d3c1a52c7a67952d08881516bdc8632856e3abd6b33de373c4bc77ffb53",
+      "verified": true
+    },
+    "historical_csv": {
+      "path": "data\\processed\\nu_historical_daily.csv",
+      "sha256": "a510f9a48eaa0fc4f95cfbfcda491de09f4a6b14956efb0f3959c7c57ac5989a",
+      "verified": true
+    },
+    "svi_frozen_reference": {
+      "commit_sha": "3d81ff18cae3a9f8dc74c174015fed17031a8da8",
+      "path": "outputs\\tables\\model_comparison_detailed.csv",
+      "sha256": "1580b4341cc48eac49b47e0f3cdb532e6076d1695c89e8820e0e74af9bae111c"
+    }
+  },
+  "market_parameters": {
+    "valuation_date": "2026-11-17 16:00:00 America/New_York",
+    "spot_price_usd": 12.33,
+    "dividend_yield_q": 0.0,
+    "day_count_convention": "ACT/365F continuous"
+  },
+  "rates_curve": {
+    "source": "US Department of the Treasury Daily Treasury Par Yield Curve Rates",
+    "reference_date": "2026-11-17",
+    "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?field_tdr_date_value_month=202611&type=daily_treasury_yield_curve",
+    "availability_window_est": "Estimated publication window between 17:00 and 18:00 EST (OTC closing bids ~15:30 EST)",
+    "alignment_policy": "Contemporaneous closing ex-post alignment (standard for EOD mark-to-model books)",
+    "method": "Exact coupon-bond bootstrap with log-linear discount factor interpolation",
+    "max_reprice_error_cents": 0.0,
+    "max_residual_usd": 1.7053025658242404e-13,
+    "all_bonds_reprice_machine_zero": true,
+    "raw_cmt_file": "treasury_cmt_2026_11_17_raw.json",
+    "raw_cmt_sha256": "87e1d8653fb68224bee2becd9032d2d1e7c75e5bf23e66b8b1c8370ecd97d175"
+  },
+  "selection_counts": {
+    "total_raw_contracts": 575,
+    "total_raw_puts": 272,
+    "rejected_stale_trade": 141,
+    "rejected_bounds_violation": 25,
+    "candidate_microstructure_sensitive": 9,
+    "selected_clean_puts": 97,
+    "common_r3_benchmark_puts": 84,
+    "calls_external_contrast": 142
+  },
+  "ablation_summary": {
+    "max_am_flat_rate_effect_usd": 0.0009043419264114227,
+    "max_am_flat_rate_effect_pde_usd": 0.0009020758129012485,
+    "max_svi_pure_rate_effect_usd": 0.0009081748749917296,
+    "max_engine_discrepancy_am_usd": 0.002609352610037141,
+    "max_engine_discrepancy_svi_usd": 0.0023963168921292133
+  },
+  "baseline_metrics_common_84": [
+    {
+      "Model": "M1_European_BS_Flat45_OfficialRates",
+      "N": 84,
+      "MAE": 0.04295775125911461,
+      "RMSE": 0.0672221479225507,
+      "MaxErr": 0.3238858793786443,
+      "Bias": -0.012876948395051697
+    },
+    {
+      "Model": "M2_American_Flat45_QuantLib_OfficialRates",
+      "N": 84,
+      "MAE": 0.03902246175735789,
+      "RMSE": 0.05940479469802001,
+      "MaxErr": 0.33042630406583573,
+      "Bias": 0.01365873598189967
+    },
+    {
+      "Model": "M2_American_Flat45_RepoPDE_OfficialRates",
+      "N": 84,
+      "MAE": 0.03890768730051996,
+      "RMSE": 0.05935559522678412,
+      "MaxErr": 0.33059022028590945,
+      "Bias": 0.013401325636734704
+    },
+    {
+      "Model": "M3_Frozen_SVI_Published_R3_Benchmark",
+      "N": 84,
+      "MAE": 0.06844166666666666,
+      "RMSE": 0.08857928718976923,
+      "MaxErr": 0.24629999999999974,
+      "Bias": 0.06741309523809523
+    },
+    {
+      "Model": "M3_Frozen_SVI_RepoPDE_OfficialRates",
+      "N": 84,
+      "MAE": 0.06840294236754567,
+      "RMSE": 0.0885297503902039,
+      "MaxErr": 0.24615416410568924,
+      "Bias": 0.06738858304856198
+    }
+  ],
+  "poc_gate_proposals": {
+    "numerical_solver_tolerance_usd": 0.002,
+    "solver_tolerance_note": "Equivalent to 1/5th of 0.01 tick, to be verified against 3 grid resolutions",
+    "in_sample_mae_gate_usd": 0.08,
+    "in_sample_rmse_gate_usd": 0.12,
+    "atm_max_rel_error_pct": 10.0,
+    "holdout_generalization_assessment": "Report MAE/RMSE by split, coverage and common benchmark; relative gap not used in isolation",
+    "feller_ratio_policy": "Report 2*kappa*theta / sigma_v^2 ratio and boundary behavior without rigid pre-filter",
+    "rho_parameter_domain": "[-0.95, 0.50] allowing empirical exploration of correlation regime",
+    "multistart_runs": 5,
+    "multistart_runtime_policy": "Track runtime, evaluations and convergence feasibility without rigid 60s hard block"
+  },
+  "generated_artifacts_sha256": {
+    "baseline_comparison_detailed.csv": "4e3e9c422c2edc9f9bdf28e40eee45f86322f9ddd1d91e52249a6ff851ba2df2",
+    "baseline_comparison_summary.csv": "cfc83d1593f010cb3900ee1758657f0c9209326dc5916b917d4bad4fc60a53ae",
+    "calls_external_contrast_all.csv": "fcad3cec964a352251eab84721a14b2391dbb688d0c88f3f97c0f8536df7b7aa",
+    "data_split_calls_contrast.csv": "1ec1d2fd455aa5c31e464be8bb1e630a3080126e93ac5ad85fb6a3442aaeed07",
+    "data_split_manifest.json": "981345af41c4b68ef0c0733aab80bbbdc46a9b6c924a7206193fb11a5e06ce0f",
+    "data_split_strike_holdout.csv": "c0540443dc717d8fce84aae1c73d96e1efe391bcb23aab45366880a2ab0d8373",
+    "data_split_tenor_holdout.csv": "29a7fd19b7e73d661159238ad612553580879f3d0787f11003caa1e805b8157f",
+    "data_split_train.csv": "68bcff1aa22f75bd9193751b3df70f4eef87183957cbfda3249de02d084b48bc",
+    "puts_common_r3_benchmark.csv": "135a66949211f5f3faa4766c9c0b357999ee226a1631d6714c1a654d35d425bc",
+    "puts_selected_clean.csv": "1c069129d8dc138f8896fb8f02c83809454df0d041569f418a7cbbea21545df2",
+    "puts_selection_all.csv": "444422ed77964ebb7337e850a131d96c217c63be7c222d44f6f6e78885d76214",
+    "puts_support_by_tenor.csv": "8259f9c7740b428bd3dbbcaac36b028edc251b7e23d0c974067455955fc52f0f",
+    "rates_curve_comparison.csv": "2faf4dc6a97f2c54b3b4e6eacb14efe729fffbb65543e9dce047a2d90e25f244",
+    "rates_par_bonds_repricing.csv": "4a69a2a0edf4c15dc95f1f5dd81d474de9b7eeffb01a820d70e952ec803af1e0",
+    "rates_treasury_manifest.json": "fb361dd17776bc7e943234fc704ab90958832880d30118b174e0f161a5e677c8",
+    "treasury_cmt_2026_11_17_raw.json": "87e1d8653fb68224bee2becd9032d2d1e7c75e5bf23e66b8b1c8370ecd97d175"
+  }
+}

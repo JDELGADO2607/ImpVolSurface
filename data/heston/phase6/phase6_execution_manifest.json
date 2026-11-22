@@ -1,0 +1,69 @@
+{
+  "phase": "PHASE_6",
+  "description": "Financial Integration, Four-Model Comparison, Portfolio Risk, and Stress Testing",
+  "timestamp_utc": "2026-11-22T15:16:36.753085+00:00",
+  "input_files": {
+    "calibrated_parameters": {
+      "path": "data\\heston\\phase4\\heston_calibrated_parameters.json",
+      "sha256": "8ec92916e726317358563c1c62f729d3770dd60c026d2854cb33fbbba9ebb705"
+    },
+    "phase4_full_puts": {
+      "path": "data\\heston\\phase4\\heston_pricing_full_puts.csv",
+      "sha256": "252207054c5001608a470bab4ad6e601e431a0aa92f80ea316687afe07256d2b"
+    },
+    "phase5_calls": {
+      "path": "data\\heston\\phase5\\heston_iv_surface_142_calls.csv",
+      "sha256": "f702e0bb8fd336e09c7c7577bb07ebd8e37c202306077a2ce77848b425c2b296"
+    }
+  },
+  "output_files": {
+    "models_comparison_detailed": {
+      "path": "data\\heston\\phase6\\models_comparison_detailed.csv",
+      "rows": 239,
+      "sha256": "a4dbe052c0e12976f7b3c619804cdd0e10c3eec321d55c6db0a8d4a02d5895be"
+    },
+    "models_comparison_summary": {
+      "path": "data\\heston\\phase6\\models_comparison_summary.csv",
+      "rows": 6,
+      "sha256": "c1e993592e0c2eddc9b02739992296c50a28c0b632fc138a39df9f72c4842952"
+    },
+    "portfolio_greeks_and_valuation": {
+      "path": "data\\heston\\phase6\\portfolio_greeks_and_valuation.csv",
+      "rows": 6,
+      "sha256": "ec1aadde87a7800e5b0811a02b0511789c4de8a8f148af25f02835d57a22227d"
+    },
+    "portfolio_convergence_checks": {
+      "path": "data\\heston\\phase6\\portfolio_convergence_checks.csv",
+      "rows": 2,
+      "sha256": "14111eb2a2e421323284213405ddd6d06f5e787968a0fca7cc98256d0fad2acb"
+    },
+    "portfolio_stress_scenarios": {
+      "path": "data\\heston\\phase6\\portfolio_stress_scenarios.csv",
+      "rows": 6,
+      "sha256": "5049827b8bf9004cf6160f18e8333878ebbd0c1ad66429076d3db2544d8ded2b"
+    },
+    "portfolio_stress_leg_detail": {
+      "path": "data\\heston\\phase6\\portfolio_stress_leg_detail.csv",
+      "rows": 30,
+      "sha256": "b093d9ff9dc9d309a7ea0e5f9f077430d75ad36c9af60b4d716249da1966b81c"
+    },
+    "phase6_summary_metrics": {
+      "path": "data\\heston\\phase6\\phase6_summary_metrics.json",
+      "sha256": "dabc02522c990e34c6337bab3ade95e41ab0ad842e90f045a40f3960a5d018a0"
+    }
+  },
+  "figures": [
+    "figures\\phase6\\models_comparison_errors_by_partition.png",
+    "figures\\phase6\\early_exercise_premium_profile.png",
+    "figures\\phase6\\portfolio_stress_pnl_profile.png",
+    "figures\\phase6\\stress_taylor_vs_revaluation.png"
+  ],
+  "calibrated_parameters_used": {
+    "v0": 0.18613777847584,
+    "kappa": 2.72546036683707,
+    "theta": 0.21367969920004,
+    "xi": 0.48178472584297,
+    "rho": -0.94980666301298
+  },
+  "runtime_seconds": 29.67
+}

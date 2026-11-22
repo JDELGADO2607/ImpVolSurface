@@ -1,0 +1,81 @@
+{
+  "phase": "PHASE_3_BROAD_INDEPENDENT_VALIDATION_HESTON_2D",
+  "directive": "NUMERICAL VALIDATION ONLY - ZERO CALIBRATION",
+  "frozen_parameters": {
+    "regime_A_poc": {
+      "v0": 0.18613777847584,
+      "kappa": 2.7254603668370714,
+      "theta": 0.2136796992000426,
+      "xi": 0.4817847258429695,
+      "rho": -0.9498066630129804,
+      "feller_ratio": 5.017958620178884,
+      "feller_satisfied": true,
+      "spot_vol": 0.4314368765831683,
+      "long_term_vol": 0.4622550153324922
+    },
+    "spot_price": 12.33,
+    "dividend_yield": 0.0
+  },
+  "execution_timestamp": "2026-11-22T05:05:23.927869+00:00",
+  "wall_time_seconds": 85.28,
+  "validation_summary": {
+    "overall_status": "PASSED",
+    "market_97_status": "PASSED",
+    "hypothetical_regimes_108_status": "PASSED",
+    "economic_arbitrage_status": "PASSED",
+    "analytical_limits_status": "PASSED",
+    "rates_integration_status": "PASSED",
+    "worst_3_refinement_status": "ALL_CONVERGED_WITHIN_002",
+    "market_97_puts": {
+      "n_contracts": 97,
+      "max_abs_err_usd": 0.0005457561607178363,
+      "mae_usd": 5.5637636223494396e-05,
+      "rmse_usd": 0.00010234959486418474,
+      "target_criterion_usd": 0.002,
+      "pct_within_target": 100.0
+    },
+    "hypothetical_regimes_108": {
+      "n_prices": 108,
+      "max_abs_err_usd": 0.0005093403816572861,
+      "mae_usd": 6.8516635654985e-05,
+      "pct_within_target": 100.0
+    }
+  },
+  "input_hashes": {
+    "puts_selected_clean": "1c069129d8dc138f8896fb8f02c83809454df0d041569f418a7cbbea21545df2",
+    "options_clean": "521a00ad92bcfee9d561a2d862ae8d69706d7e552322a0f99ef61df10425ea29",
+    "treasury_cmt_raw": "87e1d8653fb68224bee2becd9032d2d1e7c75e5bf23e66b8b1c8370ecd97d175",
+    "rates_treasury_manifest": "fb361dd17776bc7e943234fc704ab90958832880d30118b174e0f161a5e677c8",
+    "data_split_manifest": "981345af41c4b68ef0c0733aab80bbbdc46a9b6c924a7206193fb11a5e06ce0f",
+    "phase0_manifest": "eb145a16dfe0ab92ebe973304273f0b109f5d69f1cc6c9f6d6b10ffedaeb51d3",
+    "phase1_manifest": "cf735b41d342ad554505abb41e6da72a703b65b9f8e6b82e036a3675b4454e7d"
+  },
+  "execution_provenance": {
+    "prices_source_commit": "37bbd12d52819c765c64a950333962af9410073d",
+    "diagnostics_remediation": "REMEDIATION_3_FINAL_AUDIT_344ae4a",
+    "python_version": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+    "platform": "win32",
+    "quantlib_version": "1.44",
+    "numpy_version": "2.1.1",
+    "pandas_version": "2.2.2",
+    "scipy_version": "1.18.0"
+  },
+  "source_hashes": {
+    "pipeline_phase3_py": "f4b48cfcaabe63c84071e3d867eaec11412a0b0bcce97695cc9782a7d89a6f61",
+    "solver_2d_py": "ea0298e59dcd47d612403ea9c81e1c6dd5b4e029774369f2b1542c048bffe64c",
+    "heston_model_py": "05d61ab33829b8fe663e9442124586958c1f47a1cf6c636d9fbeac5f71704529",
+    "rates_curve_py": "46d204608ff6294817dff40bd19c1b525bb37d954b6692660f88890f1c24da7c"
+  },
+  "output_files": {
+    "market_97_puts_validation.csv": "5a1bc12e6988bcb16d9659536a2b2027cf1b994633ef2d404ae57af1e97c016b",
+    "market_97_summary_by_tenor.csv": "20c92c1efc4d159f2216d5449970afa881125cf84c4574c5324301f829810ada",
+    "market_97_summary_by_partition.csv": "ae1f4531ae9391b06f5d254ff50e3a82536c90fc9a99cd87d0eec5ea8d3b183e",
+    "market_worst3_refinement.csv": "6e6312d1cef0db47865b7c7279eedd495ac7cc78ed997e19f98e2ea000cfc67b",
+    "hypothetical_regimes_108.csv": "e477fa4e42080ee4d739063513534b14a2ee81e25a4fe99764ab3aa89dce8b22",
+    "regimes_mesh_refinement.csv": "b1ed50558034b82793dc9fd1a0220f0a4d246d6c61665e0461e4018ad3136f67",
+    "analytical_limits_validation.csv": "94d97405573315bd1c43f78bfd6e675d2139fbc41fb902dda2581a9ce725f927",
+    "continuity_edge_cases.csv": "2a5437eb9c66f692a7d266dee0dbb9d208ad67375a567c7237864cd0f9f5c5e7",
+    "economic_arbitrage_checks.csv": "2afd3f723c8b4a928bad72aaa12f861389b84f9ca014810b7a73801a0f64a389",
+    "rates_curve_integration_check.csv": "d20cea09949adf290631ff766695fb7809d09cd21d3d832ab1550b34c836f531"
+  }
+}

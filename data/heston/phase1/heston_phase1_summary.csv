@@ -1,0 +1,18 @@
+metric,target_gate,achieved,status
+Train MAE (60 puts),<= 0.080 USD,0.0258 USD,PASS
+Train RMSE (60 puts),<= 0.120 USD,0.0380 USD,PASS
+Strike Holdout MAE (22 puts),<= 0.100 USD,0.0211 USD,PASS
+Tenor Holdout MAE (15 puts),<= 0.100 USD,0.0204 USD,PASS
+Numerical Grid Budget,<= 0.0020 USD,Max |Med-Fine| = 0.000605 USD,PASS
+Lower Arbitrage Bound Violations,0 violations,0 violations,PASS
+Upper Arbitrage Bound Violations,0 violations,0 violations,PASS
+Early Exercise Premium Violations,0 violations,0 violations,PASS
+Strike Monotonicity Violations,0 violations,0 violations,PASS
+Tenor Monotonicity Violations,0 violations,0 violations,PASS
+Convexity Violations,0 violations,0 violations,PASS
+Full Sample MAE (97 puts),Diagnostic,0.0239 USD,INFO
+External Calls MAE (142 calls),Diagnostic,0.0873 USD,INFO
+Common 84 Heston MAE,Diagnostic,0.0232 USD,INFO
+Common 84 SVI Historical MAE,Reference R3,0.0684 USD,INFO
+Common 84 Flat Baseline MAE,Common Curve,0.0397 USD,INFO
+Feller Ratio (Best Candidate),Reported without filter,5.0180 (Satisfied: True),INFO

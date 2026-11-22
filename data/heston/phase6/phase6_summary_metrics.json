@@ -1,0 +1,41 @@
+{
+  "model_comparison": {
+    "total_contracts": 239,
+    "puts_count": 97,
+    "calls_count": 142,
+    "all_puts_am_heston_mae_usd": 0.023847251618034176,
+    "all_puts_am_heston_rmse_usd": 0.03403626589561799,
+    "train_puts_am_heston_mae_usd": 0.02573726190963425,
+    "strike_holdout_puts_am_heston_mae_usd": 0.021108199892518692,
+    "tenor_holdout_puts_am_heston_mae_usd": 0.020304486315723288,
+    "all_calls_am_heston_mae_usd": 0.08729127841786972,
+    "mean_eep_puts_heston_usd": 0.028746867978045074,
+    "max_eep_puts_heston_usd": 0.5672547731956463
+  },
+  "portfolio": {
+    "spot_price": 12.33,
+    "total_options_value_mkt_usd": 616.0,
+    "total_options_value_heston_usd": 596.1016898275653,
+    "mark_to_model_diff_options_usd": -19.898310172434662,
+    "hedge_shares": -393,
+    "hedge_value_usd": -4845.69,
+    "total_portfolio_value_heston_usd": -4249.588310172434,
+    "total_options_delta": 393.21986462715273,
+    "residual_portfolio_delta": 0.21986462715273092,
+    "total_portfolio_gamma": 118.2381222147772,
+    "total_portfolio_sens_sigma0_1pp": 7.178160453738242,
+    "total_portfolio_theta_daily": -5.998177958942699,
+    "capital_initial_approx_usd": 5613.879812114659
+  },
+  "stress_testing": {
+    "null_scenario_exact_zero": true,
+    "s0_null_pnl_usd": 0.0,
+    "s1_spot_down_5_pnl_usd": 26.255595626826448,
+    "s2_spot_up_5_pnl_usd": 18.53726264504462,
+    "s3_vol_spike_5pp_pnl_usd": 34.797025434314605,
+    "s4_severe_crisis_pnl_usd": 492.2057670427728,
+    "s5_bullish_rally_pnl_usd": 97.1807816072926,
+    "max_taylor_divergence_usd": 48.02620554747443
+  },
+  "step_stability_check_passed": true
+}

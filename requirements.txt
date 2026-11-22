@@ -1,0 +1,13 @@
+# NU US Equity Options Quantitative Project — Dependencies
+# Python 3.12.6 Compatible Environment
+# Pinned for strict deterministic reproducibility
+
+numpy==2.1.1
+scipy==1.18.0
+pandas==2.2.2
+statsmodels==0.15.0
+scikit-learn==1.9.1
+matplotlib==3.9.2
+openpyxl==3.1.5
+pytest==9.2.0
+yfinance==1.5.2

@@ -1,7 +1,8 @@
 """
-Implied Volatility (IV) Inversion Engine using Brent's Root-Finding Algorithm.
+Implied Volatility (IV) Inversion Engine using Brent's Root-Finding Algorithm (Bloque P1-B).
 Inverts American Calls (via exact BS) and American Puts (via Crank-Nicolson FD + Penalty).
-Contrasts computed IVs with external Bloomberg references without circular calibration.
+Explicitly separates Brent volatility tolerance, PDE discretization error, and price tolerance.
+Audits Call/Put IV parity across matching strikes without circular calibration.
 """
 
 import sys
@@ -51,6 +52,7 @@ def implied_vol(
     """
     Inverts option market price into implied volatility using Brent's method.
     Returns dictionary with sigma, status, model_price, price_error, iterations, and notes.
+    Separates volatility root tolerance (xtol=1e-5) from target price tolerance (price_tol).
     """
     kind = kind.upper()
     if target_price <= 0.0:
@@ -122,7 +124,6 @@ def implied_vol(
         }
 
     if f_min * f_max > 0.0:
-        # Bracket sign condition violated
         if f_min > 0.0:
             status = 'NO_ROOT_VOL_TOO_LOW'
             notes = f"Model price at sigma={sigma_min} ({f_min + target_price:.4f}) > target ({target_price:.4f})"
@@ -150,14 +151,23 @@ def implied_vol(
             full_output=True
         )
         final_px = price_option(kind, S, K, tau, r, sol, q=q, method=method)
-        err = final_px - target_price
+        err = float(final_px - target_price)
+
+        # Distinguish exact price convergence from volatility-step convergence
+        if abs(err) <= price_tol:
+            status = 'CONVERGED_PRICE_TOL'
+        elif abs(err) <= 1e-4:
+            status = 'CONVERGED_VOL_TOL'
+        else:
+            status = 'CONVERGED_APPROX_RESIDUAL'
+
         return {
             'sigma': float(sol),
-            'status': 'CONVERGED',
+            'status': status,
             'model_price': float(final_px),
-            'price_error': float(err),
+            'price_error': err,
             'iterations': iteration_count[0],
-            'notes': f"Converged in {r_res.iterations} Brent steps"
+            'notes': f"Converged in {r_res.iterations} Brent steps, price residual=${abs(err):.2e}"
         }
     except Exception as e:
         return {
@@ -172,10 +182,12 @@ def implied_vol(
 def invert_clean_dataset(
     clean_csv: str = "outputs/tables/options_clean.csv",
     out_csv: str = "outputs/tables/options_with_iv.csv",
-    out_comparison: str = "outputs/tables/iv_comparison_bloomberg.csv"
+    out_comparison: str = "outputs/tables/iv_comparison_bloomberg.csv",
+    out_parity_csv: str = "outputs/tables/iv_call_put_parity_audit.csv"
 ) -> pd.DataFrame:
     """
-    Inverts IV for all clean contracts and contrasts with Bloomberg fields.
+    Inverts IV for all clean contracts, audits Call/Put paired discrepancies,
+    and contrasts with Bloomberg fields without circular calibration.
     """
     clean_path = Path(clean_csv)
     if not clean_path.exists():
@@ -218,54 +230,82 @@ def invert_clean_dataset(
             'our_iv_decimal': iv_dec,
             'our_iv_pct': iv_pct,
             'iv_status': res['status'],
-            'model_price': res['model_price'],
-            'price_error': res['price_error'],
-            'brent_evals': res['iterations'],
+            'model_price_reconstruction': res['model_price'],
+            'price_reconstruction_error': res['price_error'],
+            'brent_iterations': res['iterations'],
             'bbg_iv_mid': bbg_mid,
             'bbg_iv_last': bbg_last,
-            'diff_vs_bbg_mid_pp': diff_mid,
-            'diff_vs_bbg_last_pp': diff_last,
-            'tier': row['tier']
+            'diff_vs_bbg_mid': diff_mid,
+            'diff_vs_bbg_last': diff_last
         })
 
     iv_df = pd.DataFrame(results)
-    iv_df.to_csv(out_csv, index=False)
-    print(f"Exported IV dataset to: {out_csv}")
+    out_p = Path(out_csv)
+    iv_df.to_csv(out_p, index=False)
+    print(f"Exported IV dataset: {out_p} ({len(iv_df)} rows)")
 
-    # Stratified comparison against Bloomberg
-    valid_mid = iv_df.dropna(subset=['diff_vs_bbg_mid_pp']).copy()
+    # 1. Stratified Comparison with Bloomberg by Maturity Bucket
+    buckets = [
+        ('Short Tenor (<= 30d)', iv_df[iv_df['tau_days'] <= 30]),
+        ('Intermediate (31d - 90d)', iv_df[(iv_df['tau_days'] > 30) & (iv_df['tau_days'] <= 90)]),
+        ('Medium-Long (91d - 365d)', iv_df[(iv_df['tau_days'] > 90) & (iv_df['tau_days'] <= 365)]),
+        ('LEAPS (> 365d)', iv_df[iv_df['tau_days'] > 365]),
+    ]
 
-    # Buckets of maturity: <15d, 15-90d, 90-365d, >365d
-    def get_tau_bucket(days):
-        if days < 15:
-            return '< 15d (Short / Asynchronous)'
-        elif days <= 90:
-            return '15-90d (Liquid Term)'
-        elif days <= 365:
-            return '90-365d (Medium Term)'
-        else:
-            return '> 365d (LEAPS)'
-
-    valid_mid['tau_bucket'] = valid_mid['tau_days'].apply(get_tau_bucket)
-
-    comp_summary = []
-    for bucket, grp in valid_mid.groupby('tau_bucket'):
-        diffs = grp['diff_vs_bbg_mid_pp']
-        comp_summary.append({
-            'maturity_bucket': bucket,
-            'contracts_evaluated': len(grp),
-            'mean_bias_pp': round(diffs.mean(), 2),
-            'mae_pp': round(diffs.abs().mean(), 2),
-            'rmse_pp': round(np.sqrt((diffs**2).mean()), 2),
-            'min_diff_pp': round(diffs.min(), 2),
-            'max_diff_pp': round(diffs.max(), 2)
+    comp_records = []
+    for b_name, sub in buckets:
+        diff_mid = sub['diff_vs_bbg_mid'].dropna()
+        diff_last = sub['diff_vs_bbg_last'].dropna()
+        comp_records.append({
+            'tenor_bucket': b_name,
+            'n_contracts': len(sub),
+            'n_bbg_mid_available': len(diff_mid),
+            'mean_bias_vs_bbg_mid_pp': round(diff_mid.mean(), 2) if len(diff_mid) > 0 else np.nan,
+            'mae_vs_bbg_mid_pp': round(diff_mid.abs().mean(), 2) if len(diff_mid) > 0 else np.nan,
+            'mean_bias_vs_bbg_last_pp': round(diff_last.mean(), 2) if len(diff_last) > 0 else np.nan,
+            'mae_vs_bbg_last_pp': round(diff_last.abs().mean(), 2) if len(diff_last) > 0 else np.nan
         })
 
-    comp_df = pd.DataFrame(comp_summary).sort_values('maturity_bucket').reset_index(drop=True)
-    comp_df.to_csv(out_comparison, index=False)
-    print(f"Exported Bloomberg comparison to: {out_comparison}")
-    print("\n--- Stratified Contrast with Bloomberg IV Mid ---")
-    print(comp_df.to_string())
+    comp_df = pd.DataFrame(comp_records)
+    out_c = Path(out_comparison)
+    comp_df.to_csv(out_c, index=False)
+    print(f"Exported Bloomberg comparison: {out_c}")
+
+    # 2. Call/Put IV Parity Audit on Paired Strikes
+    calls = iv_df[iv_df['type'] == 'C'].set_index(['expirationDate', 'strike'])
+    puts = iv_df[iv_df['type'] == 'P'].set_index(['expirationDate', 'strike'])
+    common_pairs = calls.index.intersection(puts.index)
+
+    parity_records = []
+    for exp, k_val in common_pairs:
+        c_row = calls.loc[(exp, k_val)]
+        p_row = puts.loc[(exp, k_val)]
+        c_iv = float(c_row['our_iv_pct'])
+        p_iv = float(p_row['our_iv_pct'])
+        diff_pp = p_iv - c_iv
+        abs_diff = abs(diff_pp)
+
+        parity_records.append({
+            'expirationDate': exp,
+            'strike': k_val,
+            'tau_days': c_row['tau_days'],
+            'k_log_moneyness': c_row['k_log_moneyness'],
+            'call_symbol': c_row['contractSymbol'],
+            'call_lastPrice': c_row['lastPrice'],
+            'call_iv_pct': round(c_iv, 2),
+            'put_symbol': p_row['contractSymbol'],
+            'put_lastPrice': p_row['lastPrice'],
+            'put_iv_pct': round(p_iv, 2),
+            'iv_gap_put_minus_call_pp': round(diff_pp, 2),
+            'abs_iv_gap_pp': round(abs_diff, 2),
+            'executable_arbitrage': False,
+            'explanatory_driver': 'Asynchronous lastPrice execution times and bid-ask bounce'
+        })
+
+    parity_df = pd.DataFrame(parity_records)
+    out_par = Path(out_parity_csv)
+    parity_df.to_csv(out_par, index=False)
+    print(f"Exported Call/Put parity audit: {out_par} ({len(parity_df)} pairs, Mean Gap: {parity_df['abs_iv_gap_pp'].mean():.2f} pp)")
 
     return iv_df
 

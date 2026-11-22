@@ -434,6 +434,46 @@ Para resolver el sistema no lineal en cada paso temporal $n \to n+1$, aplicamos 
 Forsyth \& Vetzal (2002) demostraron que la iteración de política monótona converge de forma no oscilatoria y cuadrática en a lo sumo 2 a 4 iteraciones para cualquier valor de $\rho > 0$, garantizando exactitud absoluta sin el estancamiento típico de PSOR.
 \end{theorem}
 
+\subsection{Diagnósticos de Convergencia del Método de Penalización}
+En nuestra implementación (\texttt{src/pricing\_american\_fd.py}), el pricer registra internamente las iteraciones consumidas en cada paso temporal. Si para algún nivel $n$ la iteración de política no alcanza la tolerancia de $10^{-7}$ en el número máximo permitido (30 iteraciones), el algoritmo emite una alerta diagnóstica explícita (\texttt{converged = False}) en lugar de propagar silenciosamente aproximaciones subóptimas. En las calibraciones sobre los 201 contratos del mercado de NU, el 100\% de los pasos convergió en un promedio de 2.14 iteraciones.
+
+\newpage
+% ==============================================================================
+\section{Estabilidad Numérica de Griegas Americanas (Gamma, Vanna, Volga)}
+% ==============================================================================
+
+\subsection{Diagnóstico del Defecto de Inestabilidad en la Malla Dinámica}
+El cálculo estándar de derivadas de segundo orden por diferencias finitas centrales aproxima Gamma mediante perturbaciones del spot:
+\begin{equation}
+    \Gamma = \frac{V(S_0 + dS) - 2V(S_0) + V(S_0 - dS)}{dS^2}
+\end{equation}
+En versiones tempranas del motor, el límite espacial superior se fijaba como $S_{\max}(S) = 4.0 \cdot \max(S, K)$. Al evaluar $V(S_0 \pm dS)$ con $dS = 0.01$, el dominio $[0, S_{\max}]$ variaba ligeramente entre las tres llamadas, generando tres mallas espaciales discretas desalineadas. La interpolación cúbica subsiguiente inducía un error de discretización del orden de $O(\Delta S^2)$; al dividirse por el denominador $dS^2 = (0.01)^2 = 10^{-4}$, este ruido numérico se amplificaba por un factor de $10\,000\times$. Para la Put americana $K=12$, vencimiento 18-dic-2026 ($\tau = 31$ días), esto producía un Gamma espurio de $3.3547$, un valor físicamente absurdo para un subyacente de $\$12.33$.
+
+\subsection{Solución Cuantitativa: Dominio Fijo y Mallas Compartidas}
+Para erradicar completamente el ruido de malla:
+\begin{enumerate}
+    \item \textbf{Dominio de Discretización Invariante:} Se fija un dominio espacial común $S_{\max} = 4.0 \cdot \max(S_0, K)$ idéntico para $S_0$, $S_0 + dS$ y $S_0 - dS$, desacoplando la malla de la perturbación local.
+    \item \textbf{Evaluación Sobre la Misma Solución EDP:} Se implementó la rutina \texttt{fd\_american\_grid}, la cual resuelve la EDP una sola vez sobre la malla global y evalúa los tres puntos perturbados sobre la solución continua unificada mediante interpolación PCHIP local (\textit{Piecewise Cubic Hermite Interpolating Polynomial}), la cual preserva la monotonía y suprime sobreoscilaciones espurias.
+    \item \textbf{Estabilidad de Derivadas Cruzadas:} Para Vanna ($\frac{\partial^2 V}{\partial S \partial \sigma}$) y Volga ($\frac{\partial^2 V}{\partial \sigma^2}$), los bumps bidimensionales se ejecutan con pasos calibrados ($dS = 0.01$, $d\sigma = 0.005$) verificando que no se acerquen a los bordes del dominio ni a la región de absorción.
+\end{enumerate}
+
+\subsection{Verificación Empírica de Convergencia}
+Al aplicar la malla compartida y el dominio fijo, el Gamma de la Put $K=12$ converge de forma monótona y suave a $0.2375$, en estrecha concordancia económica con el Gamma de la Call europea correspondiente ($0.2346$) más la curvatura adicional debida a la prima de ejercicio anticipado.
+\begin{table}[htbp]
+\centering
+\begin{tabular}{ccccc}
+\toprule
+\textbf{Nodos Espaciales $M$} & \textbf{Paso $dS = 0.005$} & \textbf{Paso $dS = 0.01$} & \textbf{Paso $dS = 0.02$} & \textbf{Paso $dS = 0.05$} \\
+\midrule
+150 & 0.2391 & 0.2389 & 0.2382 & 0.2345 \\
+300 & 0.2381 & 0.2379 & 0.2374 & 0.2341 \\
+600 & 0.2377 & 0.2376 & 0.2372 & 0.2340 \\
+900 & 0.2375 & 0.2375 & 0.2371 & 0.2339 \\
+\bottomrule
+\end{tabular}
+\caption{Convergencia de Gamma numérico para Put NU $K=12$, $\tau=31$ días, ante refinamiento de malla y variación del bump $dS$.}
+\end{table}
+
 \newpage
 % ==============================================================================
 \section{Inversión Numérica a Volatilidad Implícita Mediante el Algoritmo de Brent}
@@ -505,22 +545,96 @@ $\eta > 0$ & $[0.005, 2.0]$ & Curvatura / suavizado del vértice en la región A
 \caption{Parámetros de la formulación Raw SVI.}
 \end{table}
 
-\subsection{Condiciones Analíticas de No Arbitraje Estático}
-\begin{theorem}[Condiciones de No Arbitraje de Gatheral \& Jacquier, 2014]
-Una superficie de volatilidad representada en varianza total $w(k, \tau)$ está libre de arbitraje estático si y solo si:
+\subsection{Condiciones Analíticas de No Arbitraje Estático Europeo}
+\begin{theorem}[Condiciones de No Arbitraje de Gatheral \& Jacquier, 2014; Lee, 2004]
+Una superficie de volatilidad representada en varianza total $w(k, \tau)$ está libre de arbitraje estático europeo si y solo si:
 \begin{enumerate}
-    \item \textbf{No negatividad global:} $a + b \eta \sqrt{1 - \rho^2} \ge 0$.
-    \item \textbf{Cota de momentos de Lee:} $b(1 + |\rho|) < 4$.
-    \item \textbf{Densidad neutral al riesgo no negativa (Sin Arbitraje Mariposa):}
+    \item \textbf{No negatividad global de la varianza:}
     \begin{equation}
-        g(k) = \left( 1 - \frac{k w'(k)}{2 w(k)} \right)^2 - \frac{w'(k)^2}{4} \left( \frac{1}{w(k)} + \frac{1}{4} \right) + \frac{w''(k)}{2} \ge 0 \quad \forall k \in \mathbb{R}
+        w(k, \tau) \ge 0 \quad \forall k \in \mathbb{R}, \tau > 0 \iff a + b \eta \sqrt{1 - \rho^2} \ge 0
     \end{equation}
-    \item \textbf{Monotonicidad temporal (Sin Arbitraje de Calendario):}
+    \item \textbf{Cota de momentos de Roger Lee (Alas asintóticas):}
+    Para asegurar la existencia del primer momento del subyacente $\mathbb{E}[S_T] < \infty$ y evitar probabilidades de colas que violen la física neutral al riesgo, la pendiente asintótica de la varianza total en las alas no puede exceder 2:
+    \begin{equation}
+        \limsup_{k \to \pm \infty} \frac{w(k)}{|k|} < 2 \iff b(1 + |\rho|) < 2.0
+    \end{equation}
+    En nuestra calibración robusta, se impone la cota estricta $b(1 + |\rho|) \le 1.95$.
+    \item \textbf{Densidad neutral al riesgo no negativa (Sin Arbitraje Mariposa):}
+    La función de densidad neutral al riesgo de Breeden-Litzenberger exige que la derivada segunda del precio respecto al strike sea no negativa, lo que en coordenadas de varianza total equivale a:
+    \begin{equation}
+        g(k) = \left( 1 - \frac{k w'(k)}{2 w(k)} \right)^2 - \frac{w'(k)^2}{4} \left( \frac{1}{w(k)} + \frac{1}{4} \right) + \frac{w''(k)}{2} \ge 0 \quad \forall k \in [k_{\min}, k_{\max}]
+    \end{equation}
+    \item \textbf{Monotonicidad temporal acumulativa (Sin Arbitraje de Calendario):}
+    El precio de una opción europea (y la varianza total) debe ser no decreciente con el tiempo de madurez para un strike forward dado:
     \begin{equation}
         \frac{\partial w(k, \tau)}{\partial \tau} \ge 0 \quad \forall k, \tau
     \end{equation}
 \end{enumerate}
 \end{theorem}
+
+\subsection{Distinción entre Superficie Europea SVI y Coherencia Económica Americana}
+Es fundamental distinguir tres niveles conceptuales rigurosos:
+\begin{enumerate}
+    \item \textbf{Superficie SVI sobre IVs Americanas:} La parametrización Raw SVI se ajusta a partir de volatilidades implícitas $\sigma_{\text{imp}}(K, \tau)$ que fueron previamente invertidas mediante el motor Crank-Nicolson con penalización sobre precios americanos de mercado. SVI actúa como interpolador/suavizador bidimensional de varianza total.
+    \item \textbf{Arbitraje Clásico Europeo:} Las condiciones analíticas de Gatheral \& Jacquier ($g(k) \ge 0, \frac{\partial w}{\partial \tau} \ge 0$) aplican estrictamente a superficies neutrales al riesgo de opciones europeas. Su cumplimiento en la superficie garantiza regularidad matemática y ausencia de patologías analíticas en el generador continuo de volatilidades.
+    \item \textbf{Comprobaciones Económicas en Precios Americanos:} Los precios finales de las opciones americanas generados mediante la revaloración de la superficie en el motor EDP deben satisfacer las restricciones económicas fundamentales de no arbitraje americano:
+    \begin{align}
+        C_{\text{Am}}(S, K, \tau) &\ge \max(S - K, 0), \quad P_{\text{Am}}(S, K, \tau) \ge \max(K - S, 0) \quad \text{(Cotas intrínsecas)} \\
+        C_{\text{Am}}(S, K, \tau) &\le S, \quad P_{\text{Am}}(S, K, \tau) \le K \quad \text{(Cotas superiores)} \\
+        \frac{\partial C_{\text{Am}}}{\partial K} &\le 0, \quad \frac{\partial P_{\text{Am}}}{\partial K} \ge 0 \quad \text{(Monotonía en Strike)} \\
+        V_{\text{Am}}(S, K, \tau_2) &\ge V_{\text{Am}}(S, K, \tau_1) \quad \forall \tau_2 > \tau_1 \quad \text{(Monotonía temporal por derecho de ejercicio)}
+    \end{align}
+    Todas estas condiciones son evaluadas numéricamente y verificadas con 0 violaciones en la suite de pruebas automatizadas (\texttt{check\_american\_economic\_arbitrage}).
+\end{enumerate}
+
+\subsection{Consistencia Temporal Unificada y Eliminación de Discontinuidades de Calendario}
+En la primera versión del sistema, la función de superficie aplicaba la proyección acumulativa $\max$ al interpolar en madureces intermedias, pero evaluaba el corte crudo $w_{\text{raw}}(\tau_i, k)$ cuando $\tau$ coincidía con un nodo calibrado. Esta discrepancia provocaba decrementos de varianza total en los vencimientos exactos (Casos A y B de auditoría) y saltos artificiales discontinuos al aproximarse al nodo ($\lim_{\epsilon \to 0} w(\tau_i \pm \epsilon) \neq w(\tau_i)$).
+
+Para resolver esto definitivamente, rediseñamos la evaluación temporal bajo una política \textbf{unificada}:
+\begin{enumerate}
+    \item Para cualquier $k$, se evalúa la secuencia de varianzas totales crudas en los $N$ vencimientos calibrados:
+    \begin{equation}
+        w_{\text{raw}}(\tau_1, k), w_{\text{raw}}(\tau_2, k), \dots, w_{\text{raw}}(\tau_N, k)
+    \end{equation}
+    \item Se impone la proyección temporal no decreciente acumulativa:
+    \begin{equation}
+        w^*(\tau_i, k) = \max_{1 \le j \le i} w_{\text{raw}}(\tau_j, k), \quad i = 1, \dots, N
+    \end{equation}
+    \item Para cualquier madurez $\tau \in [\tau_1, \tau_N]$, se evalúa mediante interpolación PCHIP monótona sobre los pares $\{(\tau_i, w^*(\tau_i, k))\}_{i=1}^N$:
+    \begin{equation}
+        w(k, \tau) = \text{PCHIP}_{\tau}\left(\{(\tau_i, w^*(\tau_i, k))\}\right)(\tau)
+    \end{equation}
+    Dado que PCHIP preserva la monotonicidad estricta de datos no decrecientes y en cada nodo coincide exactamente con $w^*(\tau_i, k)$, se garantiza:
+    \begin{itemize}
+        \item Consistencia idéntica en nodos calibrados y puntos intermedios: $w(k, \tau_i) \equiv w^*(\tau_i, k)$.
+        \item Continuidad de clase $C^1$ sin saltos ni discontinuidades de interpolación:
+        \begin{equation}
+            \lim_{\epsilon \to 0^+} w(k, \tau_i + \epsilon) = \lim_{\epsilon \to 0^-} w(k, \tau_i - \epsilon) = w(k, \tau_i)
+        \end{equation}
+        \item Ausencia absoluta de arbitraje de calendario: $\frac{\partial w(k, \tau)}{\partial \tau} \ge 0$ para todo $\tau \in [\tau_1, \tau_N]$.
+    \end{itemize}
+    \item Para extrapolaciones fuera del soporte temporal:
+    \begin{align}
+        \tau < \tau_1 &\implies w(k, \tau) = w^*(\tau_1, k) \cdot \frac{\tau}{\tau_1} \iff \sigma(k, \tau) = \sigma(k, \tau_1) \quad (\text{IV plana continua}) \\
+        \tau > \tau_N &\implies w(k, \tau) = w^*(\tau_N, k) \cdot \frac{\tau}{\tau_N} \iff \sigma(k, \tau) = \sigma(k, \tau_N) \quad (\text{IV plana continua})
+    \end{align}
+    asegurando que cuando $\tau \to 0$, $w(k, \tau) \to 0$ con pendiente estrictamente positiva.
+\end{enumerate}
+
+\subsection{Validación Económica de Cortes Fallback PCHIP sin Garantías Ficticias}
+Cuando un corte temporal posee menos de 6 strikes o no alcanza convergencia analítica libre de arbitraje mariposa en SVI, se activa la política de Fallback por Spline PCHIP monótono.
+\paragraph{Erradicación de Falsas Garantías Analíticas:}
+La función $g(k)$ es una derivación analítica cerrada exclusiva de la geometría hipérbola de Raw SVI. En versiones anteriores, se registraba mecánicamente \texttt{'pct\_no\_butterfly\_arb': 100.0\%} para cortes PCHIP, lo cual constituía una afirmación ficticia sin comprobación matemática real.
+En nuestra versión reparada:
+\begin{itemize}
+    \item Se asigna explícitamente \texttt{NaN} a \texttt{pct\_no\_butterfly\_arb} en todo corte fallback, documentando que la fórmula SVI no es aplicable a splines.
+    \item Se implementa un procedimiento de validación transversal exhaustivo mediante \textbf{diferencias divididas de convexidad de precios}:
+    \begin{equation}
+        \frac{\Delta^2 C}{\Delta K^2} = \frac{\frac{C(K_{i+2}) - C(K_{i+1})}{K_{i+2} - K_{i+1}} - \frac{C(K_{i+1}) - C(K_i)}{K_{i+1} - K_i}}{\frac{K_{i+2} - K_i}{2}} \ge -\text{tol}
+    \end{equation}
+    evaluado en mallas densas de strikes en conjunto con cotas intrínsecas y monotonía de precios de Calls y Puts.
+    \item Los vencimientos de 3 días (2026-11-20) y 395 días (2027-12-17) verifican 100.0\% de convexidad en precios (\texttt{VERIFIED\_EMPIRICAL\_CONVEX\_BOUNDS}). Por el contrario, el corte LEAPS de enero de 2029 (794 días) arroja un $89.5\%$ de convexidad debido a una cotización extrema e ilíquida en el strike profundo ITM $K=3.0$, hecho que queda reportado de forma transparente como \texttt{EMPIRICAL\_ANOMALIES\_DETECTED}.
+\end{itemize}
 
 \newpage
 % ==============================================================================
@@ -539,7 +653,7 @@ Ante un escenario de estrés definido por un avance temporal $\Delta t$ y un sho
 \subsection{Deformaciones Multifactoriales de la Superficie}
 La volatilidad implícita estresada $\sigma_1(k_1, \tau_1)$ incorpora cuatro factores combinados:
 \begin{equation}
-    \sigma_1(k_1, \tau_1) = \sigma_0(k_1, \tau_1) + \Delta \sigma_{\text{nivel}} + \Delta \sigma_{\text{skew}}(k_1) + \Delta \sigma_{\text{plazo}}(\tau_1)
+    \sigma_1(k_1, \tau_1) = \sigma_0(k_1, \tau_1) + \Delta \sigma_{\text{nivel}} + \Delta \sigma_{\text{skew}}(k_1) + \Delta \sigma_{\text{plazo}}(\tau_1) + \Delta \sigma_{\text{curv}}(k_1)
 \end{equation}
 donde:
 \begin{itemize}
@@ -552,51 +666,104 @@ donde:
     \begin{equation}
         \Delta \sigma_{\text{plazo}}(\tau_1) = \text{shock\_corto} \times \exp(-\tau_1 / 0.30)
     \end{equation}
+    \item \textbf{Factor de Curvatura (\textit{Smile Curvature}):} Concentración cuadrática en torno al dinero:
+    \begin{equation}
+        \Delta \sigma_{\text{curv}}(k_1) = \text{shock\_curvatura} \times \exp\left( -\frac{k_1^2}{2 \times 0.15^2} \right)
+    \end{equation}
 \end{itemize}
+
+\subsection{Unificación Contable del P\&L y Capital Económico de Margen}
+Para evitar contaminar la medición del riesgo con discrepancias iniciales de valoración, el marco de stress testing distingue explícitamente tres componentes contables:
+\begin{enumerate}
+    \item \textbf{Discrepancia Inicial de Marca a Modelo (\textit{Mark-to-Model Difference}):}
+    \begin{equation}
+        \Delta_{\text{M2M,0}} = \Pi_{0,\text{model}} - \Pi_{0,\text{market}} = 595.57 - 616.00 = -20.43 \text{ USD}
+    \end{equation}
+    Esta diferencia refleja el bid-ask bounce y microestructura de mercado, y permanece constante en todos los escenarios.
+    \item \textbf{P\&L de Estrés Puro por Revaloración Modelada:}
+    \begin{equation}
+        \Delta \Pi_{\text{model}} = \Pi_{1,\text{model}} - \Pi_{0,\text{model}}
+    \end{equation}
+    Evaluado sobre los mismos contratos, multiplicadores y supuestos. Ante un escenario nulo ($\Delta S = 0, \Delta t = 0, \Delta \sigma = 0, \Delta r = 0$), se verifica estrictamente $\Delta \Pi_{\text{model}} \equiv 0.00$ USD.
+    \item \textbf{P\&L de Estrés con Base de Mercado:}
+    \begin{equation}
+        \Delta \Pi_{\text{market}} = \Pi_{1,\text{model}} - \Pi_{0,\text{market}} = \Delta \Pi_{\text{model}} + \Delta_{\text{M2M,0}}
+    \end{equation}
+    \item \textbf{Capital Económico y Margen Regulatorio (Reg T / FINRA 4210):}
+    En carteras con posiciones cortas, sumar el valor absoluto de pasivos no representa el capital propio requerido. Definimos el capital económico como el requerimiento prudencial de margen:
+    \begin{equation}
+        C_{\text{margin}} = \text{Margen Acciones Cortas (50\%)} + \text{Margen Opciones Cortas} + \text{Costo Opciones Largas} = 5\,435.31 \text{ USD}
+    \end{equation}
+    sobre el cual se calcula la rentabilidad real estresada (\textit{Return on Economic Capital}).
+\end{enumerate}
 
 \subsection{Ruptura de la Expansión de Taylor Frente a la Revaloración Completa}
 La variación estimada del portafolio mediante la aproximación local de Taylor por Griegas es:
 \begin{equation}
     \Delta \Pi_{\text{Taylor}} = h_S \Delta S + M \sum_i q_i \left[ \Delta_i \Delta S + \frac{1}{2}\Gamma_i (\Delta S)^2 + \nu_i (100 \Delta \sigma_i) + \Theta_i \Delta t + \text{Vanna}_i \Delta S (100 \Delta \sigma_i) + \frac{1}{2}\text{Volga}_i (100 \Delta \sigma_i)^2 \right]
 \end{equation}
+donde $h_S = -357$ acciones del subyacente otorgan delta-neutralidad inicial ($\Delta_{\text{port}} = +0.11$).
 Frente a esto, la \textbf{Revaloración Completa por EDP} calcula:
 \begin{equation}
     \Delta \Pi_{\text{Full}} = h_S (S_1 - S_0) + M \sum_i q_i \left[ V_i(S_1, K_i, \tau_{i,1}, \sigma_{i,1}) - V_i(S_0, K_i, \tau_{i,0}, \sigma_{i,0}) \right]
 \end{equation}
-En caídas severas ($\Delta S = -20\%$), el término positivo de Gamma ($\frac{1}{2}\Gamma \Delta S^2$) induce un sesgo masivamente optimista en Taylor, ignorando que las Calls colapsan a cero y pierden su opcionalidad.
+\begin{proposition}[Desmitificación de la Discrepancia de Taylor]
+En la literatura preliminar del proyecto se reportaba una discrepancia de $-\$3\,253.04$ USD en el Escenario 3 (Crisis Severa, $\Delta S = -20\%$). La auditoría cuantitativa demostró que dicha cifra no se debía a una hiper-no-linealidad financiera, sino a dos defectos técnicos:
+\begin{enumerate}
+    \item El Gamma espurio de la Put $K=12$ ($\Gamma = 3.3547$ en vez de $0.2375$) inflaba artificialmente el término de segundo orden de Taylor en:
+    \begin{equation}
+        \frac{1}{2} M q_{\text{put}} (\Gamma_{\text{err}} - \Gamma_{\text{correc}}) (\Delta S)^2 = \frac{1}{2} (300) (3.3547 - 0.2375) (-2.466)^2 \approx +\$2\,844 \text{ USD}
+    \end{equation}
+    \item La mezcla de precios de mercado inicial con precios de modelo final sumaba el error de marca de $-\$20.43$ USD.
+\end{enumerate}
+Con Griegas estabilizadas y base contable uniforme, el P\&L de Taylor en Crisis Severa es de $+\$757.71$ USD frente a $+\$496.56$ USD de la EDP completa, revelando una discrepancia genuina de $-\$261.15$ USD ($34.5\%$ del P\&L estimado), originada legítimamente en el colapso del valor de las Calls fuera del dinero y la curvatura del ejercicio anticipado.
+\end{proposition}
 
 \newpage
 % ==============================================================================
 \section{Estrategias Cuantitativas de Volatilidad (Punto 53)}
 % ==============================================================================
 
-\subsection{Estrategia 1: Pronóstico HAR-RV vs Volatilidad Implícita ATM}
+\subsection{Estrategia 1: Pronóstico HAR-RV con Validación Purificada vs Volatilidad Implícita ATM}
 El modelo autorregresivo heterogéneo (HAR-RV, Corsi 2009) formula la volatilidad realizada futura como una combinación lineal de componentes en tres horizontes temporales distintos:
 \begin{equation}
     RV_{t, t+21}^{(m)} = \beta_0 + \beta_d RV_t^{(d)} + \beta_w RV_t^{(w)} + \beta_m RV_t^{(m)} + \epsilon_{t+21}
 \end{equation}
 donde $RV^{(d)}$ es la varianza diaria, $RV^{(w)} = \frac{1}{5}\sum_{i=0}^4 RV_{t-i}^{(d)}$ es la varianza semanal, y $RV^{(m)} = \frac{1}{21}\sum_{i=0}^{20} RV_{t-i}^{(d)}$ es la varianza mensual.
 
-Al 17 de noviembre de 2026, el modelo proyectó una volatilidad futura a 21 días de **72.97\%**, mientras que la IV ATM a 31 días cotizaba en **44.02\%**.
-La señal cuantitativa de entrada:
-\begin{equation}
-    z = \ln\left( \frac{\widehat{\sigma}_{\text{HAR}}}{\sigma_{\text{ATM}}} \right) = \ln\left( \frac{72.97\%}{44.02\%} \right) = +0.505 > 0
-\end{equation}
-indica que la opcionalidad del mercado cotiza con descuento frente a la volatilidad realizada proyectada post-anuncio de resultados de NU, justificando una posición larga en un **Straddle ATM delta-neutral** con cobertura de acciones.
+\paragraph{Eliminación Estricta del Sesgo de Anticipación (\textit{Look-Ahead Purging}):}
+Dado que el objetivo forward $RV_{t, t+21}^{(m)}$ abarca 21 días hacia el futuro, entrenar modelos de ventana expansiva con datos hasta $t$ introduce una fuga de información (\textit{leakage}) en los últimos 20 días. Para garantizar validez econométrica genuina fuera de muestra, implementamos una validación \textbf{walk-forward purificada}: para predecir en el instante $t$, la muestra de ajuste se restringe estrictamente a $s \le t - 21$.
+En la evaluación fuera de muestra (2025--2026), el modelo purificado logró una pérdida QLIKE de $0.1855$ y un RMSE de $15.04$ puntos porcentuales, superando consistentemente a los estimadores EWMA ($\lambda=0.94$, QLIKE $0.2099$) y a la volatilidad histórica de 21 días (QLIKE $0.2512$).
 
-\subsection{Estrategia 2: Estructura Temporal y Calendar Spread}
-Dada la varianza total en dos vencimientos sucesivos $\tau_1 = 31$ días y $\tau_2 = 59$ días:
+\paragraph{Señal Cuantitativa y Desacoplamiento de Ejecución Simulada:}
+Al 17 de noviembre de 2026, el modelo proyectó causalmente una volatilidad futura a 21 días de $72.97\%$, mientras que la IV combinada de mercado del straddle cotizaba en $45.90\%$.
+El diferencial de volatilidad:
 \begin{equation}
-    \sigma_{\text{fwd}} = \sqrt{\frac{w(\tau_2) - w(\tau_1)}{\tau_2 - \tau_1}} = \sqrt{\frac{\sigma_2^2 \tau_2 - \sigma_1^2 \tau_1}{\tau_2 - \tau_1}} = 38.15\%
+    \Delta \sigma = \widehat{\sigma}_{\text{HAR}} - \sigma_{\text{Straddle}} = 72.97\% - 45.90\% = +27.07 \text{ pp}
 \end{equation}
-El Calendar Spread compra la opción a 59 días y vende la opción a 31 días en el strike $K = 13.00$, explotando el decaimiento acelerado de Theta en la pata corta mientras conserva exposición a la varianza residual con riesgo direccional acotado.
+supera ampliamente la tasa de corte por fricciones (\textit{hurdle rate} de $5.0$ pp), detonando la señal \texttt{LONG\_VOLATILITY\_STRADDLE}.
+
+Para evitar que la señal sea un mero rótulo decorativo, la arquitectura desacopla la señal de la construcción del portafolio simulado (\texttt{build\_straddle\_portfolio\_from\_signal}):
+\begin{itemize}
+    \item \textbf{Caso A (\texttt{LONG\_VOLATILITY\_STRADDLE}):} Abre $+1$ contrato Call ATM 31d ($K=12.00$, $\Delta_C = +0.6153$, precio $\$0.86$), $+1$ contrato Put americana ATM 31d ($K=12.00$, $\Delta_P = -0.3839$, precio $\$0.47$). Para neutralizar el delta neto de $+0.2314$ por contrato, se venden en corto $h_S = -23$ acciones de NU, asumiendo un costo de débito inicial de $\$133.00$ USD más costos de transacción en tres regímenes.
+    \item \textbf{Caso B (\texttt{NO\_TRADE}):} Si el diferencial de volatilidad se ubica dentro de la banda neutral $[-\text{hurdle}, +\text{hurdle}]$, la simulación establece estrictamente $0.0$ contratos de opciones, $0$ acciones de cobertura, $\$0.00$ de costos de fricción y $\$0.00$ de P\&L bajo todos los escenarios de shock, justificando formalmente la abstención por insuficiencia de prima neta frente a fricciones.
+    \item \textbf{Caso C (\texttt{SHORT\_VOLATILITY\_STRADDLE}):} Si el diferencial es inferior a $-5.0$ pp, la simulación abre $-1$ Call y $-1$ Put, compra $+23$ acciones de cobertura y recolecta $\$133.00$ USD de crédito inicial. Esta estructura se clasifica explícitamente como una exposición teórica de riesgo asimétrico no acotado en las colas (\texttt{THEORETICAL\_SHORT\_STRADDLE\_UNBOUNDED\_TAIL\_RISK}).
+\end{itemize}
+Todas las estrategias son simulaciones analíticas prospectivas y no constituyen recomendaciones de inversión ni órdenes de ejecución real.
+
+\subsection{Estrategia 2: Estructura Temporal y Calendar Spread a Strike Fijo}
+Dada la superficie de volatilidad SVI calibrada en el strike fijo $K = 13.00$ entre los vencimientos $\tau_1 = 31$ días ($\sigma_1 = 41.56\%$) y $\tau_2 = 59$ días ($\sigma_2 = 40.00\%$):
+\begin{equation}
+    \sigma_{\text{fwd}}(K=13.00) = \sqrt{\frac{w(k(13, \tau_2), \tau_2) - w(k(13, \tau_1), \tau_1)}{\tau_2 - \tau_1}} = 38.15\%
+\end{equation}
+El Calendar Spread compra la opción a 59 días y vende la opción a 31 días en $K = 13.00$, capturando el decaimiento acelerado de Theta en la pata corta mientras preserva convexidad frente a repuntes de volatilidad en el tramo medio.
 
 \newpage
 % ==============================================================================
 \section{Resultados Numéricos Verificados del Repositorio}
 % ==============================================================================
 
-Todos los resultados tabulados a continuación provienen de la ejecución directa y reproducible de los scripts del proyecto sobre los datos de mercado:
+Todos los resultados tabulados a continuación provienen de la ejecución directa y reproducible del orquestador (\texttt{run\_all.py}) sobre la base de mercado de 575 contratos:
 
 \begin{table}[htbp]
 \centering
@@ -631,31 +798,39 @@ Todos los resultados tabulados a continuación provienen de la ejecución direct
 \centering
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Modelo de Valoración} & \textbf{MAE General (\$)} & \textbf{RMSE General (\$)} & \textbf{MAE ITM (\$)} & \textbf{RMSE ITM (\$)} \\
+\textbf{Modelo y Muestra de Evaluación} & \textbf{MAE General (\$)} & \textbf{RMSE General (\$)} & \textbf{MAE ITM (\$)} & \textbf{RMSE ITM (\$)} \\
 \midrule
+\multicolumn{5}{l}{\textit{Evaluación Dentro de Muestra (In-Sample Fitting, $N=201$ contratos)}} \\
 M1: Europeo Plano ($\sigma = 44.0\%$) & 0.0536 & 0.0891 & 0.0854 & 0.1294 \\
-M2: Europeo Superficie ($\sigma(k,\tau)$) & 0.0306 & 0.0562 & 0.0465 & 0.0803 \\
+M2: Europeo Superficie ($\sigma(k,\tau)$) & 0.0297 & 0.0565 & 0.0475 & 0.0820 \\
 M3: Americano Plano ($\sigma = 44.0\%$) & 0.0482 & 0.0816 & 0.0772 & 0.1205 \\
-\textbf{M4: Americano Superficie ($\sigma(k,\tau)$)} & \textbf{0.0299} & \textbf{0.0491} & \textbf{0.0396} & \textbf{0.0624} \\
+\textbf{M4: Americano Superficie ($\sigma(k,\tau)$)} & \textbf{0.0285} & \textbf{0.0480} & \textbf{0.0398} & \textbf{0.0624} \\
+\midrule
+\multicolumn{5}{l}{\textit{Evaluación Fuera de Muestra (Leave-One-Strike-Out CV, $N=197$ contratos evaluados)}} \\
+\textbf{M4: Americano LOO CV} & \textbf{0.0389} & \textbf{0.0649} & \textbf{--} & \textbf{--} \\
 \bottomrule
 \end{tabular}
-\caption{Matriz comparativa de errores de tarificación sobre los 201 contratos limpios.}
+\caption{Matriz comparativa de errores de tarificación: In-Sample vs Out-of-Sample LOO.}
 \end{table}
 
 \begin{table}[htbp]
 \centering
-\begin{tabular}{lccccc}
+\small
+\begin{tabular}{lcccccc}
 \toprule
-\textbf{Escenario de Stress Testing} & \textbf{Spot $S_1$} & \textbf{$\Delta S$} & \textbf{P\&L Full EDP (\$)} & \textbf{P\&L Taylor (\$)} & \textbf{Discrepancia (\$)} \\
+\textbf{Escenario de Stress Testing} & \textbf{Spot $S_1$} & \textbf{$\Delta S$} & \textbf{P\&L Full EDP (\$)} & \textbf{P\&L Taylor (\$)} & \textbf{Discrepancia (\$)} & \textbf{RoC (\%)} \\
 \midrule
-1. Roll-Down Temporal (10 días) & 12.33 & 0.0\% & -77.00 & -50.17 & -26.84 \\
-2. Caída Paralela \& Salto Vol (-10\%, +10pp) & 11.10 & -10.0\% & +124.07 & +925.98 & -801.91 \\
-\textbf{3. Crisis Severa (-20\%, +12pp, Skew)} & \textbf{9.86} & \textbf{-20.0\%} & \textbf{+446.49} & \textbf{+3699.53} & \textbf{-3253.04} \\
-4. Rally \& Vol Crush (+15\%, -8pp) & 14.18 & +15.0\% & +124.51 & +1838.48 & -1713.97 \\
-5. Inversión Tramo Corto (-5\%, +15pp corto) & 11.71 & -5.0\% & +74.22 & +293.30 & -219.08 \\
+0. Escenario Nulo (Diagnóstico) & 12.33 & 0.0\% & 0.00 & 0.00 & 0.00 & 0.0\% \\
+1. Roll-Down Temporal (10 días) & 12.33 & 0.0\% & -57.86 & -51.70 & -6.16 & -1.06\% \\
+2. Caída Paralela \& Salto Vol (-10\%, +10pp) & 11.10 & -10.0\% & +148.38 & +175.56 & -27.18 & +2.73\% \\
+\textbf{3. Crisis Severa (-20\%, +12pp, Skew)} & \textbf{9.86} & \textbf{-20.0\%} & \textbf{+496.56} & \textbf{+757.71} & \textbf{-261.15} & \textbf{+9.14\%} \\
+4. Rally \& Vol Crush (+15\%, -8pp) & 14.18 & +15.0\% & +139.56 & +153.18 & -13.61 & +2.57\% \\
+5. Inversión Tramo Corto (-5\%, +15pp corto) & 11.71 & -5.0\% & +91.66 & +100.24 & -8.58 & +1.69\% \\
+\midrule
+\multicolumn{7}{l}{\textit{Notas: Cobertura $h_S = -357$ acciones. Capital Económico de Margen $= \$5\,435.31$ USD. Diferencia M2M inicial $= -\$20.43$ USD.}} \\
 \bottomrule
 \end{tabular}
-\caption{Resultados del Stress Testing sobre la cartera fija delta-hedged.}
+\caption{Resultados del Stress Testing sobre la cartera fija delta-hedged (convención sticky-moneyness).}
 \end{table}
 
 \newpage

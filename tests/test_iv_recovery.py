@@ -30,7 +30,7 @@ def test_call_synthetic_recovery():
         for true_sig in true_sigmas:
             px = bs_price('C', S, K, tau, r, true_sig, q=q)
             res = implied_vol(px, 'C', S, K, tau, r, q=q, method="auto")
-            assert res['status'] == 'CONVERGED'
+            assert res['status'].startswith('CONVERGED')
             recovered_sig = res['sigma']
             assert abs(recovered_sig - true_sig) < 1e-4, \
                 f"Call recovery failed: true={true_sig}, recovered={recovered_sig}, diff={abs(recovered_sig - true_sig)}"
@@ -50,7 +50,7 @@ def test_american_put_synthetic_recovery():
         for true_sig in true_sigmas:
             px = price_american_option('P', S, K, tau, r, true_sig, q=q, method="auto")
             res = implied_vol(px, 'P', S, K, tau, r, q=q, method="auto")
-            assert res['status'] == 'CONVERGED'
+            assert res['status'].startswith('CONVERGED')
             recovered_sig = res['sigma']
             assert abs(recovered_sig - true_sig) < 2e-3, \
                 f"Put recovery failed: true={true_sig}, recovered={recovered_sig}, diff={abs(recovered_sig - true_sig)}"

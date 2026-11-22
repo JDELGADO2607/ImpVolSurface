@@ -1,8 +1,16 @@
 """
 Market data configuration, interest rate curve, and underlying parameters for NU.
+
 Valuation anchor: 2026-11-17 16:00:00 EST.
-Spot price: S0 = 12.33 USD.
-Dividends: q = 0.00.
+Spot price: S0 = 12.33 USD (last regular trading close on NYSE).
+Dividends: q = 0.00 (NU does not pay dividends).
+Day Count Convention: Actual/365 for option maturities and discounting.
+Risk-Free Curve Source: US Department of the Treasury Daily Treasury Par Yield Curve Rates (2026-11-17).
+Conversion to continuous zero rates:
+  - Short tenors (t <= 0.5y): Money market continuous zero rate r_c = ln(1 + y * t) / t.
+  - Medium/long tenors (t > 0.5y): Semi-annual bond equivalent continuous rate r_c = 2 * ln(1 + y / 2).
+  - Discount factor: D(0, tau) = exp(-r(tau) * tau).
+  - Forward price: F(0, tau) = S0 * exp((r(tau) - q) * tau).
 """
 
 from datetime import datetime

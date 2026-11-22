@@ -1,7 +1,8 @@
 """
 Data cleaning, OCC symbol parsing, maturity recalculation, no-arbitrage bounds,
-Vega conditioning, and multi-tier auditing for NU options.
-Preserves original inputs, audits all 575 rows, and outputs clean datasets.
+Vega conditioning, and multi-tier auditing for NU options (Bloque P1-B).
+Preserves original inputs, audits all 575 rows, validates 1-to-1 Bloomberg merge,
+adds granular liquidity flags, and outputs clean datasets.
 """
 
 import sys
@@ -48,7 +49,8 @@ def parse_occ_symbol(symbol: str):
 
 def calculate_exact_tau(exp_date: datetime, val_datetime: datetime = VALUATION_DATETIME) -> float:
     """
-    Computes exact maturity in Act/365F years from valuation datetime to expiration at 16:00 EST.
+    Computes exact maturity in Act/365F continuous years using timezone-aware UTC duration.
+    Properly accounts for daylight saving time shifts between EST and EDT.
     """
     exp_dt = datetime(exp_date.year, exp_date.month, exp_date.day, 16, 0, 0, tzinfo=NY_TZ)
     delta_seconds = (exp_dt - val_datetime).total_seconds()
@@ -71,7 +73,8 @@ def clean_and_audit_options(
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Loads raw Excel, audits all 575 contracts, validates no-arbitrage bounds,
-    computes exact tau and conditioning, and exports audit tables.
+    performs 1-to-1 Bloomberg merge verification, computes exact tau and conditioning,
+    and exports auditable tables with granular liquidity diagnostics.
     """
     raw_p = Path(raw_path)
     out_dir = Path(tables_dir)
@@ -85,12 +88,16 @@ def clean_and_audit_options(
     df1['ticker_bbg_norm'] = df1['bloombergOptionTicker'].astype(str).str.replace(',', '.', regex=False)
     df2['ticker_bbg_norm'] = df2['Bloomberg Option Ticker'].astype(str).str.replace(',', '.', regex=False)
 
+    # Check duplicates before merge
+    assert not df1['ticker_bbg_norm'].duplicated().any(), "Duplicate Bloomberg tickers in Hoja1"
+    assert not df2['ticker_bbg_norm'].duplicated().any(), "Duplicate Bloomberg tickers in Hoja2"
+
     merged = pd.merge(
         df1,
         df2[['ticker_bbg_norm', 'IV Mid', 'IV Best Price', 'IV Last Trade']],
         on='ticker_bbg_norm',
         how='left',
-        suffixes=('', '_hoja2')
+        validate='1:1'
     )
 
     records = []
@@ -114,10 +121,20 @@ def clean_and_audit_options(
 
         # Trade date audit
         ltd = pd.to_datetime(row['lastTradeDate'])
-        # Convert to NY time
         ltd_ny = ltd.tz_convert(NY_TZ) if ltd.tzinfo is not None else ltd.tz_localize("UTC").tz_convert(NY_TZ)
         is_val_date_trade = (ltd_ny.date() == VALUATION_DATETIME.date())
         days_stale = (VALUATION_DATETIME.date() - ltd_ny.date()).days
+
+        # Granular liquidity and execution timing flags
+        traded_before_noon = is_val_date_trade and (ltd_ny.hour < 12)
+        vol_val = row['volume']
+        vol_clean = float(vol_val) if pd.notna(vol_val) else 0.0
+        oi_val = row['openInterest']
+        oi_clean = int(oi_val) if pd.notna(oi_val) else 0
+
+        low_volume_flag = (vol_clean < 5.0)
+        low_oi_flag = (oi_clean < 20)
+        short_expiry_flag = (tau * 365.0 < 7.0)
 
         p_obs = float(row['lastPrice'])
 
@@ -152,6 +169,7 @@ def clean_and_audit_options(
             reasons.append(f"ILLIQUID_KAPPA_{kappa:.1f}")
 
         # Tier assignment
+        # Tier 1: Core liquid contracts on valuation date with robust conditioning
         if bounds_ok and time_val >= 0.01 and is_val_date_trade and p_obs >= 0.05 and kappa <= 3.0:
             tier = 1
         elif bounds_ok and time_val >= 0.01 and is_val_date_trade and (p_obs >= 0.02) and (kappa <= 5.0):
@@ -171,11 +189,15 @@ def clean_and_audit_options(
             'lastTradeDate_NY': ltd_ny.strftime('%Y-%m-%d %H:%M:%S'),
             'is_trade_17nov': is_val_date_trade,
             'days_stale': days_stale,
+            'traded_before_noon': traded_before_noon,
+            'low_volume_flag': low_volume_flag,
+            'low_oi_flag': low_oi_flag,
+            'short_expiry_flag': short_expiry_flag,
             'lastPrice': p_obs,
             'bid': float(row['bid']),
             'ask': float(row['ask']),
-            'volume': row['volume'],
-            'openInterest': int(row['openInterest']),
+            'volume': vol_clean,
+            'openInterest': oi_clean,
             'yearsToExpiry_excel': float(row['yearsToExpiry']),
             'tau_recalc': tau,
             'tau_days': tau * 365.0,
@@ -191,15 +213,15 @@ def clean_and_audit_options(
             'kappa_conditioning': kappa,
             'tier': tier,
             'rejection_reasons': ";".join(reasons) if reasons else "NONE",
-            'bbg_iv_mid': row['ivMid'],
-            'bbg_iv_last': row['ivLast Trade'],
-            'bbg_iv_best': row['ivBestPrice'],
+            'bbg_iv_mid': row['IV Mid'],
+            'bbg_iv_last': row['IV Last Trade'],
+            'bbg_iv_best': row['IV Best Price'],
             'yahoo_iv': float(row['impliedVolatility'])
         })
 
     audit_df = pd.DataFrame(records)
 
-    # Clean subset: Tier 1 + Tier 2
+    # Clean subset: Tier 1 + Tier 2 (201 contracts)
     clean_df = audit_df[audit_df['tier'].isin([1, 2])].copy().reset_index(drop=True)
 
     # Summary by tenor
@@ -241,8 +263,17 @@ def clean_and_audit_options(
     print(f"Summary by tenor exported: {summary_path} ({len(summary_df)} tenors)")
     print("\n--- Overall Tier Breakdown ---")
     print(audit_df['tier'].value_counts().sort_index())
-    print("\n--- Tenor Summary Preview ---")
-    print(summary_df[['expirationDate', 'tau_days', 'total_contracts', 'clean_total', 'retention_pct', 'calls_clean', 'puts_clean']])
+
+    # Granular liquidity sensitivity reporting on clean contracts
+    n_before_noon = clean_df['traded_before_noon'].sum()
+    n_low_vol = clean_df['low_volume_flag'].sum()
+    n_low_oi = clean_df['low_oi_flag'].sum()
+    n_short_tau = clean_df['short_expiry_flag'].sum()
+    print("\n--- Clean Contracts (201) Liquidity Diagnostics ---")
+    print(f"Traded before 12:00 NY: {n_before_noon} / {len(clean_df)} ({n_before_noon/len(clean_df)*100:.1f}%)")
+    print(f"Volume < 5 contracts:   {n_low_vol} / {len(clean_df)} ({n_low_vol/len(clean_df)*100:.1f}%)")
+    print(f"Open Interest < 20:     {n_low_oi} / {len(clean_df)} ({n_low_oi/len(clean_df)*100:.1f}%)")
+    print(f"Maturity < 7 days:      {n_short_tau} / {len(clean_df)} ({n_short_tau/len(clean_df)*100:.1f}%)")
 
     return audit_df, clean_df, summary_df
 

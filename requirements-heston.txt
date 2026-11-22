@@ -1,0 +1,8 @@
+# Heston Implementation Track Dependencies
+# Python 3.12.6 runtime on win32 (x86_64)
+QuantLib==1.44
+numpy==2.1.1
+scipy==1.18.0
+pandas==2.2.2
+openpyxl==3.1.5
+pytest==9.2.0

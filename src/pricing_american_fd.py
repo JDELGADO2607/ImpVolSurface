@@ -2,6 +2,8 @@
 American Option Pricing Engine via Finite Difference Partial Differential Equation (PDE).
 Implements Crank-Nicolson with Rannacher initial smoothing and penalty iteration
 (Forsyth & Vetzal, 2002) for American puts and calls.
+Provides fixed-grid PDE solving, safe monotonic interpolation (PCHIP),
+and comprehensive convergence diagnostics for Greek stability.
 """
 
 import sys
@@ -10,11 +12,12 @@ root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
+from typing import Any
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, PchipInterpolator
 from scipy.linalg import solve_banded
 
-def solve_tridiagonal(lower, diag, upper, rhs):
+def solve_tridiagonal(lower: np.ndarray, diag: np.ndarray, upper: np.ndarray, rhs: np.ndarray) -> np.ndarray:
     """
     Solves A x = rhs where A is tridiagonal using scipy.linalg.solve_banded.
     lower: subdiagonal (length M-2)
@@ -28,52 +31,35 @@ def solve_tridiagonal(lower, diag, upper, rhs):
     ab[2, :-1] = lower
     return solve_banded((1, 1), ab, rhs)
 
-def fd_american_price(
+def fd_american_grid(
     kind: str,
-    S0: float,
+    S_ref: float,
     K: float,
     tau: float,
-    r: float,
+    r: float | Any,
     sigma: float,
     q: float = 0.0,
     M: int = 300,
     N: int = 150,
+    S_max: float | None = None,
     S_max_mult: float = 4.0,
     rannacher_steps: int = 4,
     penalty_rho: float = 1e7,
     max_penalty_iter: int = 30,
     penalty_tol: float = 1e-7
-) -> float:
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
     """
-    Prices an American option using Crank-Nicolson PDE with Rannacher smoothing
-    and the penalty method of Forsyth & Vetzal (2002).
-    
-    kind: 'C' (Call) or 'P' (Put)
-    S0: current spot price
-    K: strike price
-    tau: maturity in years
-    r: risk-free rate
-    sigma: volatility
-    q: dividend yield (default 0.0)
-    M: number of spatial grid intervals (M+1 nodes)
-    N: number of time steps
+    Solves the American PDE on a fixed spatial grid S in [0, S_max].
+    Supports scalar risk-free rate r or deterministic yield curve (evaluating r(t = T - tau)).
+    Returns (S_grid, V, diagnostics).
     """
     kind = kind.upper()
     if kind not in ('C', 'P'):
         raise ValueError(f"Invalid kind: {kind}")
 
-    if tau <= 1e-12:
-        return float(max(S0 - K, 0.0) if kind == 'C' else max(K - S0, 0.0))
-    if sigma <= 1e-12:
-        df = np.exp(-r * tau)
-        fwd = S0 * np.exp((r - q) * tau)
-        if kind == 'C':
-            return float(max(S0 - K, df * max(fwd - K, 0.0)))
-        else:
-            return float(max(K - S0, df * max(K - fwd, 0.0)))
+    if S_max is None:
+        S_max = float(S_max_mult * max(S_ref, K))
 
-    # Spatial domain
-    S_max = S_max_mult * max(S0, K)
     dS = S_max / M
     S_grid = np.linspace(0.0, S_max, M + 1)
 
@@ -83,23 +69,58 @@ def fd_american_price(
     else:
         V_star = np.maximum(K - S_grid, 0.0)
 
+    # Degenerate maturity case
+    if tau <= 1e-12:
+        diag = {
+            'converged': True,
+            'max_penalty_iter_used': 0,
+            'iterations_exhausted': False,
+            'final_rel_diff': 0.0,
+            'S_max': S_max,
+            'dS': dS,
+            'dt': 0.0
+        }
+        return S_grid, V_star.copy(), diag
+
+    # Helper for rate and discount queries
+    is_curve = hasattr(r, 'get_instantaneous_forward_rate') or callable(r)
+
+    # Degenerate volatility case
+    if sigma <= 1e-12:
+        if hasattr(r, 'get_discount_factor'):
+            df = r.get_discount_factor(tau)
+        else:
+            df = np.exp(-float(r) * tau)
+        fwd = S_grid * np.exp(-q * tau) / df if df > 0 else S_grid
+        if kind == 'C':
+            V_deg = np.maximum(S_grid - K, df * np.maximum(fwd - K, 0.0))
+        else:
+            V_deg = np.maximum(K - S_grid, df * np.maximum(K - fwd, 0.0))
+        diag = {
+            'converged': True,
+            'max_penalty_iter_used': 0,
+            'iterations_exhausted': False,
+            'final_rel_diff': 0.0,
+            'S_max': S_max,
+            'dS': dS,
+            'dt': 0.0
+        }
+        return S_grid, V_deg, diag
+
     # Initial condition at tau = 0
     V = V_star.copy()
 
     # Spatial operator L coefficients for interior nodes j = 1, ..., M-1
     j = np.arange(1, M)
-    S_j = S_grid[1:M]
+    j2 = j ** 2
+    sig2 = sigma ** 2
+    if not is_curve:
+        r_const = float(r)
+        alpha = 0.5 * sig2 * j2 - 0.5 * (r_const - q) * j
+        beta = -sig2 * j2 - r_const
+        gamma = 0.5 * sig2 * j2 + 0.5 * (r_const - q) * j
 
-    # Central difference coefficients
-    # (1/2 * sigma^2 * S^2 / dS^2) - (r - q) * S / (2 * dS)
-    alpha = 0.5 * (sigma ** 2) * (j ** 2) - 0.5 * (r - q) * j
-    # - sigma^2 * S^2 / dS^2 - r
-    beta = -(sigma ** 2) * (j ** 2) - r
-    # (1/2 * sigma^2 * S^2 / dS^2) + (r - q) * S / (2 * dS)
-    gamma = 0.5 * (sigma ** 2) * (j ** 2) + 0.5 * (r - q) * j
-
-    # Time stepping schedule
-    # Rannacher smoothing: divide first rannacher_steps / 2 steps into 2 half-steps with theta = 1.0 (fully implicit)
+    # Time stepping schedule with Rannacher smoothing
     dt = tau / N
     steps = []
     if rannacher_steps > 0:
@@ -116,22 +137,43 @@ def fd_american_price(
             steps.append((dt, 0.5))
 
     current_tau = 0.0
-    num_interior = M - 1
+    all_converged = True
+    max_iter_observed = 0
+    max_rel_diff_observed = 0.0
+    exhausted_any = False
+
+    V_star_int = V_star[1:M]
 
     for step_dt, theta in steps:
+        if is_curve:
+            tau_mid = current_tau + 0.5 * step_dt
+            t_cal = max(tau - tau_mid, 1e-6)
+            if hasattr(r, 'get_instantaneous_forward_rate'):
+                r_step = float(r.get_instantaneous_forward_rate(t_cal))
+            elif callable(r):
+                r_step = float(r(t_cal))
+            else:
+                r_step = float(r)
+            alpha = 0.5 * sig2 * j2 - 0.5 * (r_step - q) * j
+            beta = -sig2 * j2 - r_step
+            gamma = 0.5 * sig2 * j2 + 0.5 * (r_step - q) * j
+
         current_tau += step_dt
         explicit_weight = 1.0 - theta
         implicit_weight = theta
 
         # Explicit operator on current V
-        # L_V = alpha * V_{j-1} + beta * V_j + gamma * V_{j+1}
         L_V = alpha * V[0:M-1] + beta * V[1:M] + gamma * V[2:M+1]
         rhs_base = V[1:M] + step_dt * explicit_weight * L_V
 
-        # Boundary conditions at new time level current_tau
+        # Boundary conditions at current_tau
         if kind == 'C':
             V_0_new = 0.0
-            V_M_new = S_max - K * np.exp(-r * current_tau)
+            if hasattr(r, 'get_discount_factor'):
+                df_cur = r.get_discount_factor(current_tau)
+            else:
+                df_cur = np.exp(-float(r) * current_tau)
+            V_M_new = S_max - K * df_cur
         else:
             V_0_new = K
             V_M_new = 0.0
@@ -140,16 +182,15 @@ def fd_american_price(
         rhs_base[0] += step_dt * implicit_weight * alpha[0] * V_0_new
         rhs_base[-1] += step_dt * implicit_weight * gamma[-1] * V_M_new
 
-        # Penalty iteration for American constraint
+        # Penalty iteration for American obstacle constraint
         V_iter = V[1:M].copy()
-        V_star_int = V_star[1:M]
+        step_converged = False
+        step_rel_diff = 0.0
 
         for it in range(max_penalty_iter):
-            # Penalty active set: where V_iter < V_star
             active = (V_iter < V_star_int)
             diag_pen = np.where(active, penalty_rho, 0.0)
 
-            # System matrix A = I - dt * theta * L + P
             sub_diag = -step_dt * implicit_weight * alpha[1:]
             main_diag = 1.0 - step_dt * implicit_weight * beta + diag_pen
             sup_diag = -step_dt * implicit_weight * gamma[:-1]
@@ -158,24 +199,134 @@ def fd_american_price(
 
             V_new_int = solve_tridiagonal(sub_diag, main_diag, sup_diag, rhs)
 
-            # Check convergence
             denom = np.maximum(np.abs(V_new_int), 1.0)
-            rel_diff = np.max(np.abs(V_new_int - V_iter) / denom)
+            rel_diff = float(np.max(np.abs(V_new_int - V_iter) / denom))
+            step_rel_diff = rel_diff
             V_iter = V_new_int
 
             if rel_diff < penalty_tol:
+                step_converged = True
+                if (it + 1) > max_iter_observed:
+                    max_iter_observed = it + 1
                 break
+        else:
+            # Loop ended without break -> max_penalty_iter exhausted
+            exhausted_any = True
+            all_converged = False
+            max_iter_observed = max_penalty_iter
 
-        # Update interior and boundaries
+        if step_rel_diff > max_rel_diff_observed:
+            max_rel_diff_observed = step_rel_diff
+
+        # Update interior and boundary nodes
         V[1:M] = V_iter
         V[0] = V_0_new
         V[M] = V_M_new
 
-    # Cubic spline interpolation to extract price at S = S0
-    interp = interp1d(S_grid, V, kind='cubic')
-    price = float(interp(S0))
-    # Final enforce American intrinsic lower bound
-    price = max(price, float(V_star[0] if S0 == 0 else (S0 - K if kind == 'C' else K - S0)))
+    diag = {
+        'converged': all_converged and not exhausted_any,
+        'max_penalty_iter_used': max_iter_observed,
+        'iterations_exhausted': exhausted_any,
+        'final_rel_diff': max_rel_diff_observed,
+        'S_max': S_max,
+        'dS': dS,
+        'dt': dt
+    }
+    return S_grid, V, diag
+
+def evaluate_fd_grid(
+    S_grid: np.ndarray,
+    V: np.ndarray,
+    S_eval: float | np.ndarray,
+    K: float,
+    kind: str = 'P',
+    interp_method: str = 'pchip'
+) -> float | np.ndarray:
+    """
+    Interpolates option value from solved grid (S_grid, V) at S_eval.
+    Enforces monotonicity via PCHIP and American intrinsic lower bound.
+    """
+    kind = kind.upper()
+    is_scalar = np.isscalar(S_eval)
+    s_arr = np.atleast_1d(np.asarray(S_eval, dtype=float))
+
+    if interp_method == 'pchip':
+        interp = PchipInterpolator(S_grid, V)
+    elif interp_method == 'cubic':
+        interp = interp1d(S_grid, V, kind='cubic', fill_value='extrapolate')
+    elif interp_method == 'linear':
+        interp = interp1d(S_grid, V, kind='linear', fill_value='extrapolate')
+    else:
+        raise ValueError(f"Unknown interpolation method: {interp_method}")
+
+    val = interp(s_arr)
+
+    # Intrinsic value lower bound control
+    if kind == 'C':
+        intrinsic = np.maximum(s_arr - K, 0.0)
+    else:
+        intrinsic = np.maximum(K - s_arr, 0.0)
+
+    val = np.maximum(val, intrinsic)
+    return float(val[0]) if is_scalar else val
+
+def fd_american_price(
+    kind: str,
+    S0: float,
+    K: float,
+    tau: float,
+    r: float | Any,
+    sigma: float,
+    q: float = 0.0,
+    M: int = 300,
+    N: int = 150,
+    S_max: float | None = None,
+    S_max_mult: float = 4.0,
+    rannacher_steps: int = 4,
+    penalty_rho: float = 1e7,
+    max_penalty_iter: int = 30,
+    penalty_tol: float = 1e-7,
+    interp_method: str = "pchip",
+    return_diagnostics: bool = False
+) -> float | dict[str, Any]:
+    """
+    Prices an American option using Crank-Nicolson PDE with Rannacher smoothing,
+    penalty iteration (Forsyth & Vetzal, 2002), and PCHIP safe interpolation.
+    Supports scalar r or DeterministicYieldCurve term structure.
+    """
+    S_grid, V, diag = fd_american_grid(
+        kind=kind,
+        S_ref=S0,
+        K=K,
+        tau=tau,
+        r=r,
+        sigma=sigma,
+        q=q,
+        M=M,
+        N=N,
+        S_max=S_max,
+        S_max_mult=S_max_mult,
+        rannacher_steps=rannacher_steps,
+        penalty_rho=penalty_rho,
+        max_penalty_iter=max_penalty_iter,
+        penalty_tol=penalty_tol
+    )
+
+    price = evaluate_fd_grid(S_grid, V, S0, K, kind=kind, interp_method=interp_method)
+
+    if return_diagnostics:
+        return {
+            'price': float(price),
+            'converged': diag['converged'],
+            'max_penalty_iter_used': diag['max_penalty_iter_used'],
+            'iterations_exhausted': diag['iterations_exhausted'],
+            'final_rel_diff': diag['final_rel_diff'],
+            'S_grid': S_grid,
+            'V': V,
+            'S_max': diag['S_max'],
+            'dS': diag['dS'],
+            'dt': diag['dt']
+        }
     return float(price)
 
 def price_american_option(
@@ -183,25 +334,44 @@ def price_american_option(
     S: float,
     K: float,
     tau: float,
-    r: float,
+    r: float | Any,
     sigma: float,
     q: float = 0.0,
-    method: str = "auto"
+    method: str = "auto",
+    S_max: float | None = None,
+    M: int = 300,
+    N: int = 150,
+    interp_method: str = "pchip"
 ) -> float:
     """
     Unified American option pricing dispatcher.
-    - If kind == 'C' and q == 0 and r >= 0: uses exact Black-Scholes analytical formula.
-    - If kind == 'P' (or general): uses Crank-Nicolson FD + Rannacher + Penalty method.
+    - If kind == 'C' and q == 0 and r >= 0: uses exact Black-Scholes analytical formula (Merton, 1973).
+    - If kind == 'P' (or general): uses Crank-Nicolson FD + Rannacher + Penalty method + PCHIP.
     """
     kind = kind.upper()
     if method == "auto":
-        if kind == 'C' and q <= 1e-8 and r >= -1e-8:
-            from src.pricing_bs import bs_price
-            return bs_price('C', S, K, tau, r, sigma, q)
+        if kind == 'C' and q <= 1e-8:
+            if isinstance(r, (int, float)) and r >= -1e-8:
+                from src.pricing_bs import bs_price
+                return bs_price('C', S, K, tau, r, sigma, q)
+            elif hasattr(r, 'get_zero_rate'):
+                from src.pricing_bs import bs_price
+                return bs_price('C', S, K, tau, r.get_zero_rate(tau), sigma, q)
+            else:
+                return fd_american_price(
+                    kind, S, K, tau, r, sigma, q,
+                    M=M, N=N, S_max=S_max, interp_method=interp_method
+                )
         else:
-            return fd_american_price(kind, S, K, tau, r, sigma, q)
+            return fd_american_price(
+                kind, S, K, tau, r, sigma, q,
+                M=M, N=N, S_max=S_max, interp_method=interp_method
+            )
     elif method == "fd":
-        return fd_american_price(kind, S, K, tau, r, sigma, q)
+        return fd_american_price(
+            kind, S, K, tau, r, sigma, q,
+            M=M, N=N, S_max=S_max, interp_method=interp_method
+        )
     elif method == "crr":
         from src.pricing_crr import crr_price
         return crr_price(kind, S, K, tau, r, sigma, q, exercise_type="american", N=500)

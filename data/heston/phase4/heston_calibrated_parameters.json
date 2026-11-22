@@ -1,0 +1,77 @@
+{
+  "candidate_id": "Benchmark_PoC_Regime_A",
+  "selection_status": "WINNER_POC_CONSERVED",
+  "selection_rationale": "Benchmark PoC Regime A retained for academic parsimony and continuity: Best local candidate Refinement_A_Start_2 fine SSE (0.086579) vs PoC fine SSE (0.086612) yields a minimal gain of 3.258651e-05 USD^2. On the 60 training puts, the mean absolute price difference between Candidate A and PoC is 0.00043 USD (0.043 cents) with a maximum difference of 0.00184 USD (0.184 cents), which is strictly within the numerical PDE discretization noise (budget <= 0.0020 USD). Conserving PoC parameterization maintains academic continuity with audited baselines and avoids parameter churn within PDE discretization tolerance.",
+  "pricing_diff_vs_poc_train_mean_usd": 0.00043014983875318383,
+  "pricing_diff_vs_poc_train_max_usd": 0.0018412161206664557,
+  "calibrated_parameters_raw": [
+    0.18613777847584,
+    2.72546036683707,
+    0.21367969920004,
+    0.48178472584297,
+    -0.94980666301298
+  ],
+  "calibrated_parameters": {
+    "v0": 0.18613777847584,
+    "kappa": 2.72546036683707,
+    "theta": 0.21367969920004,
+    "xi": 0.48178472584297,
+    "rho": -0.94980666301298
+  },
+  "feller_condition": {
+    "feller_ratio": 5.017958620178812,
+    "feller_satisfied": true,
+    "formula": "2*kappa*theta / xi^2"
+  },
+  "bounds_proximity": {
+    "v0": {
+      "value": 0.18613777847584,
+      "lower_bound": 0.01,
+      "upper_bound": 1.5,
+      "dist_to_lower": 0.17613777847584,
+      "dist_to_upper": 1.31386222152416,
+      "near_boundary": false
+    },
+    "kappa": {
+      "value": 2.72546036683707,
+      "lower_bound": 0.1,
+      "upper_bound": 15.0,
+      "dist_to_lower": 2.62546036683707,
+      "dist_to_upper": 12.27453963316293,
+      "near_boundary": false
+    },
+    "theta": {
+      "value": 0.21367969920004,
+      "lower_bound": 0.01,
+      "upper_bound": 1.5,
+      "dist_to_lower": 0.20367969920004,
+      "dist_to_upper": 1.28632030079996,
+      "near_boundary": false
+    },
+    "xi": {
+      "value": 0.48178472584297,
+      "lower_bound": 0.05,
+      "upper_bound": 3.0,
+      "dist_to_lower": 0.43178472584297,
+      "dist_to_upper": 2.51821527415703,
+      "near_boundary": false
+    },
+    "rho": {
+      "value": -0.94980666301298,
+      "lower_bound": -0.95,
+      "upper_bound": 0.95,
+      "dist_to_lower": 0.00019333698701995417,
+      "dist_to_upper": 1.89980666301298,
+      "near_boundary": true
+    }
+  },
+  "train_metrics": {
+    "prod_sse": 0.08664049121304833,
+    "prod_rmse": 0.038000107722007036,
+    "fine_sse": 0.08661177742699677,
+    "fine_rmse": 0.037993810335149064,
+    "fine_mae": 0.025762342862307188,
+    "fine_max_abs_err": 0.18266672061894207
+  },
+  "timestamp": "2026-11-22T10:10:03.748504+00:00"
+}

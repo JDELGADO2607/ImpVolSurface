@@ -1,138 +1,98 @@
-# Proyecto Cuantitativo: Superficie de Volatilidad Implícita, Métodos Numéricos de EDP, Stress Testing y Estrategias con Opciones Americanas de Nu Holdings Ltd. (NU)
+# NU: valoración de opciones americanas con Heston
 
-**Entidad:** Mesa de Derivados \& Gestión de Riesgos de Renta Variable  
-**Subyacente:** Nu Holdings Ltd. (NYSE: NU)  
-**Fecha Base de Mercado:** 17 de noviembre de 2026, 16:00 EST (America/New_York)  
-**Precio Spot de Referencia ($S_0$):** $12.33 USD (Cierre oficial NYSE)  
-**Tasa de Dividendos ($q$):** 0.00 % anual ($q = 0$, verificado en Formulario SEC 6-K del 12-nov-2026)  
-**Curva Libre de Riesgo:** Curva Par del Tesoro de EE.UU. (4.10% a 4.84% compuesta continua)  
-**Entorno de Ejecución:** Python 3.12.6, NumPy 2.1.1, SciPy 1.18.0, Pandas 2.2.2, OpenPyXL 3.1.5, Pytest 9.2.0, MiKTeX (pdflatex / xelatex)
+Proyecto académico sobre opciones de NU Holdings Ltd.: calibración de Heston a precios de puts americanas, valoración mediante diferencias finitas, volatilidad implícita equivalente, comparación de modelos y riesgo de una cartera hipotética. El modelo clásico utiliza una única parametrización global bajo la medida neutral al riesgo. Raw SVI se conserva como benchmark histórico.
 
----
+**Estado:** implementación final del [PR #5](https://github.com/JDELGADO2607/ImpVolSurface/pull/5), con revisión humana final pendiente. Esta actualización documental parte del commit `2a9143ba55f1e17b165fa7132d954227635e6538`; no modifica resultados ni autoriza un merge.
 
-## 1. Resumen Ejecutivo del Proyecto
+## Datos y calibración
 
-Este repositorio contiene la implementación cuantitativa completa, verificada y reproducible que resuelve los **Puntos 46 a 56** para la valoración y gestión de riesgos de opciones americanas sobre NU:
-1. **Auditoría Forense y Depuración (Puntos 46 y 47):** Importación de 575 contratos reales (303 calls, 272 puts, 16 vencimientos), corrección de truncamientos intradiarios de $\tau$, detección del reseteo a cero de bid/ask en Yahoo, y clasificación en Tiers mediante cotas de no arbitraje y condicionamiento $\kappa = 0.01 / \text{Vega} \le 3.0$ pp/centavo (201 contratos limpios).
-2. **Motores de Valoración Americanos y Validación Independiente (Punto 48):** Implementación de Black-Scholes cerrado para Calls sin dividendos (coincidencia analítica garantizada por Teorema de Merton) y diferencias finitas Crank-Nicolson con suavizado de Rannacher y penalización cuadrática (Forsyth \& Vetzal, 2002) para Puts americanas. Validación numérica contra árbol binomial Cox-Ross-Rubinstein (CRR, 1000 pasos) con discrepancia $< \$0.0005$ USD.
-3. **Inversión Numérica a Volatilidad Implícita (Punto 49):** Algoritmo de Brent sobre intervalo bracket $[0.01, 5.00]$ y contraste estratificado no circular con Bloomberg (`IV Mid` y `IV Last Trade`), explicando la asincronía de ~21 horas.
-4. **Construcción de la Superficie de Volatilidad (Puntos 50 y 51):** Proyección en log-forward moneyness $k = \ln(K/F)$ y calibración de la parametrización Raw SVI de Gatheral. Validación cruzada Leave-One-Strike-Out sobre 196 contratos fuera de muestra: MAE de precio = $\$0.039$ USD y MAE de IV = 2.48 pp. Verificación analítica de ausencia de arbitraje mariposa ($g(k) \ge 0$) y de calendario ($\partial w / \partial \tau \ge 0$).
-5. **Comparación de los Cuatro Modelos (Punto 54 y 55):** Matriz $2 \times 2$ (Europeo/Americano $\times$ Plano/Superficie) aislando la prima americana (hasta $\$0.025$ en ITM) frente al efecto dominante de la superficie SVI, que reduce el error en más del 54% en ITM (MAE de $\$0.0854$ a $\$0.0396$).
-6. **Stress Testing de Cadena Fija (Punto 52):** Cartera hipotética delta-neutral de 5 patas con cobertura de -354 acciones de NU. Evaluación de 5 escenarios multifactoriales y demostración de la ruptura de la aproximación local de Taylor en caídas severas (discrepancia de $\$3,253$ USD en crisis de -20%), probando que la revaloración completa por EDP es mandatoria.
-7. **Estrategias Cuantitativas de Trading (Punto 53):** Modelo econométrico HAR-RV (Corsi, 2009) con pronóstico a 21 días (72.97%) frente a IV ATM (44.02%), fundamentando un Straddle delta-neutral y un Calendar Spread sobre la volatilidad forward (38.15%), con análisis explícito de 3 regímenes de costos y advertencias sobre sesgos de backtest.
+- Fecha de valoración: 17 de noviembre de 2026, 16:00 America/New_York; spot de referencia: **12,33 USD**. Hipótesis de dividendos nulos, multiplicador de 100 y ACT/365 Fixed.
+- Muestra final: **97 puts** y **142 calls** externas. La calibración minimiza **SSE no ponderada en precios sobre 60 puts americanas**. Se reservan 22 puts para holdout por strike y 15 por vencimiento; las calls no participan en la calibración.
+- Curva determinista construida a partir de tasas par CMT del Treasury, con instrumentos sintéticos y aproximaciones en el tramo corto. No equivale a un bootstrap completo de bonos efectivamente cotizados ni a tasas cero observadas. Es una curva **ex post**: su disponibilidad exacta a las 16:00 no está demostrada.
+- Parámetros seleccionados `(v0, kappa, theta, xi, rho)`: `(0.18613778, 2.72546037, 0.21367970, 0.48178473, -0.94980666)`. El registro completo está en [heston_calibrated_parameters.json](data/heston/phase4/heston_calibrated_parameters.json). Son parámetros bajo Q, no estimaciones de la dinámica física.
 
----
+## Dependencias y ejecución
 
-## 2. Estructura del Repositorio
+Entorno de referencia: Python **3.12.6** y QuantLib **1.44**. Los dos archivos de dependencias son complementarios: Heston necesita QuantLib y la generación de figuras necesita matplotlib del archivo general.
 
-```
-rockling/
-├── data/
-│   ├── raw/
-│   │   └── Opciones_Completo.xlsx              # Archivo original (solo lectura)
-│   └── processed/
-│       └── nu_historical_daily.csv             # Serie diaria histórica (2021-2026)
-├── src/
-│   ├── market_data.py                         # Curva del Tesoro r(tau), spot y forward
-│   ├── data_cleaning.py                       # Parseo OCC, tau exacto, cotas y tiers
-│   ├── pricing_bs.py                          # Black-Scholes analítico y Griegas
-│   ├── pricing_crr.py                         # Árbol binomial CRR (benchmark)
-│   ├── pricing_american_fd.py                 # Crank-Nicolson + Rannacher + Penalización
-│   ├── iv_inversion.py                        # Inversor Brent y contraste Bloomberg
-│   ├── surface.py                             # Calibración Raw SVI, PCHIP y Leave-One-Out
-│   ├── model_comparison.py                   # Matriz 2x2 de los 4 modelos de tarificación
-│   ├── greeks.py                              # Griegas analíticas y numéricas de EDP
-│   ├── portfolio.py                           # Portafolio 5 patas y cobertura delta
-│   ├── stress_testing.py                      # Stress testing multifactorial cadena fija
-│   ├── forecasts.py                           # Estimador HAR-RV walk-forward causal
-│   └── strategies.py                          # Escenarios y costos de Estrategias 1 y 2
-├── tests/
-│   ├── test_contracts_and_dates.py            # Tests de parseo, tau y tiers
-│   ├── test_pricing_bs.py                     # Tests de paridad, monotonicidad y griegas
-│   ├── test_pricing_american.py               # Tests de prima americana, FD vs CRR y malla
-│   ├── test_iv_recovery.py                    # Tests de recuperación sintética Brent
-│   ├── test_surface_and_interpolation.py      # Tests de evaluación SVI y no arbitraje
-│   ├── test_portfolio_and_stress.py           # Tests de delta-hedge y matrices de estrés
-│   └── test_no_lookahead.py                   # Tests de causalidad estricta y costos
-├── outputs/
-│   ├── tables/                                # 11 tablas CSV auditables generadas
-│   ├── figures/                               # 7 gráficos de alta resolución
-│   └── data_diagnostics/                      # Volcados y reportes diagnósticos brutos
-├── docs/
-│   ├── 00_Alcance_y_auditoria.md              # Auditoría inicial y alcance formal
-│   ├── DECISIONES_Y_LIMITACIONES.md           # Registro vivo de decisiones cuantitativas
-│   ├── MANUAL_MATEMATICO_COMPLETO.tex         # Manual autocontenido en LaTeX (19 págs)
-│   ├── MANUAL_MATEMATICO_COMPLETO.pdf         # PDF compilado con pdflatex
-│   ├── GUIA_EXPOSICION_10_MIN.md              # Guion oral de 8 diapositivas (10 min)
-│   ├── PREGUNTAS_DEFENSA.md                   # 25+ preguntas difíciles con respuestas
-│   └── REFERENCIAS_VERIFICADAS.md             # Catálogo bibliográfico con DOIs
-├── run_all.py                                 # Script maestro ejecutable integral
-└── README.md                                  # Este documento
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt -r requirements-heston.txt
+python run_all.py --heston
 ```
 
----
+Ejecutar desde la raíz del repositorio con los insumos y parámetros versionados. `run_all.py --heston` ejecuta **la integración financiera de fase 6**: comparación de cuatro modelos, valoración y griegas de la cartera, cobertura delta, estrés y figuras. Lee los parámetros de fase 4 y tablas previas; **no recalibra Heston ni reconstruye la superficie de IV de fase 5 ni ejecuta las pruebas**. Las salidas se escriben en `data/heston/phase6/` y `figures/phase6/`.
 
-## 3. Instrucciones de Reproducción y Verificación
+Para regenerar la superficie de IV con la calibración existente:
 
-### 3.1 Requisitos del Sistema
-* Python 3.11 o 3.12
-* Paquetes de Python: `pip install numpy scipy pandas matplotlib openpyxl pytest statsmodels yfinance`
-* Compilador LaTeX (opcional para recompilar PDF): MiKTeX / TeXLive (`pdflatex`)
-
-### 3.2 Ejecución del Pipeline Completo
-Para ejecutar todo el flujo desde los datos brutos hasta la generación de tablas y figuras:
-```bash
-python run_all.py
+```powershell
+python -m src.heston.pipeline_phase5
 ```
 
-### 3.3 Ejecución de la Suite de Pruebas Unitarias
-Para correr los 23 tests de verificación automatizada:
-```bash
-pytest -v
+Sin `--heston`, `python run_all.py` ejecuta el pipeline histórico SVI. No es la ruta de cierre Heston.
+
+### Reproducción de la calibración: operación separada y costosa
+
+Reproducir tablas con parámetros guardados no es repetir la optimización. Para repetir los cinco arranques de la prueba de concepto, los refinamientos y las evaluaciones posteriores, desde los insumos y la partición versionados:
+
+```powershell
+python -c "from src.heston.pipeline_phase1 import run_phase1_pipeline; run_phase1_pipeline(reuse_existing_multistart=False)"
+python -m src.heston.run_refinements --optimize all
+python -m src.heston.pipeline_phase4
+python -m src.heston.pipeline_phase5
+python run_all.py --heston
 ```
 
-### 3.4 Compilación de la Documentación LaTeX
-```bash
-pdflatex -interaction=nonstopmode -output-directory=docs docs/MANUAL_MATEMATICO_COMPLETO.tex
-```
+El primer comando fuerza cinco optimizaciones nuevas; la ejecución normal de `pipeline_phase1` reutiliza los resultados guardados y verifica su objetivo. Los refinamientos A/B/C usan sus puntos iniciales declarados en `run_refinements.py` y hasta 35 iteraciones por defecto. `pipeline_phase4` reevalúa y selecciona candidatos, pero no ejecuta por sí solo esos refinamientos. Esta secuencia sobrescribe artefactos de trabajo: usar una copia separada para conservar la evidencia publicada. No se garantiza igualdad bit a bit entre versiones o plataformas, ni optimalidad global de la solución seleccionada.
 
----
+La alternativa `python -m src.heston.run_refinements --replay-only` reproduce los objetivos de los refinamientos guardados; **no realiza optimizaciones nuevas**. No es necesario ejecutar ninguna de estas operaciones para consultar los resultados finales.
 
-## 4. Tablas y Resultados Numéricos Principales
+## Arquitectura
 
-| Archivo Generado | Filas / Registros | Descripción Cuantitativa |
-|---|---|---|
-| `outputs/tables/options_audit.csv` | 575 filas | Auditoría completa con banderas de rechazo y asignación de Tiers 1-4. |
-| `outputs/tables/options_clean.csv` | 201 filas | Contratos de alta calidad elegibles para la superficie. |
-| `outputs/tables/options_with_iv.csv` | 201 filas | Volatilidades implícitas propias calculadas por Brent + EDP. |
-| `outputs/tables/iv_comparison_bloomberg.csv` | 4 tramos | Sesgo medio (+0.19 pp en 90-365d) y MAE frente a Bloomberg Mid. |
-| `outputs/tables/svi_slice_parameters.csv` | 16 cortes | Parámetros $(a, b, \rho, m, \eta)$ y verificación de $g(k) \ge 0$. |
-| `outputs/tables/surface_leave_one_out_validation.csv` | 196 tests | Validación OOS: MAE de precio = $\$0.039$, MAE de IV = 2.48 pp. |
-| `outputs/tables/model_comparison_summary.csv` | 6 segmentos | Matriz 2x2 demostrando reducción de MAE de $\$0.085$ a $\$0.039$ en ITM. |
-| `outputs/tables/hypothetical_portfolio.csv` | 6 posiciones | 5 opciones + cobertura con -354 acciones (Delta neta = -0.30). |
-| `outputs/tables/stress_test_matrix.csv` | 10 escenarios | P&L de la cartera fija bajo Sticky-Moneyness y Sticky-Strike. |
-| `outputs/tables/volatility_forecast_evaluation.csv` | 3 modelos | Evaluación OOS walk-forward de HAR-RV (QLIKE = 0.1813). |
-| `outputs/tables/strategy1_straddle_scenarios.csv` | 21 escenarios | Payoff del Straddle ATM bajo regímenes optimista, base y conservador. |
+| Componente | Responsabilidad |
+| --- | --- |
+| `src/heston/rates_curve.py` | Curva determinista, descuentos y parámetros de mercado compartidos |
+| `src/heston/heston_model.py`, `calibration.py` | Referencia QuantLib y calibración directa de puts americanas |
+| `src/heston/solver_2d.py` | Solver propio de puts Heston: diferencias finitas 2D, ADI Modified Craig–Sneyd y tratamiento del obstáculo americano Ikonen–Toivanen |
+| `src/pricing_american_fd.py`, `src/heston/equivalent_iv.py` | Motor americano de volatilidad constante 1D e inversión mediante Brent; IV BS para calls europeas |
+| `src/heston/pipeline_phase4.py`, `pipeline_phase5.py` | Selección/evaluación de parámetros y superficie de IV equivalente |
+| `src/heston/financial_integration.py`, `pipeline_phase6.py` | Comparación, cartera de cinco patas, griegas y estrés Heston |
+| `src/surface.py`, `src/strategies.py`, `src/forecasts.py` | SVI, estrategias y HAR-RV históricos conservados; no constituyen una nueva simulación histórica Heston |
 
----
+La calibración utiliza el motor americano de referencia de QuantLib; el solver propio se contrasta con esa referencia. Para las puts, la IV equivalente reproduce el precio americano Heston en el motor 1D de volatilidad constante. Para las calls, bajo dividendos nulos y tasas no negativas, se utiliza el precio europeo Heston y se invierte Black–Scholes. Estas IV no son la volatilidad instantánea `sqrt(v0)` ni la varianza de largo plazo `theta`.
 
-## 5. Figuras y Visualizaciones Generadas
+## Resultados finales y alcance financiero
 
-* `outputs/figures/smile_2d_slices.png`: Cortes 2D de la sonrisa de volatilidad por vencimiento.
-* `outputs/figures/surface_3d_volatility.png`: Superficie 3D de volatilidad implícita en coordenadas $(k, \tau)$.
-* `outputs/figures/term_structure_atm.png`: Estructura temporal ATM ($k=0$) desde 3 días hasta 2.2 años.
-* `outputs/figures/model_comparison_errors.png`: Errores absolutos medios (MAE) de los cuatro modelos por segmento.
-* `outputs/figures/stress_test_pnl_waterfall.png`: P&L por escenario comparando Revaloración Full EDP vs Taylor.
-* `outputs/figures/stress_crisis_leg_breakdown.png`: Desglose de P&L por pata en el Escenario 3 de Crisis Severa (-20% spot).
-* `outputs/figures/nu_historical_vol_and_forecasts.png`: Volatilidad histórica realizada (2021-2026) y pronóstico HAR-RV.
-* `outputs/figures/strategy1_payoff_scenarios.png`: Curvas de retorno del Straddle delta-neutral con tres regímenes de fricción.
-* `outputs/figures/strategy2_calendar_payoff.png`: Perfil de beneficio a 31 días del Calendar Spread en strike 13.00.
+MAE en USD por opción, según [models_comparison_summary.csv](data/heston/phase6/models_comparison_summary.csv):
 
----
+| Muestra | Contratos | Volatilidad plana americana (44 %) | Heston americano |
+| --- | ---: | ---: | ---: |
+| Puts, incluyendo entrenamiento y holdouts | 97 | 0,03738 | 0,02385 |
+| Calls externas | 142 | 0,05679 | 0,08729 |
+| Universo agregado común | 239 | 0,04892 | 0,06154 |
 
-## 6. Recomendaciones Institucionales para la Mesa de Derivados
+**Heston mejora el MAE de puts un 36,21 %, pero empeora el MAE de calls y del universo agregado.** No se concluye superioridad global. Los holdouts de puts tienen MAE de 0,02111 USD (22 por strike) y 0,02030 USD (15 por vencimiento); no deben confundirse con el ajuste de entrenamiento.
 
-1. **Abandono inmediato de Black-Scholes con volatilidad plana:** La tarificación con volatilidad constante subestima el valor de las opciones dentro del dinero en más del 54% y distorsiona el cálculo del margen de garantía.
-2. **Adopción de la superficie SVI en varianza total:** Instituir la superficie SVI calibrada diariamente como la referencia oficial de *mark-to-model*, garantizando ausencia de oportunidades de arbitraje estático mariposa y de calendario.
-3. **Mandato de Revaloración Completa por EDP en Stress Testing:** Prohibir el uso exclusivo de expansiones de Taylor por Griegas para shocks severos ($|\Delta S| \ge 10\%$). En caídas del 20%, Taylor sobreestimó el P&L en más de $\$3,250$ USD debido a la asimetría de la opcionalidad y la activación del ejercicio anticipado.
-4. **Disciplina de Fricciones en Estrategias de Trading:** Incorporar un hurdle rate mínimo de 3 a 5 puntos porcentuales de volatilidad antes de tomar posiciones en primas de riesgo, asegurando que el spread bid-ask y el deslizamiento de rebalanceo delta no destruyan el valor económico de la estrategia.
+Las grillas descriptivas tienen 35 precios por tipo de opción, con **29 IV interiores identificadas de puts y 33 de calls**. Las filas restantes conservan estados de frontera o no identificación; no representan IV interiores válidas.
+
+La integración Heston incluye **una cartera hipotética de cinco patas**, cobertura de −393 acciones y seis escenarios instantáneos de estrés. Su capital aproximado es 5.613,88 USD, mediante una regla académica sobre primas del modelo, no margen regulatorio exacto. Las sensibilidades a `sqrt(v0)` no son vega respecto de la IV cotizada. La diferencia entre revaloración completa y Taylor es un **residuo de aproximación**: Taylor incluye segundo orden en spot y primer orden en volatilidad inicial, sin todos los términos cruzados ni volga.
+
+Las estrategias **straddle y calendar spread** pertenecen a los módulos históricos y no están integradas con Heston como la cartera de cinco patas. Sus escenarios no constituyen evidencia de rentabilidad histórica; no existe un panel histórico de opciones que permita ese backtest.
+
+## Limitaciones aceptadas
+
+- Precios de últimas transacciones asíncronos y bid/ask insuficientes: el ajuste no equivale a valorar una cadena sincronizada y ejecutable.
+- Identificación paramétrica limitada en una sola sección transversal; correlación cercana al límite de búsqueda y ausencia de garantía de unicidad u óptimo global.
+- Precisión de IV ultracorta limitada, en particular la put de tres días `NU261120P00012500`. Los seis controles 1D publicados no prueban precisión uniforme en todo el dominio.
+- Curva CMT ex post y aproximaciones de construcción; no se afirma disponibilidad ex ante exacta al instante de valoración.
+- **F4-H2 permanece abierto como limitación aceptada** del control de cotas europeas en casos sintéticos extremos. No se presenta como reparado; no se ha demostrado impacto sobre los resultados reales publicados.
+- La IV no se identifica cerca de regiones de vega nula. Los valores del límite numérico inferior no son estimaciones económicas de volatilidad. Las comprobaciones sobre mallas finitas no prueban ausencia global de arbitraje.
+- Estrés hipotético sin probabilidades, financiación ni fricciones; theta con curva congelada y Taylor parcial. HAR-RV bajo la medida física es distinto de la calibración neutral al riesgo.
+
+## Documentación y resultados
+
+- [Fase 5: superficie e IV equivalente](docs/reports/INFORME_FASE_5_SUPERFICIE_IV_HESTON.md).
+- [Fase 6: comparación, cartera, estrés y guion de diez minutos](docs/reports/INFORME_FASE_6_INTEGRACION_FINANCIERA.md).
+- Artefactos: `data/heston/phase4/`, `data/heston/phase5/`, `data/heston/phase6/`; figuras: `figures/phase5/` y `figures/phase6/`.
+- [Contexto](CONTEXT.md), [continuidad](HANDOFF.md) y [plan](PLAN.md). Los informes históricos conservan sus conclusiones para el SHA examinado; no sustituyen la revisión humana final del PR.
