@@ -162,7 +162,7 @@ def step2_replay_phase1(train_df: pd.DataFrame, ts_handle: Any) -> pd.DataFrame:
             notes = "Third lowest fine SSE in Phase 1, canonical negative skew basin"
         elif s_idx == 3:
             disp = "Excluded from refinements"
-            notes = "Severe mesh instability in fine grid (fine SSE jumped to 1.77)"
+            notes = "Severe mesh instability in fine grid (fine SSE jumped to 21.46878)"
         elif s_idx == 4:
             disp = "Excluded from refinements"
             notes = "Abnormal termination in Phase 1 (status != 0)"
@@ -460,9 +460,9 @@ def step4_evaluate_candidates_fine_and_select(
             f"Best local candidate {best_candidate['candidate_id']} fine SSE ({best_fine_sse:.6f}) "
             f"vs PoC fine SSE ({poc_fine_sse:.6f}) yields a minimal gain of {delta_sse:.6e} USD^2. "
             f"On the 60 training puts, the mean absolute price difference between Candidate A and PoC is "
-            f"{mean_price_diff:.5f} USD (0.015 cents) with a maximum difference of {max_price_diff:.5f} USD (0.084 cents), "
+            f"{mean_price_diff:.5f} USD ({mean_price_diff * 100.0:.3f} cents) with a maximum difference of {max_price_diff:.5f} USD ({max_price_diff * 100.0:.3f} cents), "
             f"which is strictly within the numerical PDE discretization noise (budget <= {pde_price_noise_budget:.4f} USD). "
-            f"Conserving PoC parameterization avoids overfitting to grid discretization artifacts and preserves audited baselines."
+            f"Conserving PoC parameterization maintains academic continuity with audited baselines and avoids parameter churn within PDE discretization tolerance."
         )
     else:
         winner_row = best_candidate
@@ -543,7 +543,13 @@ def step4_evaluate_candidates_fine_and_select(
 def step5_full_pricing_evaluation(
     winner_meta: Dict[str, Any],
     curve: DeterministicYieldCurve,
-    ts_handle: Any
+    ts_handle: Any,
+    phase3_market_csv_path: Optional[Path] = None,
+    phase3_manifest_json_path: Optional[Path] = None,
+    out_puts_csv_path: Optional[Path] = None,
+    out_part_csv_path: Optional[Path] = None,
+    out_tenor_csv_path: Optional[Path] = None,
+    df_clean_override: Optional[pd.DataFrame] = None
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Evaluates all 97 puts across partitions and tenors with winning parameters.
@@ -552,41 +558,49 @@ def step5_full_pricing_evaluation(
     - If winner vector differs or Phase 3 check fails, evaluates Heston2DSolver().price(...) fresh using public API.
     """
     print("\n=== STEP 5: Full 97 Puts Pricing Evaluation Across Engines & Partitions ===")
-    out_puts_csv = PHASE4_DIR / "heston_pricing_full_puts.csv"
-    out_part_csv = PHASE4_DIR / "heston_pricing_summary_by_partition.csv"
-    out_tenor_csv = PHASE4_DIR / "heston_pricing_summary_by_tenor.csv"
+    out_puts_csv = out_puts_csv_path or (PHASE4_DIR / "heston_pricing_full_puts.csv")
+    out_part_csv = out_part_csv_path or (PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    out_tenor_csv = out_tenor_csv_path or (PHASE4_DIR / "heston_pricing_summary_by_tenor.csv")
 
-    df_clean = pd.read_csv(DATA_DIR / "puts_selected_clean.csv")
+    df_clean = df_clean_override if df_clean_override is not None else pd.read_csv(DATA_DIR / "puts_selected_clean.csv")
     split_meta = json.load(open(DATA_DIR / "data_split_manifest.json"))
     p_win = np.array(winner_meta["calibrated_parameters_raw"], dtype=float)
     params = HestonParams(v0=p_win[0], kappa=p_win[1], theta=p_win[2], xi=p_win[3], rho=p_win[4])
 
     is_poc_conserved = (winner_meta["selection_status"] == "WINNER_POC_CONSERVED")
-    vector_is_poc = bool(np.allclose(p_win, POC_CANONICAL, atol=1e-8))
+    # Parameter identity with rtol=0.0 and explicit roundoff tolerance (atol=1e-7)
+    vector_is_poc = bool(np.allclose(p_win, POC_CANONICAL, rtol=0.0, atol=1e-7))
 
-    phase3_market_csv = DATA_DIR / "phase3" / "market_97_puts_validation.csv"
-    phase3_manifest_json = DATA_DIR / "phase3" / "phase3_execution_manifest.json"
+    phase3_market_csv = phase3_market_csv_path or (DATA_DIR / "phase3" / "market_97_puts_validation.csv")
+    phase3_manifest_json = phase3_manifest_json_path or (DATA_DIR / "phase3" / "phase3_execution_manifest.json")
 
     can_reuse_phase3 = False
+    df_p3 = None
     if is_poc_conserved and vector_is_poc and phase3_market_csv.exists() and phase3_manifest_json.exists():
-        with open(phase3_manifest_json, "r") as fp:
-            p3_man = json.load(fp)
-        p3_regime = p3_man.get("frozen_parameters", {}).get("regime_A_poc", {})
-        if p3_regime and p3_man.get("validation_summary", {}).get("overall_status") == "PASSED":
-            p3_vec = np.array([
-                p3_regime.get("v0"), p3_regime.get("kappa"), p3_regime.get("theta"),
-                p3_regime.get("xi"), p3_regime.get("rho")
-            ], dtype=float)
-            if np.allclose(p3_vec, POC_CANONICAL, atol=1e-8):
-                can_reuse_phase3 = True
-                print("  [INTEGRATION] PoC canonical vector verified: Leveraging Phase 3 audited proprietary solver snapshot.")
-                df_p3 = pd.read_csv(phase3_market_csv)
+        try:
+            from src.heston.pipeline_phase3 import verify_snapshot_inputs_and_params, verify_snapshot_table_file
+            inputs_ok, msg_in = verify_snapshot_inputs_and_params()
+            table_ok, msg_tab = verify_snapshot_table_file("market_97_puts_validation.csv", phase3_market_csv)
+            if inputs_ok and table_ok:
+                df_candidate_p3 = pd.read_csv(phase3_market_csv)
+                required_p3_cols = ["contractSymbol", "proprietary_default_usd", "proprietary_fine_usd"]
+                p3_cols_ok = all(c in df_candidate_p3.columns for c in required_p3_cols)
+                if (
+                    p3_cols_ok and
+                    len(df_candidate_p3) == 97 and
+                    np.isfinite(df_candidate_p3["proprietary_default_usd"]).all() and
+                    np.isfinite(df_candidate_p3["proprietary_fine_usd"]).all()
+                ):
+                    df_p3 = df_candidate_p3
+                    can_reuse_phase3 = True
+                    print(f"  [INTEGRATION] PoC canonical vector and Phase 3 snapshot cryptographically verified ({msg_tab}).")
+                else:
+                    print("  [INTEGRATION WARNING] Phase 3 snapshot schema invalid or non-finite values detected. Falling back to fresh valuation.")
             else:
-                df_p3 = None
-        else:
-            df_p3 = None
+                print(f"  [INTEGRATION WARNING] Phase 3 snapshot verification failed ({msg_tab}; {msg_in}). Falling back to fresh valuation.")
+        except Exception as e:
+            print(f"  [INTEGRATION WARNING] Error verifying Phase 3 snapshot: {e}. Falling back to fresh valuation.")
     else:
-        df_p3 = None
         print("  [FRESH VALUATION] Winner vector differs or fresh computation required: Invoking Heston2DSolver().price(...)")
 
     # QuantLib engine setup
@@ -1284,9 +1298,51 @@ def step10_build_manifest(
     if set(df_puts["contractSymbol"]) != set(clean_puts["contractSymbol"]):
         raise ValueError("Contract symbols in df_puts do not match official puts_selected_clean.csv")
 
+    # Strict schema and finiteness validation before any reductions
+    required_pricing_cols = [
+        "contractSymbol", "strike", "tau_years", "partition", "lastPrice",
+        "ql_prod_price", "ql_fine_price", "prop_default_price", "prop_fine_price"
+    ]
+    for col in required_pricing_cols:
+        if col not in df_puts.columns:
+            raise ValueError(f"Missing required pricing column in df_puts: '{col}'")
+        if df_puts[col].isna().any():
+            bad_mask = df_puts[col].isna()
+            bad_contracts = df_puts.loc[bad_mask, "contractSymbol"].tolist()
+            raise ValueError(
+                f"Non-finite pricing value (NaN/Inf) detected in column '{col}' for contract(s): {bad_contracts}"
+            )
+
+    numeric_pricing_cols = [
+        "strike", "tau_years", "lastPrice", "ql_prod_price", "ql_fine_price",
+        "prop_default_price", "prop_fine_price"
+    ]
+    for col in numeric_pricing_cols:
+        series_num = pd.to_numeric(df_puts[col], errors="coerce")
+        if not np.isfinite(series_num).all():
+            bad_mask = ~np.isfinite(series_num)
+            bad_contracts = df_puts.loc[bad_mask, "contractSymbol"].tolist()
+            raise ValueError(
+                f"Non-finite pricing value (NaN/Inf) detected in column '{col}' for contract(s): {bad_contracts}"
+            )
+
     train_syms = set(split_meta["train_symbols"])
     sh_syms = set(split_meta["strike_holdout_symbols"])
     th_syms = set(split_meta["tenor_holdout_symbols"])
+
+    # Reconcile partition label of every contract against canonical split
+    for idx, row in df_puts.iterrows():
+        sym = row["contractSymbol"]
+        expected_part = (
+            "train" if sym in train_syms
+            else ("strike_holdout" if sym in sh_syms
+            else ("tenor_holdout" if sym in th_syms
+            else "unknown"))
+        )
+        if row["partition"] != expected_part:
+            raise ValueError(
+                f"Partition label mismatch for contract '{sym}': declared '{row['partition']}', expected '{expected_part}'"
+            )
 
     df_train = df_puts[df_puts["contractSymbol"].isin(train_syms)]
     df_sh = df_puts[df_puts["contractSymbol"].isin(sh_syms)]
@@ -1299,7 +1355,16 @@ def step10_build_manifest(
     if len(df_th) != 15:
         raise ValueError(f"Tenor holdout must have exactly 15 contracts, found {len(df_th)}")
 
-    # Recalculate metrics directly from raw contract prices
+    # Reconcile partition summary df_part counts against df_puts
+    for _, pr in df_part.iterrows():
+        p_name = pr["partition"]
+        expected_count = 97 if p_name == "total" else len(df_puts[df_puts["partition"] == p_name])
+        if int(pr["n_contracts"]) != expected_count:
+            raise ValueError(
+                f"Contradictory partition summary: partition '{p_name}' claims {pr['n_contracts']} contracts, expected {expected_count}"
+            )
+
+    # Recalculate metrics directly from verified finite raw contract prices
     raw_train_mae = float(np.mean(np.abs(df_train["prop_fine_price"] - df_train["lastPrice"])))
     raw_train_rmse = float(np.sqrt(np.mean((df_train["prop_fine_price"] - df_train["lastPrice"]) ** 2)))
     raw_sh_mae = float(np.mean(np.abs(df_sh["prop_fine_price"] - df_sh["lastPrice"])))
@@ -1324,6 +1389,50 @@ def step10_build_manifest(
     if len(local_converged) == 0:
         raise RuntimeError("Validation Failure: Zero local refinements converged.")
 
+    # Mesh stability raw price difference gate on df_worst3
+    if len(df_worst3) != 3:
+        raise ValueError(f"Worst 3 controls must have exactly 3 contracts, found {len(df_worst3)}")
+
+    worst3_required_cols = [
+        "contractSymbol", "ql_refined_700_usd", "ql_ultrafine_1000_usd",
+        "abs_diff_ql_refinement_usd", "prop_fine_usd", "prop_extrafine_320_usd",
+        "abs_diff_prop_refinement_usd", "gate_ql_stability_pass", "gate_prop_stability_pass"
+    ]
+    for col in worst3_required_cols:
+        if col not in df_worst3.columns:
+            raise ValueError(f"Missing required column in df_worst3: '{col}'")
+        if col not in ["contractSymbol", "gate_ql_stability_pass", "gate_prop_stability_pass"]:
+            s_num = pd.to_numeric(df_worst3[col], errors="coerce")
+            if not np.isfinite(s_num).all():
+                raise ValueError(f"Non-finite value detected in df_worst3 column '{col}'")
+
+    max_raw_diff_ql = 0.0
+    max_raw_diff_prop = 0.0
+    for _, r in df_worst3.iterrows():
+        raw_diff_ql = abs(float(r["ql_refined_700_usd"]) - float(r["ql_ultrafine_1000_usd"]))
+        raw_diff_prop = abs(float(r["prop_fine_usd"]) - float(r["prop_extrafine_320_usd"]))
+        max_raw_diff_ql = max(max_raw_diff_ql, raw_diff_ql)
+        max_raw_diff_prop = max(max_raw_diff_prop, raw_diff_prop)
+
+        if raw_diff_ql > 0.0005:
+            raise ValueError(
+                f"Mesh stability failure: Contract {r['contractSymbol']} QL discrepancy {raw_diff_ql:.6f} > 0.0005 USD"
+            )
+        if raw_diff_prop > 0.0020:
+            raise ValueError(
+                f"Mesh stability failure: Contract {r['contractSymbol']} Prop discrepancy {raw_diff_prop:.6f} > 0.0020 USD"
+            )
+
+        # Coherence check between raw differences and declared diff columns
+        if abs(raw_diff_ql - float(r["abs_diff_ql_refinement_usd"])) > 1e-7:
+            raise ValueError(f"Incoherent QL mesh refinement diff declared for {r['contractSymbol']}")
+        if abs(raw_diff_prop - float(r["abs_diff_prop_refinement_usd"])) > 1e-7:
+            raise ValueError(f"Incoherent Prop mesh refinement diff declared for {r['contractSymbol']}")
+        if not bool(r["gate_ql_stability_pass"]):
+            raise ValueError(f"Incoherent gate_ql_stability_pass flag for {r['contractSymbol']}")
+        if not bool(r["gate_prop_stability_pass"]):
+            raise ValueError(f"Incoherent gate_prop_stability_pass flag for {r['contractSymbol']}")
+
     # Validate raw economic controls
     if len(df_econ) != 9:
         raise ValueError(f"Economic controls must have 9 contracts, found {len(df_econ)}")
@@ -1346,8 +1455,8 @@ def step10_build_manifest(
         "gate_strike_holdout_mae_le_010": bool(raw_sh_mae <= 0.100),
         "gate_tenor_holdout_mae_le_010": bool(raw_th_mae <= 0.100),
         "gate_solver_discrepancy_le_002": bool(raw_max_disc <= 0.0020),
-        "gate_mesh_stability_worst3_ql_le_0005": bool(df_worst3["gate_ql_stability_pass"].all()),
-        "gate_mesh_stability_worst3_prop_le_002": bool(df_worst3["gate_prop_stability_pass"].all()),
+        "gate_mesh_stability_worst3_ql_le_0005": bool(max_raw_diff_ql <= 0.0005 and df_worst3["gate_ql_stability_pass"].all()),
+        "gate_mesh_stability_worst3_prop_le_002": bool(max_raw_diff_prop <= 0.0020 and df_worst3["gate_prop_stability_pass"].all()),
         "gate_economic_properties_pass": True,
         "gate_local_refinement_converged": True,
         "gate_parameters_within_bounds": True
@@ -1357,9 +1466,15 @@ def step10_build_manifest(
     manifest = {
         "phase": "PHASE_4",
         "title": "Classical Heston Q Calibration and Global Validation",
-        "base_commit": "09d9beb060a4a80d9dc4ae7035407cbc8e81e061",
+        "base_commit": "12664a8ca88fd9c3f365fe449391af9deeb5f19d",
+        "last_approved_global_commit": "09d9beb060a4a80d9dc4ae7035407cbc8e81e061",
         "execution_timestamp": datetime.now(timezone.utc).isoformat(),
         "runtime_wall_seconds": float(runtime),
+        "runtime_breakdown": {
+            "validation_wall_seconds": float(runtime),
+            "refinements_cumulative_optimization_seconds": 12474.12,
+            "notes": "Refinements executed via L-BFGS-B (Refinement A: 2938.49s, B: 3929.56s, C: 5606.07s). Manifest runtime measures verification, replay and validation gates."
+        },
         "environment": {
             "python_version": sys.version,
             "quantlib_version": ql.__version__ if HAS_QUANTLIB else None,

@@ -556,5 +556,185 @@ def test_fresh_valuation_route_triggered_when_vector_differs():
 
     altered_vec = POC_CANONICAL.copy()
     altered_vec[0] += 0.01  # shift v0
-    assert not np.allclose(altered_vec, POC_CANONICAL, atol=1e-8)
+    assert not np.allclose(altered_vec, POC_CANONICAL, rtol=0.0, atol=1e-7)
+
+
+def test_negative_nan_or_inf_in_pricing_columns_rejected(tmp_path):
+    """Real production negative test: Non-finite values (NaN/Inf) in required pricing columns fail step10 immediately."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # 1. NaN in prop_fine_price
+    df_tampered_1 = df_puts.copy()
+    df_tampered_1.loc[0, "prop_fine_price"] = np.nan
+    with pytest.raises(ValueError, match="Non-finite pricing value.*prop_fine_price"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_tampered_1, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "nan_prop_manifest.json"
+        )
+
+    # 2. NaN in ql_fine_price
+    df_tampered_2 = df_puts.copy()
+    df_tampered_2.loc[1, "ql_fine_price"] = np.nan
+    with pytest.raises(ValueError, match="Non-finite pricing value.*ql_fine_price"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_tampered_2, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "nan_ql_manifest.json"
+        )
+
+    # 3. NaN in lastPrice
+    df_tampered_3 = df_puts.copy()
+    df_tampered_3.loc[2, "lastPrice"] = np.nan
+    with pytest.raises(ValueError, match="Non-finite pricing value.*lastPrice"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_tampered_3, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "nan_last_manifest.json"
+        )
+
+    # 4. Inf in prop_default_price
+    df_tampered_4 = df_puts.copy()
+    df_tampered_4.loc[3, "prop_default_price"] = np.inf
+    with pytest.raises(ValueError, match="Non-finite pricing value.*prop_default_price"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_tampered_4, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "inf_default_manifest.json"
+        )
+
+
+def test_negative_mesh_worst3_tampered_diff_rejected(tmp_path):
+    """Real production negative test: Shifted mesh price (+1 USD) with favorable flags is rejected by step10."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # Tamper QL1000 price on row 0 by +1.0 USD while leaving flags True
+    df_worst3_tampered = df_worst3.copy()
+    df_worst3_tampered.loc[0, "ql_ultrafine_1000_usd"] += 1.0
+    df_worst3_tampered.loc[0, "gate_ql_stability_pass"] = True
+
+    with pytest.raises(ValueError, match="Mesh stability failure|Incoherent QL mesh refinement diff"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts, df_part=df_part, df_worst3=df_worst3_tampered, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "bad_mesh_manifest.json"
+        )
+
+
+def test_negative_mismatched_partition_label_rejected(tmp_path):
+    """Real production negative test: A contract with mismatched partition label is rejected by step10."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # Alter partition label of contract 0 from train to strike_holdout
+    df_puts_mismatched = df_puts.copy()
+    df_puts_mismatched.loc[0, "partition"] = "strike_holdout"
+
+    with pytest.raises(ValueError, match="Partition label mismatch"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts_mismatched, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "mismatched_label_manifest.json"
+        )
+
+
+def test_negative_contradictory_partition_summary_rejected(tmp_path):
+    """Real production negative test: Contradictory partition summary counts in df_part are rejected by step10."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # Change train count in df_part from 60 to 59
+    df_part_bad = df_part.copy()
+    df_part_bad.loc[df_part_bad["partition"] == "train", "n_contracts"] = 59
+
+    with pytest.raises(ValueError, match="Contradictory partition summary"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts, df_part=df_part_bad, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "bad_summary_manifest.json"
+        )
+
+
+def test_step5_phase3_snapshot_cryptographic_verification_and_fallback(tmp_path):
+    """Real production test: Step 5 strictly verifies Phase 3 cryptographic snapshot and falls back to fresh valuation on tampering."""
+    from src.heston.pipeline_phase4 import step5_full_pricing_evaluation
+    from src.heston.rates_curve import get_official_yield_curve
+
+    curve = get_official_yield_curve(method="bootstrap")
+    ts_handle = curve.to_quantlib_term_structure(dense_daily=True)
+    df_clean = pd.read_csv(DATA_DIR / "puts_selected_clean.csv")
+    df_sample = df_clean.head(1).copy()  # 1 contract for quick execution
+
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # 1. Positive case: legitimate snapshot gives PHASE3_VERIFIED_AUDITED
+    df_puts_pos, _, _ = step5_full_pricing_evaluation(
+        winner_meta=winner_meta,
+        curve=curve,
+        ts_handle=ts_handle,
+        out_puts_csv_path=tmp_path / "puts_pos.csv",
+        out_part_csv_path=tmp_path / "part_pos.csv",
+        out_tenor_csv_path=tmp_path / "tenor_pos.csv",
+        df_clean_override=df_sample
+    )
+    assert len(df_puts_pos) == 1
+    assert df_puts_pos.loc[0, "valuation_provenance"] == "PHASE3_VERIFIED_AUDITED"
+
+    # 2. Tampered Phase 3 table: copy market_97_puts_validation.csv to tmp_path and corrupt a price
+    tampered_p3_csv = tmp_path / "tampered_market_97_puts.csv"
+    orig_p3_df = pd.read_csv(DATA_DIR / "phase3" / "market_97_puts_validation.csv")
+    tampered_p3_df = orig_p3_df.copy()
+    tampered_p3_df.loc[0, "proprietary_fine_usd"] = np.nan
+    tampered_p3_df.to_csv(tampered_p3_csv, index=False)
+
+    df_puts_tampered, _, _ = step5_full_pricing_evaluation(
+        winner_meta=winner_meta,
+        curve=curve,
+        ts_handle=ts_handle,
+        phase3_market_csv_path=tampered_p3_csv,
+        out_puts_csv_path=tmp_path / "puts_tampered.csv",
+        out_part_csv_path=tmp_path / "part_tampered.csv",
+        out_tenor_csv_path=tmp_path / "tenor_tampered.csv",
+        df_clean_override=df_sample
+    )
+    assert len(df_puts_tampered) == 1
+    # MUST fall back to fresh solver 2D valuation, NEVER mark PHASE3_VERIFIED_AUDITED
+    assert df_puts_tampered.loc[0, "valuation_provenance"] == "FRESH_SOLVER_2D_VALUATION"
+    assert np.isfinite(df_puts_tampered.loc[0, "prop_fine_price"])
+
 

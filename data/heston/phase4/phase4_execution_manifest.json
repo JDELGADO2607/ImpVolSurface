@@ -1,9 +1,15 @@
 {
   "phase": "PHASE_4",
   "title": "Classical Heston Q Calibration and Global Validation",
-  "base_commit": "09d9beb060a4a80d9dc4ae7035407cbc8e81e061",
-  "execution_timestamp": "2026-11-22T10:59:08.620856+00:00",
-  "runtime_wall_seconds": 0.0,
+  "base_commit": "12664a8ca88fd9c3f365fe449391af9deeb5f19d",
+  "last_approved_global_commit": "09d9beb060a4a80d9dc4ae7035407cbc8e81e061",
+  "execution_timestamp": "2026-11-22T11:29:06.161292+00:00",
+  "runtime_wall_seconds": 118.40000009536743,
+  "runtime_breakdown": {
+    "validation_wall_seconds": 118.40000009536743,
+    "refinements_cumulative_optimization_seconds": 12474.12,
+    "notes": "Refinements executed via L-BFGS-B (Refinement A: 2938.49s, B: 3929.56s, C: 5606.07s). Manifest runtime measures verification, replay and validation gates."
+  },
   "environment": {
     "python_version": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
     "quantlib_version": "1.44",
@@ -29,7 +35,7 @@
   "calibrated_parameters": {
     "candidate_id": "Benchmark_PoC_Regime_A",
     "selection_status": "WINNER_POC_CONSERVED",
-    "selection_rationale": "Benchmark PoC Regime A retained for academic parsimony and continuity: Best local candidate Refinement_A_Start_2 fine SSE (0.086579) vs PoC fine SSE (0.086612) yields a minimal gain of 3.258651e-05 USD^2. On the 60 training puts, the mean absolute price difference between Candidate A and PoC is 0.00043 USD (0.015 cents) with a maximum difference of 0.00184 USD (0.084 cents), which is strictly within the numerical PDE discretization noise (budget <= 0.0020 USD). Conserving PoC parameterization avoids overfitting to grid discretization artifacts and preserves audited baselines.",
+    "selection_rationale": "Benchmark PoC Regime A retained for academic parsimony and continuity: Best local candidate Refinement_A_Start_2 fine SSE (0.086579) vs PoC fine SSE (0.086612) yields a minimal gain of 3.258651e-05 USD^2. On the 60 training puts, the mean absolute price difference between Candidate A and PoC is 0.00043 USD (0.043 cents) with a maximum difference of 0.00184 USD (0.184 cents), which is strictly within the numerical PDE discretization noise (budget <= 0.0020 USD). Conserving PoC parameterization maintains academic continuity with audited baselines and avoids parameter churn within PDE discretization tolerance.",
     "pricing_diff_vs_poc_train_mean_usd": 0.00043014983875318383,
     "pricing_diff_vs_poc_train_max_usd": 0.0018412161206664557,
     "calibrated_parameters_raw": [
@@ -220,10 +226,10 @@
   "verdict": "PASS",
   "output_files": {
     "phase4_calibration_config.json": "32a12c901fd6c4ad954d3db1613890cf93d17767a7a5d1e8ad1a1ce253b8b1b3",
-    "heston_phase1_replay.csv": "3f3732fcfc1167797e1c92ea915be2673145bc6b5bce85b93284e8f8a57d9d1f",
+    "heston_phase1_replay.csv": "d96f849fd10f17e7d3d2e12cce218ef3fd9b417ccb15dc300e424faaf6e8381c",
     "heston_local_refinements.csv": "28032162e988f49196e7bf2282263c7985c4b14e6ef51120864c13c157f95569",
     "heston_candidates_fine_eval.csv": "116d554f1bbc185e6f7c36dcaaca3df86304b9133e6c825f8726c2ba5ad5fd24",
-    "heston_calibrated_parameters.json": "eaa443a712c829459f566cc52fb580de6ecb4c14456aa0dfcdddc7ceda842feb",
+    "heston_calibrated_parameters.json": "8ec92916e726317358563c1c62f729d3770dd60c026d2854cb33fbbba9ebb705",
     "heston_pricing_full_puts.csv": "252207054c5001608a470bab4ad6e601e431a0aa92f80ea316687afe07256d2b",
     "heston_pricing_summary_by_partition.csv": "1017a9c98fb2517bb044aed776769a5d324bcd04abe58bb054c4d7fd6cf6ac05",
     "heston_pricing_summary_by_tenor.csv": "577720af1926f2cf0ff6fbeec3c6021bca40b042f5eabdc591235ed84cadbccb",

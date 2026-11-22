@@ -1,7 +1,7 @@
 {
   "candidate_id": "Benchmark_PoC_Regime_A",
   "selection_status": "WINNER_POC_CONSERVED",
-  "selection_rationale": "Benchmark PoC Regime A retained for academic parsimony and continuity: Best local candidate Refinement_A_Start_2 fine SSE (0.086579) vs PoC fine SSE (0.086612) yields a minimal gain of 3.258651e-05 USD^2. On the 60 training puts, the mean absolute price difference between Candidate A and PoC is 0.00043 USD (0.015 cents) with a maximum difference of 0.00184 USD (0.084 cents), which is strictly within the numerical PDE discretization noise (budget <= 0.0020 USD). Conserving PoC parameterization avoids overfitting to grid discretization artifacts and preserves audited baselines.",
+  "selection_rationale": "Benchmark PoC Regime A retained for academic parsimony and continuity: Best local candidate Refinement_A_Start_2 fine SSE (0.086579) vs PoC fine SSE (0.086612) yields a minimal gain of 3.258651e-05 USD^2. On the 60 training puts, the mean absolute price difference between Candidate A and PoC is 0.00043 USD (0.043 cents) with a maximum difference of 0.00184 USD (0.184 cents), which is strictly within the numerical PDE discretization noise (budget <= 0.0020 USD). Conserving PoC parameterization maintains academic continuity with audited baselines and avoids parameter churn within PDE discretization tolerance.",
   "pricing_diff_vs_poc_train_mean_usd": 0.00043014983875318383,
   "pricing_diff_vs_poc_train_max_usd": 0.0018412161206664557,
   "calibrated_parameters_raw": [
