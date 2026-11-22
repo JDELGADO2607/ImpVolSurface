@@ -24,3 +24,7 @@ Estados admitidos Abierto, Resuelto, Parcialmente resuelto, No verificable y Obs
 ## Estado especifico Heston al aprobar fase1
 
 F0-01/F0-02/F0-03 cerrados para la linea base en0fb8758. F1-01,F1-02,F1-03,F1-04 cerrados para PoC en654d1c2; evidencia y reproduccion en HESTON_PHASE_1_654d1c2.md y sus referencias historicas. Los cierres no se trasladan al benchmark SVI ni a modulos financieros aun no integrados. Limitaciones abiertas de datos/identificacion se aceptan para viabilidad, sin prometer parametros unicos ni exactitud global.
+
+## Fase2, SHAcd5ed3e, antes de reparacion1
+
+F2-M1 MEDIUM Abierto: interfaz C con frontera de put (43.9339USD frente a cota77.7222 en prueba de interfaz), theta0 no calculada y dP/dv0 ambiguamente vega. F2-M2 MEDIUM Abierto: identidad IT presentada como resolucion exacta del LCP, garantia M-matriz contradicha por signo de coeficientes y orden de fases confundido. F2-L1 LOW aceptado como limitacion inicial: overshoot cubico~2e-6USD y frontera europea no exacta~1.28e-5USD en caso probado. No defectos materiales de los12 precios puts smoke. Evidencia y scripts HESTON_PHASE_2_cd5ed3e.md. F2-M1/M2 aplican a Heston, no provienen automaticamente de SVI.
