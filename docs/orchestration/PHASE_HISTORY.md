@@ -51,3 +51,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-22 | Usuario reafirma minima complejidad suficiente |Reparaciones solo con impacto demostrado en precios reales/resultados/reproduccion esencial/conclusiones; priorizar5/6y exposicion10min, informes breves/pruebas focalizadas, sin repetir calibracion ni experimentos aprobados, revision humana final/no merge |
 | 2026-11-22 | PHASE_5 READY y APPROVED con limitaciones |b4cb3d6840e1596ed656cad1768b642e936c9845,97puts/142calls,88/140IVinteriores;15putsreales y142callscontrastadas,20testsafectadosPASS;limiteprecision3dregistrado,no ronda adicional |
 | 2026-11-22 | PHASE_6 IN_PROGRESS, especificacion lista antes de resultados |PHASE_6_START.md,comparacion/cartera/greeks/stress/pipeline y cierre minimo;sin recalibrar o robustez adicional |
+| 2026-11-22 | PHASE_START6 aceptado porOrca |ctx_8a89c93e7fb9/task_81d6ea6c8cb9,informe5/encargo6d3d7a78publicos;esperar evento sin polling |
