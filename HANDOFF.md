@@ -9,7 +9,7 @@ Ultimo SHA aprobadoea0df6f097904352e5345bb6fbc712008e319bf2. SHA fase3 auditado3
 F2-M1 cerrado API puts/None y sensibilidad varianza; F2-M2 controles materiales cerrados. F2-L1 interpolacion/fronteras y F2-L2 borrador de guion/cifras quedan LOW aceptados para etapa inicial, sin aprobarlos para defensa final.
 Coordinacion JDELGADO2607/heston-coordination, PR4 OPEN, worktree C:/Users/CAROL/orca/workspaces/ImpVolSurface/heston-coordination.
 Implementacion Gemini JDELGADO2607/heston-implementation, PR5 OPEN, worktree C:/Users/CAROL/orca/workspaces/ImpVolSurface/heston-implementation.
-Run run_0891738e9cf5; ultima entrega ctx_5771a878bb22 completada. Registrar dispatch reparacion3 tras asignar.
+Run run_0891738e9cf5; reparacion3 fase3 asignada ctx_d42b25ff3875, task task_3ef280157c05. Informe5678fc786361a51a399d262bba073ceffc24f10e verificado accesible, PR4 OPEN. Ultimo intento ordinario; alternativa autorizada eliminar reuse y evaluar fresco.
 Terminado datos/baseline, PoC QuantLib y motor MCS-IT propio inicial. Falta validacion amplia, calibracion definitiva e integracion/fases4-8. Sin bloqueo metodologico vigente.
 Siguiente accion reparar controles y documentacion de fase3, nuevo SHA y reauditoria. [Informe actual](docs/audits/HESTON_PHASE_3_344ae4a.md). Precios legitimos intactos,56tests sin escrituras oficiales. Errores numericos ahora se recalculan; falta veto por integridad/economia/fuente. Sin cuarta ronda automatica. No cambiar parametros con holdouts ni auditar archivos en modificacion.
 Reproduccion ultimo estado: extraccion SHA aprobado, requirements-heston.txt, python -m pytest tests/test_heston_phase0.py tests/test_heston_phase1.py tests/test_heston_phase2.py -q; scripts del informe.
