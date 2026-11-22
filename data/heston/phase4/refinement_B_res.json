@@ -1,0 +1,32 @@
+{
+  "start_index": 5,
+  "name": "Refinement_B_Start_5",
+  "description": "Local refinement from historical Start 5",
+  "init_params": [0.1858, 1.7767, 0.2209, 0.4078, -0.8872],
+  "init_params_raw": [0.185765, 1.776739, 0.220899, 0.407838, -0.887226],
+  "init_sse": 0.08784052169683074,
+  "init_rmse": 0.03826236656229171,
+  "final_params": {
+    "v0": 0.185586,
+    "kappa": 1.776739,
+    "theta": 0.220743,
+    "xi": 0.407868,
+    "rho": -0.887243
+  },
+  "final_params_raw": [0.1855862751196781, 1.7767392237872561, 0.22074292727323402, 0.40786823826043894, -0.8872428432226306],
+  "final_sse": 0.08783275332557498,
+  "final_rmse": 0.03826067461628083,
+  "iterations": 3,
+  "function_evals": 156,
+  "time_seconds": 3929.56,
+  "wall_clock_seconds": 3929.56,
+  "termination_type": "CONVERGED",
+  "status": 0,
+  "success": true,
+  "message": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH",
+  "last_eval_error": null,
+  "engine_failures": 0,
+  "feller_ratio": 4.715206412429911,
+  "feller_satisfied": true,
+  "boundary_hits": []
+}

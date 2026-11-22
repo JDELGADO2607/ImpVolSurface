@@ -2,8 +2,8 @@
   "phase": "PHASE_4",
   "title": "Classical Heston Q Calibration and Global Validation",
   "base_commit": "09d9beb060a4a80d9dc4ae7035407cbc8e81e061",
-  "execution_timestamp": "2026-11-22T09:05:06.545038+00:00",
-  "runtime_wall_seconds": 126.49128007888794,
+  "execution_timestamp": "2026-11-22T10:59:08.620856+00:00",
+  "runtime_wall_seconds": 0.0,
   "environment": {
     "python_version": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
     "quantlib_version": "1.44",
@@ -29,86 +29,88 @@
   "calibrated_parameters": {
     "candidate_id": "Benchmark_PoC_Regime_A",
     "selection_status": "WINNER_POC_CONSERVED",
-    "selection_rationale": "Benchmark PoC Regime A retained: Best candidate Refinement_A_Start_2 fine SSE (0.086579) improvement over PoC fine SSE (0.086612) is 3.263943e-05, which is below discretization noise threshold (0.0001). Following predeclared protocol, PoC parameterization is strictly conserved.",
+    "selection_rationale": "Benchmark PoC Regime A retained for academic parsimony and continuity: Best local candidate Refinement_A_Start_2 fine SSE (0.086579) vs PoC fine SSE (0.086612) yields a minimal gain of 3.258651e-05 USD^2. On the 60 training puts, the mean absolute price difference between Candidate A and PoC is 0.00043 USD (0.015 cents) with a maximum difference of 0.00184 USD (0.084 cents), which is strictly within the numerical PDE discretization noise (budget <= 0.0020 USD). Conserving PoC parameterization avoids overfitting to grid discretization artifacts and preserves audited baselines.",
+    "pricing_diff_vs_poc_train_mean_usd": 0.00043014983875318383,
+    "pricing_diff_vs_poc_train_max_usd": 0.0018412161206664557,
     "calibrated_parameters_raw": [
-      0.186138,
-      2.72546,
-      0.21368,
-      0.481785,
-      -0.949807
+      0.18613777847584,
+      2.72546036683707,
+      0.21367969920004,
+      0.48178472584297,
+      -0.94980666301298
     ],
     "calibrated_parameters": {
-      "v0": 0.186138,
-      "kappa": 2.72546,
-      "theta": 0.21368,
-      "xi": 0.481785,
-      "rho": -0.949807
+      "v0": 0.18613777847584,
+      "kappa": 2.72546036683707,
+      "theta": 0.21367969920004,
+      "xi": 0.48178472584297,
+      "rho": -0.94980666301298
     },
     "feller_condition": {
-      "feller_ratio": 5.017959297743159,
+      "feller_ratio": 5.017958620178812,
       "feller_satisfied": true,
       "formula": "2*kappa*theta / xi^2"
     },
     "bounds_proximity": {
       "v0": {
-        "value": 0.186138,
+        "value": 0.18613777847584,
         "lower_bound": 0.01,
         "upper_bound": 1.5,
-        "dist_to_lower": 0.176138,
-        "dist_to_upper": 1.313862,
+        "dist_to_lower": 0.17613777847584,
+        "dist_to_upper": 1.31386222152416,
         "near_boundary": false
       },
       "kappa": {
-        "value": 2.72546,
+        "value": 2.72546036683707,
         "lower_bound": 0.1,
         "upper_bound": 15.0,
-        "dist_to_lower": 2.62546,
-        "dist_to_upper": 12.27454,
+        "dist_to_lower": 2.62546036683707,
+        "dist_to_upper": 12.27453963316293,
         "near_boundary": false
       },
       "theta": {
-        "value": 0.21368,
+        "value": 0.21367969920004,
         "lower_bound": 0.01,
         "upper_bound": 1.5,
-        "dist_to_lower": 0.20368,
-        "dist_to_upper": 1.28632,
+        "dist_to_lower": 0.20367969920004,
+        "dist_to_upper": 1.28632030079996,
         "near_boundary": false
       },
       "xi": {
-        "value": 0.481785,
+        "value": 0.48178472584297,
         "lower_bound": 0.05,
         "upper_bound": 3.0,
-        "dist_to_lower": 0.43178500000000003,
-        "dist_to_upper": 2.518215,
+        "dist_to_lower": 0.43178472584297,
+        "dist_to_upper": 2.51821527415703,
         "near_boundary": false
       },
       "rho": {
-        "value": -0.949807,
+        "value": -0.94980666301298,
         "lower_bound": -0.95,
         "upper_bound": 0.95,
-        "dist_to_lower": 0.00019299999999999873,
-        "dist_to_upper": 1.899807,
+        "dist_to_lower": 0.00019333698701995417,
+        "dist_to_upper": 1.89980666301298,
         "near_boundary": true
       }
     },
     "train_metrics": {
-      "prod_sse": 0.08664053018236909,
-      "prod_rmse": 0.03800011626788553,
-      "fine_sse": 0.08661183034789599,
-      "fine_rmse": 0.03799382194249831,
-      "fine_mae": 0.02576233124408973,
-      "fine_max_abs_err": 0.1826675770190871
+      "prod_sse": 0.08664049121304833,
+      "prod_rmse": 0.038000107722007036,
+      "fine_sse": 0.08661177742699677,
+      "fine_rmse": 0.037993810335149064,
+      "fine_mae": 0.025762342862307188,
+      "fine_max_abs_err": 0.18266672061894207
     },
-    "timestamp": "2026-11-22T08:20:48.188311+00:00"
+    "timestamp": "2026-11-22T10:10:03.748504+00:00"
   },
   "pricing_summary_by_partition": [
     {
       "partition": "train",
       "n_contracts": 60,
       "mean_market_price": 1.5123333333,
-      "mae_ql_prod": 0.0257836954,
-      "rmse_ql_prod": 0.0380001163,
-      "max_err_ql_prod": 0.1822822212,
+      "mae_ql_prod": 0.025783707,
+      "rmse_ql_prod": 0.0380001077,
+      "max_err_ql_prod": 0.1822813648,
       "mae_ql_fine": 0.0257623429,
       "rmse_ql_fine": 0.0379938103,
       "max_err_ql_fine": 0.1826667206,
@@ -129,8 +131,8 @@
       "partition": "strike_holdout",
       "n_contracts": 22,
       "mean_market_price": 1.05,
-      "mae_ql_prod": 0.0210863309,
-      "rmse_ql_prod": 0.026588751,
+      "mae_ql_prod": 0.0210862642,
+      "rmse_ql_prod": 0.0265887561,
       "max_err_ql_prod": 0.06,
       "mae_ql_fine": 0.0211000255,
       "rmse_ql_fine": 0.0265769751,
@@ -152,9 +154,9 @@
       "partition": "tenor_holdout",
       "n_contracts": 15,
       "mean_market_price": 0.9306666667,
-      "mae_ql_prod": 0.0204271321,
-      "rmse_ql_prod": 0.0263861873,
-      "max_err_ql_prod": 0.071430612,
+      "mae_ql_prod": 0.0204274251,
+      "rmse_ql_prod": 0.0263866142,
+      "max_err_ql_prod": 0.0714317284,
       "mae_ql_fine": 0.0203372874,
       "rmse_ql_fine": 0.0262489187,
       "max_err_ql_fine": 0.0709952255,
@@ -175,9 +177,9 @@
       "partition": "total",
       "n_contracts": 97,
       "mean_market_price": 1.3175257732,
-      "mae_ql_prod": 0.0238899792,
-      "rmse_ql_prod": 0.0340764983,
-      "max_err_ql_prod": 0.1822822212,
+      "mae_ql_prod": 0.0238900166,
+      "rmse_ql_prod": 0.0340765444,
+      "max_err_ql_prod": 0.1822813648,
       "mae_ql_fine": 0.023865984,
       "rmse_ql_fine": 0.0340536639,
       "max_err_ql_fine": 0.1826667206,
@@ -195,6 +197,13 @@
       "gate_rmse_pass": true
     }
   ],
+  "recalculated_raw_metrics": {
+    "train_mae": 0.02573726190963425,
+    "train_rmse": 0.037979063096091094,
+    "strike_holdout_mae": 0.021108199892518692,
+    "tenor_holdout_mae": 0.020304486315723288,
+    "max_solver_discrepancy": 0.0005457561610642259
+  },
   "validation_gates": {
     "gate_coverage_97_puts": true,
     "gate_train_mae_le_008": true,
@@ -203,21 +212,27 @@
     "gate_tenor_holdout_mae_le_010": true,
     "gate_solver_discrepancy_le_002": true,
     "gate_mesh_stability_worst3_ql_le_0005": true,
-    "gate_mesh_stability_worst3_prop_le_002": true
+    "gate_mesh_stability_worst3_prop_le_002": true,
+    "gate_economic_properties_pass": true,
+    "gate_local_refinement_converged": true,
+    "gate_parameters_within_bounds": true
   },
   "verdict": "PASS",
   "output_files": {
     "phase4_calibration_config.json": "32a12c901fd6c4ad954d3db1613890cf93d17767a7a5d1e8ad1a1ce253b8b1b3",
-    "heston_phase1_replay.csv": "e3e9ed7f575057028a40b068eef55677867a3400d2d349b08c6a7b5130f94d71",
-    "heston_local_refinements.csv": "df2adccaa36c81d140f37836ffd6345881141ba3af31dd0449184a5451a9c2d4",
-    "heston_candidates_fine_eval.csv": "ab3499b49709867cb5d2a8e157975adbb0fee9d24b5f349e3a1f8dbd82f889b4",
-    "heston_calibrated_parameters.json": "bb39433cce4d57c3e276a81cc59235985c24d57f3f42c86b04a3dcd7e6cdad83",
-    "heston_pricing_full_puts.csv": "a64eb56e6704e58db1899da2ca39ec944220ce554a53c31de611f20cdfc09f31",
-    "heston_pricing_summary_by_partition.csv": "fd82e111368f6dafbf984fba88a3c883c4396cb2568bb40191758d7ea7a918d6",
-    "heston_pricing_summary_by_tenor.csv": "008bd55dbb6ba836751eb2c7d9147f61a6260f6240a1637c0db27a5fc995ebb9",
-    "heston_worst3_mesh_controls.csv": "b109e946efb168a025ef737a610bae185be30d8dc348019b0c5ff80bfd56e83c",
-    "heston_representative_economic_controls.csv": "baa004faaca0a83b8e6bf4213831404ecf7e58aebf93f1dcf192748f410b1f9f",
-    "heston_parameter_sensitivity.csv": "4f1a30a671ca59056a63524c4ee2dd8bf7875d67def4dfb37fca2e3660b724fa",
-    "heston_baseline_comparison.csv": "3be2fe72650e69aba635f4aef9822cdad7f9c5bc9c1b8f8009d6fb402a28dd2a"
+    "heston_phase1_replay.csv": "3f3732fcfc1167797e1c92ea915be2673145bc6b5bce85b93284e8f8a57d9d1f",
+    "heston_local_refinements.csv": "28032162e988f49196e7bf2282263c7985c4b14e6ef51120864c13c157f95569",
+    "heston_candidates_fine_eval.csv": "116d554f1bbc185e6f7c36dcaaca3df86304b9133e6c825f8726c2ba5ad5fd24",
+    "heston_calibrated_parameters.json": "eaa443a712c829459f566cc52fb580de6ecb4c14456aa0dfcdddc7ceda842feb",
+    "heston_pricing_full_puts.csv": "252207054c5001608a470bab4ad6e601e431a0aa92f80ea316687afe07256d2b",
+    "heston_pricing_summary_by_partition.csv": "1017a9c98fb2517bb044aed776769a5d324bcd04abe58bb054c4d7fd6cf6ac05",
+    "heston_pricing_summary_by_tenor.csv": "577720af1926f2cf0ff6fbeec3c6021bca40b042f5eabdc591235ed84cadbccb",
+    "heston_worst3_mesh_controls.csv": "c81d5d70643e983d9c8308d2e65ba21e7f5c1d253b6a671dee143ac2b43b8f03",
+    "heston_representative_economic_controls.csv": "59f989c1d55a42f609a7e7976b2ea44a7613d728d34feae91a8ee0f1d499e5e5",
+    "heston_parameter_sensitivity.csv": "f9c4a46ce3d81406159a0408825162113d99736d11b88910eef98df8456e9932",
+    "heston_baseline_comparison.csv": "9e10773d405bc2313caf0a4e4879f1d44d99be3a2facd1e1618948ec8c61b565",
+    "refinement_A_res.json": "55002c124d3435f68232b2ca2d36374df92dd0295f34be6675d2269ea3a6a041",
+    "refinement_B_res.json": "0ed34f16860aa096c17e7b476d8d44749429bc5d88688b3e0ca20c9a8dfab426",
+    "refinement_C_res.json": "9f008e6bea082b759dd8fd1c365442f2c17ca63db7528ce4be34935f3f3f863c"
   }
 }

@@ -1,0 +1,32 @@
+{
+  "start_index": 1,
+  "name": "Refinement_C_Start_1",
+  "description": "Local refinement from historical Start 1",
+  "init_params": [0.1868, 1.9917, 0.2251, 0.6179, -0.6464],
+  "init_params_raw": [0.1868, 1.99174, 0.225116, 0.617904, -0.646363],
+  "init_sse": 0.08825896423071354,
+  "init_rmse": 0.03835339277272037,
+  "final_params": {
+    "v0": 0.186375,
+    "kappa": 1.991736,
+    "theta": 0.224599,
+    "xi": 0.617927,
+    "rho": -0.646396
+  },
+  "final_params_raw": [0.18637532098800355, 1.9917361417303165, 0.22459928478311864, 0.6179274913458221, -0.6463962791437369],
+  "final_sse": 0.0881999529309007,
+  "final_rmse": 0.03834056879488112,
+  "iterations": 1,
+  "function_evals": 240,
+  "time_seconds": 5606.07,
+  "wall_clock_seconds": 5606.07,
+  "termination_type": "ABNORMAL_TERMINATION",
+  "status": 2,
+  "success": false,
+  "message": "ABNORMAL_TERMINATION_IN_LNSRCH",
+  "last_eval_error": null,
+  "engine_failures": 0,
+  "feller_ratio": 2.343123254463853,
+  "feller_satisfied": true,
+  "boundary_hits": []
+}

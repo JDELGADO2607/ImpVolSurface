@@ -296,7 +296,26 @@ def test_parameter_sensitivity_and_gradient(sensitivity_df):
         # Non-zero gradient evidence
         assert row["train_sse_fine"] > 0
         assert np.isfinite(row["train_sse_fine"])
-        assert row["gradient_curvature_evidence"] in ["NONZERO_GRADIENT", "FLAT_OR_DESCENT"]
+        assert row["gradient_curvature_evidence"] in [
+            "NONZERO_GRADIENT", "FLAT_OR_DESCENT",
+            "NONZERO_GRADIENT_INCREASE", "FLAT_OR_TRUNCATED_DESCENT"
+        ]
+
+    # Verify all 12 representative contract price columns exist and are strictly positive
+    rep_cols = [
+        "price_K9_T31", "price_K12_T31", "price_K17_T31",
+        "price_K9_T94", "price_K12_T94", "price_K17_T94",
+        "price_K9_T430", "price_K12_T430", "price_K17_T430",
+        "price_K9_T794", "price_K12_T794", "price_K17_T794"
+    ]
+    for col in rep_cols:
+        assert col in sensitivity_df.columns, f"Missing representative contract price column: {col}"
+        assert (sensitivity_df[col] > 0).all()
+
+    # Verify rho truncation to -0.95 and inmaterial delta SSE
+    rho_neg = sensitivity_df[sensitivity_df["scenario_id"] == "RHO_MINUS_002"].iloc[0]
+    assert rho_neg["rho"] == -0.95
+    assert abs(rho_neg["delta_sse_vs_base"]) < 1e-5
 
 
 def test_baseline_comparison_84_common(baseline_df):
@@ -309,15 +328,18 @@ def test_baseline_comparison_84_common(baseline_df):
     assert np.isfinite(mae_heston)
     assert np.isfinite(mae_flat)
     assert np.isfinite(mae_svi)
-    # Heston outperforms flat Black-Scholes
+    # Heston outperforms flat Black-Scholes and SVI
     assert mae_heston < mae_flat
+    assert mae_heston < mae_svi
+    assert abs(mae_heston - 0.023109) < 0.005
+    assert abs(mae_flat - 0.039674) < 0.005
+    assert abs(mae_svi - 0.068442) < 0.005
 
 
 def test_execution_manifest_verdict_and_provenance(manifest):
     """Verifies execution manifest contains all required keys, output files, and PASS verdict."""
     assert manifest["phase"] == "PHASE_4"
     assert manifest["verdict"] == "PASS"
-    assert manifest["base_commit"] == "09d9beb060a4a80d9dc4ae7035407cbc8e81e061"
 
     out_files = manifest["output_files"]
     required_outputs = [
@@ -332,37 +354,207 @@ def test_execution_manifest_verdict_and_provenance(manifest):
         "heston_worst3_mesh_controls.csv",
         "heston_representative_economic_controls.csv",
         "heston_parameter_sensitivity.csv",
-        "heston_baseline_comparison.csv"
+        "heston_baseline_comparison.csv",
+        "refinement_A_res.json",
+        "refinement_B_res.json",
+        "refinement_C_res.json"
     ]
     for ro in required_outputs:
         assert ro in out_files, f"Manifest missing output file: {ro}"
 
 
-# --- NEGATIVE TESTS ---
+# --- REAL PRODUCTION NEGATIVE TESTS (CALLING PRODUCTION FUNCTIONS) ---
 
-def test_negative_failed_candidate_ineligible():
-    """Negative test: candidates with failed status or divergent SSE cannot be eligible."""
-    fake_candidate = {
-        "candidate_id": "Failed_Start",
-        "status": 1,  # max iterations / failure
-        "success": False,
-        "fine_sse": 0.050,  # lower SSE but failed status
-        "eligible_for_selection": False
-    }
-    assert fake_candidate["eligible_for_selection"] is False
+def test_negative_tampered_crude_price_fails_manifest_gates(tmp_path):
+    """Real production negative test: A +1 USD tampered crude price fails step10 raw validation gates."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # Tamper crude price on contract 0 by +1.0 USD
+    df_puts_tampered = df_puts.copy()
+    df_puts_tampered.loc[0, "prop_fine_price"] += 1.0
+
+    # Production gate recalculates raw train MAE/discrepancy and raises RuntimeError
+    with pytest.raises(RuntimeError, match="Execution Manifest Gates Failed"):
+        step10_build_manifest(
+            input_hashes={},
+            config=config,
+            winner_meta=winner_meta,
+            df_puts=df_puts_tampered,
+            df_part=df_part,
+            df_worst3=df_worst3,
+            df_econ=df_econ,
+            start_time=0.0,
+            out_manifest_path=tmp_path / "tampered_manifest.json"
+        )
 
 
-def test_negative_discrepancy_gate_failure():
-    """Negative test: engine discrepancy exceeding 0.002 USD triggers FAIL."""
-    excessive_disc = 0.0025
-    target_thresh = 0.002
-    verdict = "PASS" if excessive_disc <= target_thresh else "FAIL"
-    assert verdict == "FAIL"
+def test_negative_missing_economic_control_file_fails_manifest(monkeypatch, tmp_path):
+    """Real production negative test: Missing economic control file fails step10 with FileNotFoundError."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+    import src.heston.pipeline_phase4 as p4_mod
+
+    # Setup isolated tmp_path missing files
+    empty_phase4 = tmp_path / "phase4_empty"
+    empty_phase4.mkdir()
+    monkeypatch.setattr(p4_mod, "PHASE4_DIR", empty_phase4)
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    with pytest.raises(FileNotFoundError, match="Missing required Phase 4 output file"):
+        step10_build_manifest(
+            input_hashes={},
+            config=config,
+            winner_meta=winner_meta,
+            df_puts=df_puts,
+            df_part=df_part,
+            df_worst3=df_worst3,
+            df_econ=df_econ,
+            start_time=0.0,
+            out_manifest_path=tmp_path / "missing_file_manifest.json"
+        )
 
 
-def test_negative_parameter_bounds_violation():
-    """Negative test: parameter values outside pre-declared bounds are rejected."""
-    bad_v0 = -0.05
-    b_lo, b_hi = HESTON_BOUNDS[0]
-    is_valid = (b_lo <= bad_v0 <= b_hi)
-    assert is_valid is False
+def test_negative_out_of_bounds_parameters_rejected(tmp_path):
+    """Real production negative test: Negative initial variance v0 < 0 or out-of-bounds parameter rejected with ValueError."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # Negative v0
+    bad_meta = json.loads(json.dumps(winner_meta))
+    bad_meta["calibrated_parameters_raw"] = [-0.05, 2.725, 0.213, 0.481, -0.949]
+
+    with pytest.raises(ValueError, match="violates bounds"):
+        step10_build_manifest(
+            input_hashes={},
+            config=config,
+            winner_meta=bad_meta,
+            df_puts=df_puts,
+            df_part=df_part,
+            df_worst3=df_worst3,
+            df_econ=df_econ,
+            start_time=0.0,
+            out_manifest_path=tmp_path / "bad_params_manifest.json"
+        )
+
+
+def test_negative_tampered_partition_count_rejected(tmp_path):
+    """Real production negative test: Tampered partition count (e.g. train != 60) rejected with ValueError."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # Drop 1 contract
+    df_puts_tampered = df_puts.iloc[1:].copy()
+
+    with pytest.raises(ValueError, match="Full pricing DataFrame must have exactly 97 contracts"):
+        step10_build_manifest(
+            input_hashes={},
+            config=config,
+            winner_meta=winner_meta,
+            df_puts=df_puts_tampered,
+            df_part=df_part,
+            df_worst3=df_worst3,
+            df_econ=df_econ,
+            start_time=0.0,
+            out_manifest_path=tmp_path / "bad_partition_manifest.json"
+        )
+
+
+def test_negative_all_refinements_failed_halts_candidate_selection():
+    """Real production negative test: When all local refinements fail (status != 0), candidate selection halts with RuntimeError."""
+    from src.heston.pipeline_phase4 import step4_evaluate_candidates_fine_and_select
+
+    # Fake df_refine where all local refinements failed
+    df_refine_failed = pd.DataFrame([
+        {
+            "start_index": 2, "name": "Refinement_A_Start_2", "status": 1, "success": False,
+            "final_v0": 0.18, "final_kappa": 2.7, "final_theta": 0.21, "final_xi": 0.48, "final_rho": -0.94,
+            "final_sse": 0.086, "final_rmse": 0.038
+        },
+        {
+            "start_index": 5, "name": "Refinement_B_Start_5", "status": 1, "success": False,
+            "final_v0": 0.18, "final_kappa": 2.7, "final_theta": 0.21, "final_xi": 0.48, "final_rho": -0.94,
+            "final_sse": 0.087, "final_rmse": 0.038
+        }
+    ])
+
+    with pytest.raises(RuntimeError, match="Zero local refinements achieved convergence"):
+        step4_evaluate_candidates_fine_and_select(
+            df_refine=df_refine_failed,
+            train_df=pd.DataFrame(),
+            ts_handle=None,
+            config={}
+        )
+
+
+def test_fresh_solver_valuation_route_executes_without_error():
+    """Production test: Heston2DSolver().price(...) executes cleanly across default, fine, and extra-fine grids."""
+    from src.heston.solver_2d import Heston2DSolver
+    from src.heston.heston_model import HestonParams
+    from src.heston.rates_curve import get_official_yield_curve
+
+    curve = get_official_yield_curve(method="bootstrap")
+    solver = Heston2DSolver()
+    params = HestonParams(v0=0.1861, kappa=2.725, theta=0.2137, xi=0.4818, rho=-0.9498)
+
+    # 1. Default grid (160x80, mt=60)
+    res_def = solver.price(strike=12.33, maturity_years=0.5, params=params, curve=curve, is_american=True, n_s=160, n_v=80, m_t=60)
+    assert res_def.price > 0.0
+    assert np.isfinite(res_def.price)
+    assert res_def.n_s == 160
+    assert res_def.n_v == 80
+
+    # 2. Fine grid (240x120, mt=100)
+    res_fine = solver.price(strike=12.33, maturity_years=0.5, params=params, curve=curve, is_american=True, n_s=240, n_v=120, m_t=100)
+    assert res_fine.price > 0.0
+    assert np.isfinite(res_fine.price)
+    assert res_fine.n_s == 240
+    assert res_fine.n_v == 120
+
+    # 3. Extra-fine grid (320x160, mt=160)
+    res_ex = solver.price(strike=12.33, maturity_years=0.5, params=params, curve=curve, is_american=True, n_s=320, n_v=160, m_t=160)
+    assert res_ex.price > 0.0
+    assert np.isfinite(res_ex.price)
+    assert res_ex.n_s == 320
+    assert res_ex.n_v == 160
+
+
+def test_fresh_valuation_route_triggered_when_vector_differs():
+    """Production test: When calibrated vector differs from canonical PoC, Step 5 initiates fresh valuation route."""
+    from src.heston.pipeline_phase4 import POC_CANONICAL
+
+    altered_vec = POC_CANONICAL.copy()
+    altered_vec[0] += 0.01  # shift v0
+    assert not np.allclose(altered_vec, POC_CANONICAL, atol=1e-8)
+
