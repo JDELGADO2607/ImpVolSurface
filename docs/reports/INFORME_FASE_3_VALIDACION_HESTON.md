@@ -3,8 +3,8 @@
 **Proyecto:** Migración Metodológica a Heston Clásico — Opciones Americanas NU  
 **Rama:** `JDELGADO2607/heston-implementation` (PR #5)  
 **SHA Base Técnicamente Aprobado:** `ea0df6f097904352e5345bb6fbc712008e319bf2`  
-**Estado:** Subsanación 2/3 (Auditoría Técnica SHA `28bd72a29640b0c8a93b8c11f9023d39222f1ccc` / Dictamen `77ed6828b66fbf8b796ab488752e81c756c621fd` en PR #4)  
-**Origen de Precios:** Reutilización estricta de las tablas numéricas verificadas en commit `37bbd12d52819c765c64a950333962af9410073d` protegida mediante guarda previa de integridad criptográfica y recalculación numérica en gates (cero modificaciones al motor de pricing, cero recalibración).  
+**Estado:** Subsanación 3/3 Final (Auditoría Técnica SHA `344ae4af1460ec2bc2ae6a28eac382f3c12c32ae` / Dictamen `5678fc786361a51a399d262bba073ceffc24f10e` en PR #4)  
+**Origen de Precios:** Reutilización estricta de las tablas numéricas verificadas en commit `37bbd12d52819c765c64a950333962af9410073d` protegida mediante guardas previas de integridad criptográfica sobre inputs, código de valoración y payload económico, con recalculación numérica y validación de procedencia obligatoria en gates (cero modificaciones al motor de pricing, cero recalibración).  
 **Fecha de Valoración de Referencia:** 17-nov-2026 16:00:00 EST (Cierre NYSE)  
 **Entorno de Ejecución:** Python 3.12.6, SciPy 1.18.0, NumPy 2.1.1, Pandas 2.2.2, QuantLib 1.44 (exclusivo como referencia de contraste externo)  
 **Directiva Arquitectónica Primaria:** **VALIDACIÓN NUMÉRICA AMPLIA, CERO CALIBRACIÓN.** Los datos de mercado, particiones y vector global de parámetros PoC de la Fase 1 permanecen estrictamente congelados. No se realiza ajuste de parámetros ni reoptimización.  
@@ -16,11 +16,11 @@
 
 La Fase 3 somete el motor propietario bidimensional de diferencias finitas (Modified Craig-Sneyd ADI con splitting de Ikonen-Toivanen, **H-005A**, implementado en `src/heston/solver_2d.py`) a una validación numérica independiente y exhaustiva, cubriendo seis matrices de prueba prediseñadas en `docs/orchestration/PHASE_3_START.md`.
 
-Esta versión del informe incorpora las subsanaciones correspondientes a la **Remediación 2/3** (dictamen `77ed6828b66fbf8b796ab488752e81c756c621fd` sobre SHA `28bd72a`):
-1. **Guarda Previa de Integridad de Snapshot (F3-M1):** Se implementó una verificación inmutable de hashes SHA-256 (`VERIFIED_SNAPSHOT_METADATA`), inputs y dependencias paramétricas que valida la autenticidad de las tablas cacheadas **antes** de aceptarlas como reutilización legítima de `37bbd12d52819c765c64a950333962af9410073d`. Si una tabla es modificada, la procedencia no se atribuye falsamente a dicho commit.
-2. **Gates Numéricos Robustos sin Dependencia de Etiquetas (F3-M1):** En Mercado 97 y Regímenes 108, los gates recalculan directamente los errores absolutos a partir de los precios propios y de referencia, exigiendo finitud estricta, satisfacción del umbral $\le 0.0020$ USD y coherencia unívoca entre errores calculados y almacenados, imposibilitando la aprobación por etiquetas obsoletas.
-3. **Correcciones Residuales de Metadatos (F3-L2):** Se homogeneizó el alias `max_abs_err_usd` a `NaN` en la fila $v_0 = 0.0$ (eliminando el valor $0.0$), y se fijó `scipy_version` a la versión real de la librería (`"1.18.0"`).
-4. **Normalización Multiplataforma de Hashes de Fuente:** Se documentó y aplicó normalización CRLF $\to$ LF para el hash de archivos de código fuente, garantizando concordancia idéntica en cualquier sistema operativo.
+Esta versión del informe incorpora las subsanaciones correspondientes a la **Remediación 3/3 Final** (dictamen `5678fc786361a51a399d262bba073ceffc24f10e` sobre SHA `344ae4a`):
+1. **Guarda Previa de Integridad de Dependencias de Pricing (F3-M1):** Se incorporó la validación estricta previa de los hashes de código fuente normalizados (LF) de los tres módulos del motor de pricing (`solver_2d.py`, `heston_model.py`, `rates_curve.py`) dentro de `verify_snapshot_inputs_and_params()`. Cualquier alteración en las hipótesis numéricas de pricing (e.g. variación del parámetro ADI $\theta$ en una copia) es detectada y rechazada antes de autorizar la reutilización de datos de snapshot.
+2. **Guarda de Procedencia sobre Precios Económicos Reutilizados (F3-M1):** Se implementó una verificación canónica de hash SHA-256 (`economic_prices_canonical_sha256`) sobre la carga útil de los 45 puntos de arbitraje económico (`tenor_label`, `strike`, `price_american`, `price_european`, `empirical_truncation_eps`), asegurando que modificaciones artificiales en los precios de dicha tabla impidan la aprobación de procedencia y marquen el gate económico como `FAILED`.
+3. **Imposibilidad de Aprobación en Reutilización con Procedencia Inválida (F3-M1):** Se blindó la condición de veredicto global (`overall_status`) para que cualquier tabla reutilizada con procedencia no verificada (`is_snapshot_verified = False`) genere dictamen `FAILED`, sin importar que los errores aritméticos pareados aparenten cumplir las tolerancias. En modo `strict_verification=True`, la ejecución aborta inmediatamente con `SnapshotIntegrityError`.
+4. **Hashes y Trazabilidad:** Se actualizó el hash de código de `pipeline_phase3.py` a `f4b48cfcaabe63c84071e3d867eaec11412a0b0bcce97695cc9782a7d89a6f61` y los metadatos de remediación a `REMEDIATION_3_FINAL_AUDIT_344ae4a`.
 
 ### Principales Hallazgos Numéricos
 1. **Mercado Completo (97 Puts de NU):** Evaluados en malla fina ($N_S=240, N_v=120, M=\max(100, \text{round}(600 \cdot T))$) frente a la referencia QuantLib americana refinada ($tFactor=700, \text{min}=120, x=280, v=140$), **el 100% de los 97 puts (60 train / 22 strike holdout / 15 tenor holdout) cumple el objetivo de $\le 0.0020$ USD**. El error absoluto medio (MAE) fue de **0.000056 USD** (~0.0056 centavos) y el error máximo absoluto fue de **0.000546 USD** (~0.055 centavos), cuatro veces por debajo del umbral objetivo.
@@ -389,10 +389,10 @@ Todos los artefactos de la Fase 3 se generaron de forma aislada en `data/heston/
 
 ### Metadatos de Procedencia y Trazabilidad (Manifest)
 - **Commit Base de Precios:** `37bbd12d52819c765c64a950333962af9410073d`
-- **Subsanación:** `REMEDIATION_2_AUDIT_28bd72a`
+- **Subsanación:** `REMEDIATION_3_FINAL_AUDIT_344ae4a`
 - **SciPy Version:** `1.18.0`
 - **Hash de Entrada `puts_selected_clean.csv`:** `1c069129d8dc138f8896fb8f02c83809454df0d041569f418a7cbbea21545df2`
 - **Hash de Entrada `treasury_cmt_raw.csv`:** `87e1d8653fb68224bee2becd9032d2d1e7c75e5bf23e66b8b1c8370ecd97d175`
 - **Hash de Entrada `rates_treasury_manifest.json`:** `fb361dd17776bc7e943234fc704ab90958832880d30118b174e0f161a5e677c8`
-- **Hash de Código `src/heston/pipeline_phase3.py` (LF):** `d91a84be7fe5ea5405c02ed38c4490c3b736039672c7481ac5e787b7cdfeb048`
+- **Hash de Código `src/heston/pipeline_phase3.py` (LF):** `f4b48cfcaabe63c84071e3d867eaec11412a0b0bcce97695cc9782a7d89a6f61`
 - **Hash de Código `src/heston/solver_2d.py` (LF):** `ea0298e59dcd47d612403ea9c81e1c6dd5b4e029774369f2b1542c048bffe64c`

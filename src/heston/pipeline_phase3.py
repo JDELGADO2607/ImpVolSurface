@@ -79,6 +79,12 @@ VERIFIED_SNAPSHOT_METADATA = {
         "regimes_mesh_refinement.csv": "b1ed50558034b82793dc9fd1a0220f0a4d246d6c61665e0461e4018ad3136f67",
         "continuity_edge_cases.csv": "2a5437eb9c66f692a7d266dee0dbb9d208ad67375a567c7237864cd0f9f5c5e7",
     },
+    "economic_prices_canonical_sha256": "881aa26ce61534ca471891dacd13f66cb774c69707617f20ccac68d253e97568",
+    "pricing_sources": {
+        "solver_2d.py": ("src/heston/solver_2d.py", "ea0298e59dcd47d612403ea9c81e1c6dd5b4e029774369f2b1542c048bffe64c"),
+        "heston_model.py": ("src/heston/heston_model.py", "05d61ab33829b8fe663e9442124586958c1f47a1cf6c636d9fbeac5f71704529"),
+        "rates_curve.py": ("src/heston/rates_curve.py", "46d204608ff6294817dff40bd19c1b525bb37d954b6692660f88890f1c24da7c"),
+    },
     "inputs": {
         "puts_selected_clean": ("data/heston/puts_selected_clean.csv", "1c069129d8dc138f8896fb8f02c83809454df0d041569f418a7cbbea21545df2"),
         "options_clean": ("outputs/tables/options_clean.csv", "521a00ad92bcfee9d561a2d862ae8d69706d7e552322a0f99ef61df10425ea29"),
@@ -106,9 +112,22 @@ def compute_normalized_source_sha256(file_path: Path) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def compute_canonical_economic_payload_hash(df: pd.DataFrame) -> str:
+    """
+    Computes SHA-256 digest of canonical price and truncation error payload
+    (tenor, strike, price_american, price_european, empirical_truncation_eps).
+    """
+    rows = [
+        f"{r.tenor_label},{float(r.strike):.4f},{float(r.price_american):.10e},{float(r.price_european):.10e},{float(r.empirical_truncation_eps):.10e}"
+        for _, r in df.iterrows()
+    ]
+    return hashlib.sha256("\n".join(rows).encode("utf-8")).hexdigest()
+
+
 def verify_snapshot_inputs_and_params(base_dir: Optional[Path] = None) -> Tuple[bool, str]:
     """
-    Verifies that source input files and parameter dependencies match the verified snapshot.
+    Verifies that source input files, pricing source code modules, and parameter dependencies
+    match the verified snapshot.
     Returns (is_valid, message).
     """
     base = base_dir or root_dir
@@ -120,6 +139,16 @@ def verify_snapshot_inputs_and_params(base_dir: Optional[Path] = None) -> Tuple[
         act_hash = compute_file_sha256(p)
         if act_hash != exp_hash:
             return False, f"Input hash mismatch for {k} ({rel_path}): expected {exp_hash}, got {act_hash}"
+
+    # Check pricing source code dependencies (LF normalized)
+    pricing_sources = VERIFIED_SNAPSHOT_METADATA.get("pricing_sources", {})
+    for k, (rel_path, exp_hash) in pricing_sources.items():
+        p = base / rel_path
+        if not p.exists():
+            return False, f"Pricing source file missing: {rel_path}"
+        act_hash = compute_normalized_source_sha256(p)
+        if act_hash != exp_hash:
+            return False, f"Pricing source hash mismatch for {k} ({rel_path}): expected {exp_hash}, got {act_hash}"
 
     # Check parameters
     params = VERIFIED_SNAPSHOT_METADATA["parameters"]
@@ -159,17 +188,19 @@ def load_verified_snapshot_table(
     strict: bool = False
 ) -> Tuple[pd.DataFrame, bool]:
     """
-    Loads a table from snapshot, validating its SHA-256 against VERIFIED_SNAPSHOT_METADATA.
+    Loads a table from snapshot, validating its SHA-256 and input dependencies against VERIFIED_SNAPSHOT_METADATA.
     If strict=True and verification fails, raises SnapshotIntegrityError.
     Returns (dataframe, is_verified).
     """
     p = file_path or ((data_dir or DATA_DIR) / table_name)
+    inputs_ok, msg_in = verify_snapshot_inputs_and_params()
     is_valid, msg = verify_snapshot_table_file(table_name, p)
-    if strict and not is_valid:
-        raise SnapshotIntegrityError(f"Snapshot integrity verification failed for {table_name}: {msg}")
+    total_ok = bool(inputs_ok and is_valid)
+    if strict and not total_ok:
+        raise SnapshotIntegrityError(f"Snapshot integrity verification failed for {table_name}: {msg}; {msg_in}")
     df = pd.read_csv(p)
-    df.attrs["is_snapshot_verified"] = is_valid
-    return df, is_valid
+    df.attrs["is_snapshot_verified"] = total_ok
+    return df, total_ok
 
 
 def get_phase1_poc_params() -> HestonParams:
@@ -976,7 +1007,9 @@ def run_continuity_and_edge_cases(
         "notes": f"Smooth midpoint (27d={p_27:.4f}, 28d={p_28:.4f}, dP/dT theta={theta_approx:.4f} USD/yr). QL cannot price 27.5d without date rounding."
     })
 
-    return pd.DataFrame(records)
+    df_res = pd.DataFrame(records)
+    df_res.attrs["is_snapshot_verified"] = False
+    return df_res
 
 
 # ==============================================================================
@@ -986,6 +1019,7 @@ def run_continuity_and_edge_cases(
 def run_economic_arbitrage_checks(
     solver: Optional[Heston2DSolver] = None,
     reuse_verified_tables: bool = True,
+    strict_verification: bool = False,
     data_dir: Optional[Path] = None
 ) -> pd.DataFrame:
     """
@@ -1021,7 +1055,18 @@ def run_economic_arbitrage_checks(
     dir_to_use = data_dir or DATA_DIR
     econ_csv = dir_to_use / "economic_arbitrage_checks.csv"
     if reuse_verified_tables and econ_csv.exists():
+        inputs_ok, msg_in = verify_snapshot_inputs_and_params()
         df_base = pd.read_csv(econ_csv)
+        pay_hash = compute_canonical_economic_payload_hash(df_base)
+        exp_pay_hash = VERIFIED_SNAPSHOT_METADATA.get("economic_prices_canonical_sha256")
+        is_pay_ok = bool(pay_hash == exp_pay_hash)
+        all_verified = bool(inputs_ok and is_pay_ok)
+
+        if strict_verification and not all_verified:
+            raise SnapshotIntegrityError(
+                f"Snapshot integrity verification failed for economic arbitrage prices payload: expected {exp_pay_hash}, got {pay_hash}; {msg_in}"
+            )
+
         prices_am = {}
         prices_eu = {}
         epsilons = {}
@@ -1036,6 +1081,7 @@ def run_economic_arbitrage_checks(
             prices_eu[t_lbl][K] = float(row["price_european"])
             epsilons[t_lbl][K] = float(row["empirical_truncation_eps"])
     else:
+        all_verified = False
         solver = solver or Heston2DSolver()
         prices_am = {}
         prices_eu = {}
@@ -1167,7 +1213,9 @@ def run_economic_arbitrage_checks(
                 "status_economic": status_econ
             })
 
-    return pd.DataFrame(records)
+    df_res = pd.DataFrame(records)
+    df_res.attrs["is_snapshot_verified"] = all_verified
+    return df_res
 
 
 # ==============================================================================
@@ -1348,6 +1396,7 @@ def run_phase3_pipeline(
     print("\n[Step 5/6] Running Economic Properties & Butterfly Uncertainty Propagation...")
     df_economic = run_economic_arbitrage_checks(
         reuse_verified_tables=reuse_verified_prices,
+        strict_verification=strict_verification,
         data_dir=data_dir
     )
     path_economic = output_dir / "economic_arbitrage_checks.csv"
@@ -1368,13 +1417,26 @@ def run_phase3_pipeline(
         flag = df.attrs.get("is_snapshot_verified")
         if flag is not None:
             return bool(flag)
-        is_ok, _ = verify_snapshot_table_file(table_name, data_dir / table_name)
+        if table_name == "economic_arbitrage_checks.csv":
+            p = (data_dir or DATA_DIR) / table_name
+            if not p.exists():
+                return False
+            df_p = pd.read_csv(p)
+            return compute_canonical_economic_payload_hash(df_p) == VERIFIED_SNAPSHOT_METADATA.get("economic_prices_canonical_sha256")
+        is_ok, _ = verify_snapshot_table_file(table_name, (data_dir or DATA_DIR) / table_name)
         return is_ok
 
     m97_verified = check_table_verification(df_detailed, "market_97_puts_validation.csv")
     regimes_verified = check_table_verification(df_108, "hypothetical_regimes_108.csv")
     continuity_verified = check_table_verification(df_continuity, "continuity_edge_cases.csv")
-    all_snapshot_verified = bool(m97_verified and regimes_verified and continuity_verified)
+    economic_verified = check_table_verification(df_economic, "economic_arbitrage_checks.csv")
+    all_snapshot_verified = bool(m97_verified and regimes_verified and continuity_verified and economic_verified)
+
+    if strict_verification and reuse_verified_prices and not all_snapshot_verified:
+        raise SnapshotIntegrityError(
+            f"Snapshot integrity verification failed for one or more reused tables: "
+            f"m97={m97_verified}, regimes={regimes_verified}, continuity={continuity_verified}, economic={economic_verified}"
+        )
 
     prices_source_commit = (
         VERIFIED_SNAPSHOT_METADATA["commit"]
@@ -1412,7 +1474,14 @@ def run_phase3_pipeline(
         m97_coherence = False
         m97_status_labels = False
 
-    m97_pass = bool(len(df_detailed) == 97 and m97_finite and m97_within_tol and m97_coherence and m97_status_labels)
+    m97_pass = bool(
+        len(df_detailed) == 97
+        and m97_finite
+        and m97_within_tol
+        and m97_coherence
+        and m97_status_labels
+        and (m97_verified if reuse_verified_prices else True)
+    )
     market_97_status = "PASSED" if m97_pass else "FAILED"
 
     print(f"   Market 97 gate: Max Err = {max_m97_err:.6f} USD, Status = {market_97_status}")
@@ -1445,7 +1514,14 @@ def run_phase3_pipeline(
         regimes_coherence = False
         regimes_status_labels = False
 
-    regimes_pass = bool(len(df_108) == 108 and regimes_finite and regimes_within_tol and regimes_coherence and regimes_status_labels)
+    regimes_pass = bool(
+        len(df_108) == 108
+        and regimes_finite
+        and regimes_within_tol
+        and regimes_coherence
+        and regimes_status_labels
+        and (regimes_verified if reuse_verified_prices else True)
+    )
     regimes_status = "PASSED" if regimes_pass else "FAILED"
 
     print(f"   Hypothetical Regimes gate: Max Err = {max_regime_err:.6f} USD, Status = {regimes_status}")
@@ -1472,7 +1548,14 @@ def run_phase3_pipeline(
         w3_coherence = False
         w3_status_labels = False
 
-    worst3_pass = bool(len(df_worst3) == 3 and w3_finite and w3_within_tol and w3_coherence and w3_status_labels)
+    worst3_pass = bool(
+        len(df_worst3) == 3
+        and w3_finite
+        and w3_within_tol
+        and w3_coherence
+        and w3_status_labels
+        and (m97_verified if reuse_verified_prices else True)
+    )
     worst_3_status = "ALL_CONVERGED_WITHIN_002" if worst3_pass else "FAILED"
 
     # 4. Economic Properties Gate
@@ -1483,7 +1566,8 @@ def run_phase3_pipeline(
         and not df_economic["calendar_violation"].any()
         and (df_economic["status_economic"] == "PASS").all()
     )
-    economic_status = "PASSED" if econ_finite else "FAILED"
+    econ_pass = bool(econ_finite and (economic_verified if reuse_verified_prices else True))
+    economic_status = "PASSED" if econ_pass else "FAILED"
 
     # 5. Analytical Limits Gate
     limits_pass = bool(
@@ -1501,8 +1585,24 @@ def run_phase3_pipeline(
     )
     rates_status = "PASSED" if rates_pass else "FAILED"
 
+    # 7. Continuity Gate
+    continuity_pass = bool(
+        len(df_continuity) > 0
+        and (df_continuity["abs_error_usd"] <= 0.0020).all()
+        and (continuity_verified if reuse_verified_prices else True)
+    )
+
     # Overall Verdict
-    overall_passed = bool(worst3_pass and m97_pass and regimes_pass and econ_finite and limits_pass and rates_pass)
+    overall_passed = bool(
+        worst3_pass
+        and m97_pass
+        and regimes_pass
+        and econ_pass
+        and limits_pass
+        and rates_pass
+        and continuity_pass
+        and (all_snapshot_verified if reuse_verified_prices else True)
+    )
     overall_status = "PASSED" if overall_passed else "FAILED"
 
     # Input file digests
@@ -1569,7 +1669,7 @@ def run_phase3_pipeline(
         "input_hashes": input_hashes,
         "execution_provenance": {
             "prices_source_commit": prices_source_commit,
-            "diagnostics_remediation": "REMEDIATION_2_AUDIT_28bd72a",
+            "diagnostics_remediation": "REMEDIATION_3_FINAL_AUDIT_344ae4a",
             "python_version": sys.version,
             "platform": sys.platform,
             "quantlib_version": ql.__version__ if HAS_QUANTLIB else "N/A",

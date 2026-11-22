@@ -16,8 +16,8 @@
     "spot_price": 12.33,
     "dividend_yield": 0.0
   },
-  "execution_timestamp": "2026-11-22T04:27:46.436725+00:00",
-  "wall_time_seconds": 50.47,
+  "execution_timestamp": "2026-11-22T05:05:23.927869+00:00",
+  "wall_time_seconds": 85.28,
   "validation_summary": {
     "overall_status": "PASSED",
     "market_97_status": "PASSED",
@@ -52,7 +52,7 @@
   },
   "execution_provenance": {
     "prices_source_commit": "37bbd12d52819c765c64a950333962af9410073d",
-    "diagnostics_remediation": "REMEDIATION_2_AUDIT_28bd72a",
+    "diagnostics_remediation": "REMEDIATION_3_FINAL_AUDIT_344ae4a",
     "python_version": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
     "platform": "win32",
     "quantlib_version": "1.44",
@@ -61,7 +61,7 @@
     "scipy_version": "1.18.0"
   },
   "source_hashes": {
-    "pipeline_phase3_py": "d91a84be7fe5ea5405c02ed38c4490c3b736039672c7481ac5e787b7cdfeb048",
+    "pipeline_phase3_py": "f4b48cfcaabe63c84071e3d867eaec11412a0b0bcce97695cc9782a7d89a6f61",
     "solver_2d_py": "ea0298e59dcd47d612403ea9c81e1c6dd5b4e029774369f2b1542c048bffe64c",
     "heston_model_py": "05d61ab33829b8fe663e9442124586958c1f47a1cf6c636d9fbeac5f71704529",
     "rates_curve_py": "46d204608ff6294817dff40bd19c1b525bb37d954b6692660f88890f1c24da7c"

@@ -577,6 +577,162 @@ def test_aggregator_rejects_regimes_price_modification():
         pipe.DATA_DIR = orig_data_dir
 
 
+def test_aggregator_rejects_paired_price_and_reference_modification():
+    """
+    Verifies that paired +1 modification of price and reference fails snapshot verification
+    and causes market gate and overall to be marked FAILED under reuse mode.
+    """
+    import tempfile, contextlib, io, shutil
+    import src.heston.pipeline_phase3 as pipe
+
+    base = DATA_DIR
+    load = lambda n: pd.read_csv(base / n)
+    orig_limits = pipe.run_analytical_limits_validation
+    orig_cont = pipe.run_continuity_and_edge_cases
+    orig_econ = pipe.run_economic_arbitrage_checks
+    orig_rates = pipe.run_rates_curve_integration_check
+    orig_data_dir = pipe.DATA_DIR
+
+    try:
+        pipe.run_analytical_limits_validation = lambda: load("analytical_limits_validation.csv")
+        pipe.run_continuity_and_edge_cases = lambda **kw: load("continuity_edge_cases.csv")
+        pipe.run_economic_arbitrage_checks = lambda **kw: load("economic_arbitrage_checks.csv")
+        pipe.run_rates_curve_integration_check = lambda: load("rates_curve_integration_check.csv")
+
+        with tempfile.TemporaryDirectory() as t:
+            cache = Path(t) / "cache"
+            shutil.copytree(base, cache)
+            out = Path(t) / "out"
+            pipe.DATA_DIR = cache
+
+            f = cache / "market_97_puts_validation.csv"
+            df = pd.read_csv(f)
+            df.loc[0, "proprietary_fine_usd"] += 1.0
+            df.loc[0, "ql_refined_700_usd"] += 1.0
+            df.to_csv(f, index=False)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = pipe.run_phase3_pipeline(out, data_dir=cache)
+
+            assert result["validation_summary"]["market_97_status"] == "FAILED"
+            assert result["validation_summary"]["overall_status"] == "FAILED"
+            assert result["execution_provenance"]["prices_source_commit"] == "UNVERIFIED_OR_FRESH_EXECUTION"
+    finally:
+        pipe.run_analytical_limits_validation = orig_limits
+        pipe.run_continuity_and_edge_cases = orig_cont
+        pipe.run_economic_arbitrage_checks = orig_econ
+        pipe.run_rates_curve_integration_check = orig_rates
+        pipe.DATA_DIR = orig_data_dir
+
+
+def test_aggregator_rejects_economic_price_modification():
+    """
+    Verifies that tampering with economic arbitrage prices fails canonical payload verification
+    and causes economic gate and overall to be marked FAILED under reuse mode.
+    """
+    import tempfile, contextlib, io, shutil
+    import src.heston.pipeline_phase3 as pipe
+
+    base = DATA_DIR
+    load = lambda n: pd.read_csv(base / n)
+    orig_limits = pipe.run_analytical_limits_validation
+    orig_rates = pipe.run_rates_curve_integration_check
+    orig_data_dir = pipe.DATA_DIR
+
+    try:
+        pipe.run_analytical_limits_validation = lambda: load("analytical_limits_validation.csv")
+        pipe.run_rates_curve_integration_check = lambda: load("rates_curve_integration_check.csv")
+
+        with tempfile.TemporaryDirectory() as t:
+            cache = Path(t) / "cache"
+            shutil.copytree(base, cache)
+            out = Path(t) / "out"
+            pipe.DATA_DIR = cache
+
+            feco = cache / "economic_arbitrage_checks.csv"
+            e = pd.read_csv(feco)
+            e["price_american"] = np.maximum(e["strike"] - 12.33, 0.0) + 1e-12
+            e["price_european"] = e["price_american"]
+            e.to_csv(feco, index=False)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = pipe.run_phase3_pipeline(out, data_dir=cache)
+
+            assert result["validation_summary"]["economic_arbitrage_status"] == "FAILED"
+            assert result["validation_summary"]["market_97_status"] == "PASSED"
+            assert result["validation_summary"]["overall_status"] == "FAILED"
+            assert result["execution_provenance"]["prices_source_commit"] == "UNVERIFIED_OR_FRESH_EXECUTION"
+    finally:
+        pipe.run_analytical_limits_validation = orig_limits
+        pipe.run_rates_curve_integration_check = orig_rates
+        pipe.DATA_DIR = orig_data_dir
+
+
+def test_snapshot_pricing_source_guard_rejects_altered_code():
+    """
+    Verifies that modifying pricing source code (e.g. theta_ADI in solver_2d.py)
+    fails snapshot code dependency verification.
+    """
+    import tempfile, shutil
+    import src.heston.pipeline_phase3 as pipe
+
+    with tempfile.TemporaryDirectory() as t:
+        fake_root = Path(t)
+        for k, (rel, h) in pipe.VERIFIED_SNAPSHOT_METADATA["inputs"].items():
+            dest = fake_root / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(root_dir / rel, dest)
+
+        for module_name in ("solver_2d.py", "heston_model.py", "rates_curve.py"):
+            target = fake_root / "src/heston" / module_name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(root_dir / "src/heston" / module_name, target)
+
+        ok_clean, msg_clean = pipe.verify_snapshot_inputs_and_params(fake_root)
+        assert ok_clean is True
+
+        # Mutate theta_adi in solver_2d.py copy
+        dest_solver = fake_root / "src/heston/solver_2d.py"
+        code = (root_dir / "src/heston/solver_2d.py").read_text()
+        changed = code.replace("theta_adi: float = 1.0 / 3.0", "theta_adi: float = 0.5", 1)
+        dest_solver.write_text(changed)
+
+        ok_mut, msg_mut = pipe.verify_snapshot_inputs_and_params(fake_root)
+        assert ok_mut is False
+        assert "Pricing source hash mismatch for solver_2d.py" in msg_mut
+
+
+def test_strict_verification_true_raises_snapshot_integrity_error():
+    """
+    Verifies that when strict_verification=True, any snapshot tampering raises SnapshotIntegrityError.
+    """
+    import tempfile, shutil
+    import src.heston.pipeline_phase3 as pipe
+    import pytest
+
+    with tempfile.TemporaryDirectory() as t:
+        cache = Path(t) / "cache"
+        shutil.copytree(DATA_DIR, cache)
+
+        # Tamper market 97 table
+        f = cache / "market_97_puts_validation.csv"
+        df = pd.read_csv(f)
+        df.loc[0, "proprietary_fine_usd"] += 1.0
+        df.to_csv(f, index=False)
+
+        with pytest.raises(pipe.SnapshotIntegrityError):
+            pipe.run_market_97_validation(data_dir=cache, strict_verification=True)
+
+        # Tamper economic checks table
+        feco = cache / "economic_arbitrage_checks.csv"
+        e = pd.read_csv(feco)
+        e.loc[0, "price_american"] += 1.0
+        e.to_csv(feco, index=False)
+
+        with pytest.raises(pipe.SnapshotIntegrityError):
+            pipe.run_economic_arbitrage_checks(data_dir=cache, strict_verification=True)
+
+
 def test_analytical_limits_v0_zero_nan_metadata():
     """
     Verifies that for v0 = 0.0, both abs_err_usd and max_abs_err_usd are NaN (resolving F3-L2).
