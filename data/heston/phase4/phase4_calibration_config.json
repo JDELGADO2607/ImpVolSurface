@@ -1,0 +1,97 @@
+{
+  "phase": "PHASE_4",
+  "method": "L-BFGS-B",
+  "description": "Pre-declared optimizer and grid configuration for Phase 4 Heston calibration",
+  "optimizer_options": {
+    "method": "L-BFGS-B",
+    "maxiter": 35,
+    "eps": 0.001,
+    "ftol": 1e-07,
+    "gtol": 1e-05
+  },
+  "parameter_bounds": [
+    {"param": "v0", "min": 0.01, "max": 1.5},
+    {"param": "kappa", "min": 0.10, "max": 15.0},
+    {"param": "theta", "min": 0.01, "max": 1.5},
+    {"param": "xi", "min": 0.05, "max": 3.0},
+    {"param": "rho", "min": -0.95, "max": 0.95}
+  ],
+  "grids": {
+    "production_optimization_grid": {
+      "engine": "QuantLib FdHestonVanillaEngine",
+      "grid_t_factor": 300.0,
+      "min_time_steps": 60,
+      "grid_x": 160,
+      "grid_v": 80,
+      "description": "Used during L-BFGS-B local refinements: m_t = max(60, int(round(300*T))), x = 160, v = 80"
+    },
+    "fine_evaluation_grid": {
+      "engine": "QuantLib FdHestonVanillaEngine",
+      "grid_t_factor": 700.0,
+      "min_time_steps": 120,
+      "grid_x": 280,
+      "grid_v": 140,
+      "description": "Used for candidate evaluation and selection on train 60: QL700 / min120 / x280 / v140"
+    },
+    "ultrafine_control_grid": {
+      "engine": "QuantLib FdHestonVanillaEngine",
+      "grid_t_factor": 1000.0,
+      "min_time_steps": 160,
+      "grid_x": 360,
+      "grid_v": 180,
+      "description": "Used for mesh stability control on worst 3 pricing errors: QL1000 / min160 / x360 / v180"
+    },
+    "proprietary_solver_fine_grid": {
+      "engine": "MCS-IT proprietary solver_2d",
+      "n_s": 240,
+      "n_v": 120,
+      "min_time_steps": 100,
+      "grid_t_factor": 600.0,
+      "description": "Proprietary fine mesh: n_s = 240, n_v = 120, m_t = max(100, int(round(600*T)))"
+    },
+    "proprietary_solver_default_grid": {
+      "engine": "MCS-IT proprietary solver_2d",
+      "n_s": 120,
+      "n_v": 60,
+      "min_time_steps": 50,
+      "grid_t_factor": 300.0,
+      "description": "Proprietary default mesh: n_s = 120, n_v = 60, m_t = max(50, int(round(300*T)))"
+    },
+    "proprietary_solver_extrafine_grid": {
+      "engine": "MCS-IT proprietary solver_2d",
+      "n_s": 320,
+      "n_v": 160,
+      "min_time_steps": 160,
+      "grid_t_factor": 900.0,
+      "description": "Proprietary extra-fine mesh: n_s = 320, n_v = 160, m_t = max(160, int(round(900*T)))"
+    }
+  },
+  "starts": [
+    {
+      "index": 2,
+      "name": "Refinement_A_Start_2",
+      "historical_source": "Phase 1 Start 2 (PoC starting vector)",
+      "description": "Local refinement from historical Start 2",
+      "params": [0.186138, 2.725460, 0.213680, 0.481785, -0.949807]
+    },
+    {
+      "index": 5,
+      "name": "Refinement_B_Start_5",
+      "historical_source": "Phase 1 Start 5",
+      "description": "Local refinement from historical Start 5",
+      "params": [0.185765, 1.776739, 0.220899, 0.407838, -0.887226]
+    },
+    {
+      "index": 1,
+      "name": "Refinement_C_Start_1",
+      "historical_source": "Phase 1 Start 1",
+      "description": "Local refinement from historical Start 1",
+      "params": [0.186800, 1.991740, 0.225116, 0.617904, -0.646363]
+    }
+  ],
+  "benchmark_poc": {
+    "name": "Benchmark_PoC_Regime_A",
+    "description": "PoC Regime A exact vector",
+    "params": [0.186138, 2.725460, 0.213680, 0.481785, -0.949807]
+  }
+}

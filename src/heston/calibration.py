@@ -84,7 +84,8 @@ class HestonCalibrator:
         bounds: Optional[List[Tuple[float, float]]] = None,
         grid_t_factor: float = 50.0,
         grid_x: int = 70,
-        grid_v: int = 35
+        grid_v: int = 35,
+        min_time_steps: int = 25
     ):
         if not HAS_QUANTLIB:
             raise RuntimeError("QuantLib is required for HestonCalibrator.")
@@ -94,6 +95,9 @@ class HestonCalibrator:
         self.grid_t_factor = grid_t_factor
         self.grid_x = grid_x
         self.grid_v = grid_v
+        self.min_time_steps = min_time_steps
+        self.eval_error_count: int = 0
+        self.eval_count: int = 0
 
         self.eval_date = eval_date or ql.Date(17, 11, 2026)
         ql.Settings.instance().evaluationDate = self.eval_date
@@ -155,23 +159,27 @@ class HestonCalibrator:
 
             sse = 0.0
             for opt, mkt, K, T in self.contracts:
-                time_steps = max(25, int(round(self.grid_t_factor * T)))
+                time_steps = max(self.min_time_steps, int(round(self.grid_t_factor * T)))
                 engine = ql.FdHestonVanillaEngine(model, time_steps, self.grid_x, self.grid_v)
                 opt.setPricingEngine(engine)
                 price = opt.NPV()
                 diff = price - mkt
                 sse += diff * diff
 
+            self.eval_count += 1
             return float(sse)
         except Exception as e:
             self.last_eval_error = str(e)
+            self.eval_error_count += 1
             return 1e8
 
     def run_single_start(
         self,
         start_def: Dict[str, Any],
         maxiter: int = 35,
-        eps: float = 1e-3
+        eps: float = 1e-3,
+        options: Optional[Dict[str, Any]] = None,
+        callback: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """Runs L-BFGS-B optimization from a single starting point."""
         start_params = np.array(start_def["params"], dtype=float)
@@ -179,16 +187,23 @@ class HestonCalibrator:
 
         t0 = time.time()
         self.last_eval_error = None
+        self.eval_error_count = 0
+        self.eval_count = 0
         init_sse = self.evaluate_sse(start_params)
         n_contracts = len(self.contracts)
         init_rmse = np.sqrt(init_sse / n_contracts)
+
+        opt_opts = {"maxiter": maxiter, "eps": eps}
+        if options is not None:
+            opt_opts.update(options)
 
         opt_res = minimize(
             self.evaluate_sse,
             start_params,
             method="L-BFGS-B",
             bounds=self.bounds,
-            options={"maxiter": maxiter, "eps": eps}
+            options=opt_opts,
+            callback=callback
         )
         elapsed = time.time() - t0
 
@@ -225,9 +240,11 @@ class HestonCalibrator:
             "name": name,
             "description": start_def["description"],
             "init_params": [round(x, 4) for x in start_params],
+            "init_params_raw": [float(x) for x in start_params],
             "init_sse": init_sse,
             "init_rmse": init_rmse,
             "final_params": final_params.to_dict(),
+            "final_params_raw": [float(x) for x in opt_res.x],
             "final_sse": final_sse,
             "final_rmse": final_rmse,
             "iterations": int(opt_res.nit),
@@ -238,6 +255,7 @@ class HestonCalibrator:
             "success": is_success,
             "message": str(opt_res.message),
             "last_eval_error": self.last_eval_error,
+            "engine_failures": self.eval_error_count,
             "feller_ratio": final_params.feller_ratio,
             "feller_satisfied": final_params.feller_satisfied,
             "boundary_hits": boundary_hits,

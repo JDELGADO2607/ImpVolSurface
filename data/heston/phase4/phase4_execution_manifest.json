@@ -1,0 +1,223 @@
+{
+  "phase": "PHASE_4",
+  "title": "Classical Heston Q Calibration and Global Validation",
+  "base_commit": "09d9beb060a4a80d9dc4ae7035407cbc8e81e061",
+  "execution_timestamp": "2026-11-22T09:05:06.545038+00:00",
+  "runtime_wall_seconds": 126.49128007888794,
+  "environment": {
+    "python_version": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+    "quantlib_version": "1.44",
+    "scipy_version": "1.18.0",
+    "numpy_version": "2.1.1",
+    "pandas_version": "2.2.2"
+  },
+  "input_hashes": {
+    "puts_selected_clean": "1c069129d8dc138f8896fb8f02c83809454df0d041569f418a7cbbea21545df2",
+    "data_split_manifest": "981345af41c4b68ef0c0733aab80bbbdc46a9b6c924a7206193fb11a5e06ce0f",
+    "treasury_cmt_raw": "87e1d8653fb68224bee2becd9032d2d1e7c75e5bf23e66b8b1c8370ecd97d175",
+    "rates_treasury_manifest": "fb361dd17776bc7e943234fc704ab90958832880d30118b174e0f161a5e677c8",
+    "phase1_multistart_results": "5ee8a8e9361f84890eeeaf265f19a312aaca06776e8c00cb0f316addf7120a3c",
+    "phase1_manifest": "cf735b41d342ad554505abb41e6da72a703b65b9f8e6b82e036a3675b4454e7d",
+    "phase3_manifest": "338e2dd7a6b90a6a5343aeaa36119249300ff4a2bb945723cc22a7a1f96cab57",
+    "phase3_market_97": "5a1bc12e6988bcb16d9659536a2b2027cf1b994633ef2d404ae57af1e97c016b",
+    "phase3_worst3": "6e6312d1cef0db47865b7c7279eedd495ac7cc78ed997e19f98e2ea000cfc67b",
+    "source_calibration": "92ba3fdca13bef0f1cff76829fff108b1ca703b54b5f6f81bb19f5742b6351a6",
+    "source_solver_2d": "ea0298e59dcd47d612403ea9c81e1c6dd5b4e029774369f2b1542c048bffe64c",
+    "source_heston_model": "05d61ab33829b8fe663e9442124586958c1f47a1cf6c636d9fbeac5f71704529",
+    "source_rates_curve": "46d204608ff6294817dff40bd19c1b525bb37d954b6692660f88890f1c24da7c"
+  },
+  "calibrated_parameters": {
+    "candidate_id": "Benchmark_PoC_Regime_A",
+    "selection_status": "WINNER_POC_CONSERVED",
+    "selection_rationale": "Benchmark PoC Regime A retained: Best candidate Refinement_A_Start_2 fine SSE (0.086579) improvement over PoC fine SSE (0.086612) is 3.263943e-05, which is below discretization noise threshold (0.0001). Following predeclared protocol, PoC parameterization is strictly conserved.",
+    "calibrated_parameters_raw": [
+      0.186138,
+      2.72546,
+      0.21368,
+      0.481785,
+      -0.949807
+    ],
+    "calibrated_parameters": {
+      "v0": 0.186138,
+      "kappa": 2.72546,
+      "theta": 0.21368,
+      "xi": 0.481785,
+      "rho": -0.949807
+    },
+    "feller_condition": {
+      "feller_ratio": 5.017959297743159,
+      "feller_satisfied": true,
+      "formula": "2*kappa*theta / xi^2"
+    },
+    "bounds_proximity": {
+      "v0": {
+        "value": 0.186138,
+        "lower_bound": 0.01,
+        "upper_bound": 1.5,
+        "dist_to_lower": 0.176138,
+        "dist_to_upper": 1.313862,
+        "near_boundary": false
+      },
+      "kappa": {
+        "value": 2.72546,
+        "lower_bound": 0.1,
+        "upper_bound": 15.0,
+        "dist_to_lower": 2.62546,
+        "dist_to_upper": 12.27454,
+        "near_boundary": false
+      },
+      "theta": {
+        "value": 0.21368,
+        "lower_bound": 0.01,
+        "upper_bound": 1.5,
+        "dist_to_lower": 0.20368,
+        "dist_to_upper": 1.28632,
+        "near_boundary": false
+      },
+      "xi": {
+        "value": 0.481785,
+        "lower_bound": 0.05,
+        "upper_bound": 3.0,
+        "dist_to_lower": 0.43178500000000003,
+        "dist_to_upper": 2.518215,
+        "near_boundary": false
+      },
+      "rho": {
+        "value": -0.949807,
+        "lower_bound": -0.95,
+        "upper_bound": 0.95,
+        "dist_to_lower": 0.00019299999999999873,
+        "dist_to_upper": 1.899807,
+        "near_boundary": true
+      }
+    },
+    "train_metrics": {
+      "prod_sse": 0.08664053018236909,
+      "prod_rmse": 0.03800011626788553,
+      "fine_sse": 0.08661183034789599,
+      "fine_rmse": 0.03799382194249831,
+      "fine_mae": 0.02576233124408973,
+      "fine_max_abs_err": 0.1826675770190871
+    },
+    "timestamp": "2026-11-22T08:20:48.188311+00:00"
+  },
+  "pricing_summary_by_partition": [
+    {
+      "partition": "train",
+      "n_contracts": 60,
+      "mean_market_price": 1.5123333333,
+      "mae_ql_prod": 0.0257836954,
+      "rmse_ql_prod": 0.0380001163,
+      "max_err_ql_prod": 0.1822822212,
+      "mae_ql_fine": 0.0257623429,
+      "rmse_ql_fine": 0.0379938103,
+      "max_err_ql_fine": 0.1826667206,
+      "mae_prop_default": 0.025727704,
+      "rmse_prop_default": 0.0379716905,
+      "max_err_prop_default": 0.182799193,
+      "mae_prop_fine": 0.0257372619,
+      "rmse_prop_fine": 0.0379790631,
+      "max_err_prop_fine": 0.1828634191,
+      "mean_abs_discrepancy_prop_vs_ql_fine": 6.65683e-05,
+      "max_abs_discrepancy_prop_vs_ql_fine": 0.0005457562,
+      "coverage_within_5c_pct": 91.6666666667,
+      "coverage_within_10c_pct": 98.3333333333,
+      "gate_mae_pass": true,
+      "gate_rmse_pass": true
+    },
+    {
+      "partition": "strike_holdout",
+      "n_contracts": 22,
+      "mean_market_price": 1.05,
+      "mae_ql_prod": 0.0210863309,
+      "rmse_ql_prod": 0.026588751,
+      "max_err_ql_prod": 0.06,
+      "mae_ql_fine": 0.0211000255,
+      "rmse_ql_fine": 0.0265769751,
+      "max_err_ql_fine": 0.06,
+      "mae_prop_default": 0.0210954003,
+      "rmse_prop_default": 0.0265714884,
+      "max_err_prop_default": 0.06,
+      "mae_prop_fine": 0.0211081999,
+      "rmse_prop_fine": 0.0265719433,
+      "max_err_prop_fine": 0.06,
+      "mean_abs_discrepancy_prop_vs_ql_fine": 3.33444e-05,
+      "max_abs_discrepancy_prop_vs_ql_fine": 0.0001556208,
+      "coverage_within_5c_pct": 95.4545454545,
+      "coverage_within_10c_pct": 100.0,
+      "gate_mae_pass": true,
+      "gate_rmse_pass": true
+    },
+    {
+      "partition": "tenor_holdout",
+      "n_contracts": 15,
+      "mean_market_price": 0.9306666667,
+      "mae_ql_prod": 0.0204271321,
+      "rmse_ql_prod": 0.0263861873,
+      "max_err_ql_prod": 0.071430612,
+      "mae_ql_fine": 0.0203372874,
+      "rmse_ql_fine": 0.0262489187,
+      "max_err_ql_fine": 0.0709952255,
+      "mae_prop_default": 0.0203326004,
+      "rmse_prop_default": 0.0262419443,
+      "max_err_prop_default": 0.0708831192,
+      "mae_prop_fine": 0.0203044863,
+      "rmse_prop_fine": 0.0261957804,
+      "max_err_prop_fine": 0.0707705145,
+      "mean_abs_discrepancy_prop_vs_ql_fine": 4.46118e-05,
+      "max_abs_discrepancy_prop_vs_ql_fine": 0.000224711,
+      "coverage_within_5c_pct": 93.3333333333,
+      "coverage_within_10c_pct": 100.0,
+      "gate_mae_pass": true,
+      "gate_rmse_pass": true
+    },
+    {
+      "partition": "total",
+      "n_contracts": 97,
+      "mean_market_price": 1.3175257732,
+      "mae_ql_prod": 0.0238899792,
+      "rmse_ql_prod": 0.0340764983,
+      "max_err_ql_prod": 0.1822822212,
+      "mae_ql_fine": 0.023865984,
+      "rmse_ql_fine": 0.0340536639,
+      "max_err_ql_fine": 0.1826667206,
+      "mae_prop_default": 0.023842784,
+      "rmse_prop_default": 0.0340365964,
+      "max_err_prop_default": 0.182799193,
+      "mae_prop_fine": 0.0238472516,
+      "rmse_prop_fine": 0.0340362659,
+      "max_err_prop_fine": 0.1828634191,
+      "mean_abs_discrepancy_prop_vs_ql_fine": 5.56376e-05,
+      "max_abs_discrepancy_prop_vs_ql_fine": 0.0005457562,
+      "coverage_within_5c_pct": 92.7835051546,
+      "coverage_within_10c_pct": 98.9690721649,
+      "gate_mae_pass": true,
+      "gate_rmse_pass": true
+    }
+  ],
+  "validation_gates": {
+    "gate_coverage_97_puts": true,
+    "gate_train_mae_le_008": true,
+    "gate_train_rmse_le_012": true,
+    "gate_strike_holdout_mae_le_010": true,
+    "gate_tenor_holdout_mae_le_010": true,
+    "gate_solver_discrepancy_le_002": true,
+    "gate_mesh_stability_worst3_ql_le_0005": true,
+    "gate_mesh_stability_worst3_prop_le_002": true
+  },
+  "verdict": "PASS",
+  "output_files": {
+    "phase4_calibration_config.json": "32a12c901fd6c4ad954d3db1613890cf93d17767a7a5d1e8ad1a1ce253b8b1b3",
+    "heston_phase1_replay.csv": "e3e9ed7f575057028a40b068eef55677867a3400d2d349b08c6a7b5130f94d71",
+    "heston_local_refinements.csv": "df2adccaa36c81d140f37836ffd6345881141ba3af31dd0449184a5451a9c2d4",
+    "heston_candidates_fine_eval.csv": "ab3499b49709867cb5d2a8e157975adbb0fee9d24b5f349e3a1f8dbd82f889b4",
+    "heston_calibrated_parameters.json": "bb39433cce4d57c3e276a81cc59235985c24d57f3f42c86b04a3dcd7e6cdad83",
+    "heston_pricing_full_puts.csv": "a64eb56e6704e58db1899da2ca39ec944220ce554a53c31de611f20cdfc09f31",
+    "heston_pricing_summary_by_partition.csv": "fd82e111368f6dafbf984fba88a3c883c4396cb2568bb40191758d7ea7a918d6",
+    "heston_pricing_summary_by_tenor.csv": "008bd55dbb6ba836751eb2c7d9147f61a6260f6240a1637c0db27a5fc995ebb9",
+    "heston_worst3_mesh_controls.csv": "b109e946efb168a025ef737a610bae185be30d8dc348019b0c5ff80bfd56e83c",
+    "heston_representative_economic_controls.csv": "baa004faaca0a83b8e6bf4213831404ecf7e58aebf93f1dcf192748f410b1f9f",
+    "heston_parameter_sensitivity.csv": "4f1a30a671ca59056a63524c4ee2dd8bf7875d67def4dfb37fca2e3660b724fa",
+    "heston_baseline_comparison.csv": "3be2fe72650e69aba635f4aef9822cdad7f9c5bc9c1b8f8009d6fb402a28dd2a"
+  }
+}

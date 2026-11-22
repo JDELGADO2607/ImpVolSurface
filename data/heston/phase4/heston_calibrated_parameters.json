@@ -1,0 +1,75 @@
+{
+  "candidate_id": "Benchmark_PoC_Regime_A",
+  "selection_status": "WINNER_POC_CONSERVED",
+  "selection_rationale": "Benchmark PoC Regime A retained: Best candidate Refinement_A_Start_2 fine SSE (0.086579) improvement over PoC fine SSE (0.086612) is 3.263943e-05, which is below discretization noise threshold (0.0001). Following predeclared protocol, PoC parameterization is strictly conserved.",
+  "calibrated_parameters_raw": [
+    0.186138,
+    2.72546,
+    0.21368,
+    0.481785,
+    -0.949807
+  ],
+  "calibrated_parameters": {
+    "v0": 0.186138,
+    "kappa": 2.72546,
+    "theta": 0.21368,
+    "xi": 0.481785,
+    "rho": -0.949807
+  },
+  "feller_condition": {
+    "feller_ratio": 5.017959297743159,
+    "feller_satisfied": true,
+    "formula": "2*kappa*theta / xi^2"
+  },
+  "bounds_proximity": {
+    "v0": {
+      "value": 0.186138,
+      "lower_bound": 0.01,
+      "upper_bound": 1.5,
+      "dist_to_lower": 0.176138,
+      "dist_to_upper": 1.313862,
+      "near_boundary": false
+    },
+    "kappa": {
+      "value": 2.72546,
+      "lower_bound": 0.1,
+      "upper_bound": 15.0,
+      "dist_to_lower": 2.62546,
+      "dist_to_upper": 12.27454,
+      "near_boundary": false
+    },
+    "theta": {
+      "value": 0.21368,
+      "lower_bound": 0.01,
+      "upper_bound": 1.5,
+      "dist_to_lower": 0.20368,
+      "dist_to_upper": 1.28632,
+      "near_boundary": false
+    },
+    "xi": {
+      "value": 0.481785,
+      "lower_bound": 0.05,
+      "upper_bound": 3.0,
+      "dist_to_lower": 0.43178500000000003,
+      "dist_to_upper": 2.518215,
+      "near_boundary": false
+    },
+    "rho": {
+      "value": -0.949807,
+      "lower_bound": -0.95,
+      "upper_bound": 0.95,
+      "dist_to_lower": 0.00019299999999999873,
+      "dist_to_upper": 1.899807,
+      "near_boundary": true
+    }
+  },
+  "train_metrics": {
+    "prod_sse": 0.08664053018236909,
+    "prod_rmse": 0.03800011626788553,
+    "fine_sse": 0.08661183034789599,
+    "fine_rmse": 0.03799382194249831,
+    "fine_mae": 0.02576233124408973,
+    "fine_max_abs_err": 0.1826675770190871
+  },
+  "timestamp": "2026-11-22T08:20:48.188311+00:00"
+}
