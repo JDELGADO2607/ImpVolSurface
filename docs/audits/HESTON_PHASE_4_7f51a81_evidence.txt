@@ -1,0 +1,41 @@
+
+===== audit_european_bounds.log =====
+
+LEGITIMATE_EUROPEAN_BOUNDS True
+ORIGINAL_ITM_CONTROLS [{"contract_id":"PUT_K17.00_31d","price_european":4.6112373952,"discounted_lower_bound":4.6110312397},{"contract_id":"PUT_K17.00_94d","price_european":4.5291670643,"discounted_lower_bound":4.482578412},{"contract_id":"PUT_K17.00_430d","price_european":4.7923300515,"discounted_lower_bound":3.7713147482}]
+ZERO_EUROPEAN_WITH_COHERENT_EEP PASS violated_lower_bounds 3 largest_shortfall 4.611031239654112
+
+
+===== audit_repair3_controls.log =====
+
+REAL_GATE legitimate PASS {'train_mae': 0.02573726190963425, 'train_rmse': 0.037979063096091094, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE price_plus_one REJECTED RuntimeError Execution Manifest Gates Failed.
+REAL_GATE price_nan REJECTED ValueError Non-finite pricing value (NaN/Inf) detected in column 'prop_fine_price' for contract(s): ['NU261120P00004000']
+REAL_GATE reference_nan REJECTED ValueError Non-finite pricing value (NaN/Inf) detected in column 'ql_fine_price' for contract(s): ['NU261120P00004000']
+REAL_GATE market_nan REJECTED ValueError Non-finite pricing value (NaN/Inf) detected in column 'lastPrice' for contract(s): ['NU261120P00004000']
+REAL_GATE default_inf REJECTED ValueError Non-finite pricing value (NaN/Inf) detected in column 'prop_default_price' for contract(s): ['NU261120P00004000']
+REAL_GATE missing_economic REJECTED FileNotFoundError Missing required Phase 4 output file: heston_representative_economic_controls.csv
+REAL_GATE invalid_parameter REJECTED ValueError Calibrated parameter 0 violates bounds [0.01, 1.5]: -1.0
+REAL_GATE changed_summary_only REJECTED ValueError Contradictory partition summary: partition 'train' claims 59 contracts, expected 60
+REAL_GATE bad_raw_partition REJECTED ValueError Partition label mismatch for contract 'NU261120P00004000': declared 'tenor_holdout', expected 'train'
+REAL_GATE mesh_raw_bad REJECTED ValueError Mesh stability failure: Contract NU271217P00020000 QL discrepancy 1.000112 > 0.0005 USD
+REAL_GATE all_local_failed REJECTED RuntimeError Validation Failure: Zero local refinements converged.
+REAL_GATE economic_inf REJECTED ValueError Non-finite value (NaN/Inf) detected in df_econ column 'price_american' for contract(s): ['PUT_K9.00_31d']
+REAL_GATE economic_upper_bound REJECTED ValueError Economic Failure on PUT_K9.00_31d: American put price 1000000000.000000 exceeds strike upper bound 9.000000
+REAL_GATE quote_equals_model REJECTED ValueError Canonical market price mismatch for contract 'NU261120P00004000': exported lastPrice 5.395450728433361e-48 differs from canonical market data 0.03 (diff=3.000000e-02 USD)
+STEP5_INVALID_PHASE3_SNAPSHOT [{"contractSymbol":"NU261218P00012000","prop_fine_price":0.4526898876,"status_discrepancy_gate_002":"PASS"}] provenance [('valuation_provenance', 'FRESH_SOLVER_2D_VALUATION')]
+FRESH_CHANGED_VECTOR_REAL_API [{"prop_fine_price":0.4715874002,"ql_fine_price":0.4716160337,"abs_diff_prop_fine_vs_ql_fine_usd":0.0000286335}] EXTRAFINE [{"abs_diff_ql_refinement_usd":0.0000159258,"abs_diff_prop_refinement_usd":0.0000411747}]
+DONE
+
+
+===== audit_phase4_tests.log =====
+
+........................................................................ [ 82%]
+...............                                                          [100%]
+87 passed in 120.52s (0:02:00)
+
+HASH_CHANGES []
+
+===== audit_archive_integrity.log =====
+
+ARCHIVE_OFFICIAL_HASH_CHECK {"versioned_files": 134, "changed_or_missing": [], "added": []}

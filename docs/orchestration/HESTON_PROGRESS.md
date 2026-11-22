@@ -1,8 +1,8 @@
 # Avance Heston
 
-Ultimo SHA aprobado09d9beb060a4a80d9dc4ae7035407cbc8e81e061 (fase3). Fase4 REJECTED tras reparacion2 en5984a514ae983586a4e63a5affb0e17889f1dad4; reparacion3/3 ultima asignada ctx_a028feff4932/task_4aeb402f90c1. Informe/encargo62c1632 accesibles, PR4 OPEN.
-Contexto/fases0-3 APPROVED. Reparaciones0=1,1=3,2=1,3=3. Fases5-8 NOT_STARTED; no fase5 antes de aprobacion4.
-F4-H1/M1/M2/L1 cerrados materialmente. Solo F4-H2 HIGH parcial: economia permite Inf/1e9USD y pricing permite reemplazar lastPrice por preciosmodelo obteniendo MAE0. Guardas anteriores de NaNpricing, mallas y snapshot/dependencias ya funcionan.
-85tests PASS/123.54s,134archivos oficiales intactos; API fresca/extra dentro de tolerancia. No nueva optimizacion, redisenar motor ni cuarto intento automatico.
-[Informe](../audits/HESTON_PHASE_4_5984a51.md), [encargo3](PHASE_4_REPAIR_3.md). Siguiente accion auditar SHA que reporte por evento. Si queda material tras tercer intento, registrar bloqueo y alternativas.
-Run run_0891738e9cf5; worker reparacion2 ctx_3d2b843762f5/task_4759d165309f terminado. PR4/PR5 OPEN, sin merge/force-push ni polling. Cuota restante no expuesta.
+PHASE_4_BLOCKED / HUMAN_REVIEW_REQUIRED. Ultimo SHA aprobado09d9beb060a4a80d9dc4ae7035407cbc8e81e061 (fase3). Tercera reparacion fase4 auditada en7f51a811ae5815dadf8c26b46f707e9f7cb0d05c, no aprobada. Tres intentos agotados; no reparacion4 automatica ni fase5.
+Contexto/fases0-3 APPROVED; reparaciones0=1,1=3,2=1,3=3,4=3. Fases5-8 NOT_STARTED.
+F4-H1/M1/M2/L1 cerrados materialmente. F4-H2 HIGH parcial: falta cota europea descontada;9EU0 yEEPcoherente danPASS,3violaciones, deficitmax4.61103124USD. Los precios legitimos cumplen cotas; no se demuestra fallo de motor o calibracion.
+87tests PASS/120.52s;134archivos oficiales intactos; negativos previos rechazados y API fresca/extra correcta. No recalibrar. Propuesta minima de correccion de cotas en informe pendiente de decisionhumana, no autorizada automaticamente.
+[Informe y alternativas](../audits/HESTON_PHASE_4_7f51a81.md). Siguiente accion publicar estado/notificarHOLD y esperar decision humana; no polling ni nuevas modificaciones de implementacion.
+Run run_0891738e9cf5; worker3 ctx_a028feff4932/task_4aeb402f90c1 terminado. PR4/PR5 OPEN; sin merge/force-push. No mecanismo formal de bloqueo verificado en guiaOrca; aplicar mensaje y registros. Cuota restante no expuesta.

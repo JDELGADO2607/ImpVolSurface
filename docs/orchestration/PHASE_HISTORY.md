@@ -42,3 +42,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-22 | Reparacion2 fase4 aceptada por Orca | ctx_3d2b843762f5/task_4759d165309f, informe y encargo10ae69d accesibles enGitHub, PR4 OPEN; esperar evento, sin polling |
 | 2026-11-22 | Reparacion2 fase4 REJECTED; reparacion3/3 ultima autorizada |5984a51,85tests PASS/123.54s,134archivos oficiales intactos;F4-M2 cerrado, F4-H2 parcial por economiaInf/1e9 y primas no reconciliadas. Sin nueva optimizacion ni fase5 |
 | 2026-11-22 | Reparacion3 fase4 aceptada por Orca, ultima ordinaria |ctx_a028feff4932/task_4aeb402f90c1; informe/encargo62c1632 accesibles GitHub, PR4 OPEN; no cuarta automatica ni polling |
+| 2026-11-22 | PHASE_4_BLOCKED tras auditoria reparacion3, revisionhumana requerida |7f51a81,87tests PASS/120.52s y134archivosintactos;F4-H2 pendiente por cotasEUdescontadas, EU0/EEPcoherente daPASS condeficit4.611USD. Sin4areparacion ni fase5 |
