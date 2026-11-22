@@ -1,19 +1,19 @@
-# Informe Técnico de Implementación — Fase 1: PoC Heston QuantLib (Remediación 2)
+# Informe Técnico de Implementación — Fase 1: PoC Heston QuantLib (Remediación 3)
 
 **Proyecto:** Migración Metodológica a Heston Clásico — Opciones Americanas NU  
 **Rama:** `JDELGADO2607/heston-implementation`  
 **Fecha de Valoración de Referencia:** 17-nov-2026 16:00:00 EST (Cierre NYSE)  
 **Entorno de Ejecución:** Python 3.12.6, QuantLib 1.44, SciPy 1.18.0, NumPy 2.1.1, Pandas 2.2.2  
 **Timestamp de Transcripción Histórica CMT:** `2026-11-21T16:20:00-05:00` (16:20 NY)  
-**Timestamp de Ejecución de Pipeline:** `2026-11-21T23:17:30.052520+00:00`  
-**Dictamen Previo Vinculante:** `PHASE_REJECTED`, Remediation 2/3 autorizada (`docs/audits/HESTON_PHASE_1_af105d1.md`)  
-**Veredicto de Gate Fase 1 (Remediación 2):** **`PASSED`** (Validación criptográfica de caché F1-04, presupuesto numérico de malla F1-01, diagnósticos crudos F1-03 y reconciliación documental integral F1-02)
+**Timestamp de Ejecución de Pipeline:** `2026-11-21T23:41:08.481201+00:00` (Ejecución oficial vigente)  
+**Dictamen Previo Vinculante:** `PHASE_REJECTED`, Remediation 3/3 autorizada (`docs/audits/HESTON_PHASE_1_3a294af.md`)  
+**Veredicto de Gate Fase 1 (Remediación 3):** **`PASSED`** (Replay incondicional de todos los candidatos F1-04, selectores robustos, presupuesto numérico de malla F1-01, diagnósticos crudos F1-03 y reconciliación documental integral F1-02)
 
 ---
 
 ## 1. Resumen Ejecutivo y Cumplimiento de Gate
 
-La Remediación 2 de la Fase 1 resuelve exhaustivamente los hallazgos de auditoría **F1-04** (validación criptográfica estricta de caché, replay numérico y tests negativos) y **F1-02** (reconciliación 100% de tablas, precisión en formulaciones matemáticas y caracterizaciones rigurosas de parámetros y cotas), manteniendo la plena conformidad con **F1-01** (malla productiva unificada) y **F1-03** (diagnósticos de cotas y no arbitraje sobre precios crudos).
+La Remediación 3 de la Fase 1 resuelve exhaustivamente los hallazgos residuales de auditoría **F1-04** (replay incondicional obligatorio para todos los candidatos sin exención por estado o pérdida, exclusión de no convergentes en selección y suite expandida de tests negativos) y **F1-02** (especificación rigurosa de las mallas dinámicas de calibración y validación fina, tolerancia determinista de replay en USD$^2$ y precisión en la cuadratura semi-analítica de QuantLib), manteniendo la plena conformidad con **F1-01** (malla productiva unificada) y **F1-03** (diagnósticos de cotas y no arbitraje sobre precios crudos).
 
 ### Cuadro de Cumplimiento de Criterios de Aceptación (Gate PoC)
 
@@ -83,17 +83,17 @@ Se implementaron refinamientos separados en tiempo y espacio frente a la malla p
 - Número de opciones con desviación $> 0.0020$ USD: **0 de 97**.
 
 ### 2.4 Estabilidad de Clasificación y Evaluación en Malla Fina (Resolución F1-04)
-Se reevaluó la función objetivo en Train (60 puts) para los 5 arranques comparando la malla de calibración ($tFactor=100, x=100, v=50$) frente a la malla fina ($nt=200, nx=200, nv=100$), exportada en `data/heston/phase1/heston_multistart_fine_sse.csv`:
+Se reevaluó la función objetivo en Train (60 puts) para los 5 arranques comparando la malla dinámica de calibración ($tFactor=50.0$, mínimo $25$ pasos temporales $\implies t_{\text{steps}} = \max(25, \text{round}(50 \times T))$, $x=70, v=35$) frente a la malla fina de validación ($tFactor=200.0$, mínimo $25$ pasos temporales $\implies t_{\text{steps}} = \max(25, \text{round}(200 \times T))$, $x=200, v=100$), exportada en `data/heston/phase1/heston_multistart_fine_sse.csv`:
 
-| Arranque | Nombre | SSE Calib | RMSE Calib (USD) | SSE Fina | RMSE Fina (USD) | Estado / Diagnóstico |
+| Arranque | Nombre | SSE Calib ($tFactor50/x70/v35$) | RMSE Calib (USD) | SSE Fina ($tFactor200/x200/v100$) | RMSE Fina (USD) | Estado / Diagnóstico |
 | :---: | :--- | :---: | :---: | :---: | :---: | :--- |
 | **Start 1** | Canonical Skew | 0.088067 | 0.038312 | 0.088337 | 0.038370 | Cuasi-óptimo |
 | **Start 2** | Positive Rho | **0.086649** | **0.038002** | **0.086762** | **0.038027** | **Mejor candidato encontrado entre los arranques predeclarados** |
 | **Start 3** | High VolVol / Low Kappa | 0.586187 | 0.098842 | 21.468784 | 0.598175 | Sensibilidad numérica severa (Feller $\approx 0.0006$) |
-| **Start 4** | Fast Mean Reversion | 0.089044 | 0.038523 | 0.089482 | 0.038618 | Cuasi-óptimo |
+| **Start 4** | Fast Mean Reversion | 0.089044 | 0.038523 | 0.089482 | 0.038618 | Cuasi-óptimo (Status 2 / No convergente) |
 | **Start 5** | Zero Correlation | 0.087792 | 0.038252 | 0.087917 | 0.038279 | Cuasi-óptimo |
 
-El orden relativo de los candidatos cuasi-óptimos se mantiene estrictamente estable entre mallas, confirmando la selección de **Start 2** como el mejor candidato encontrado sin requerir reoptimización heurística. Start 3 exhibe alta sensibilidad numérica al refinarse la discretización, quedando descartado.
+El orden relativo de los candidatos cuasi-óptimos se mantiene estrictamente estable entre mallas, confirmando la selección de **Start 2** como el mejor candidato encontrado sin requerir reoptimización heurística. Start 3 exhibe alta sensibilidad numérica al refinarse la discretización, quedando descartado. La evaluación en malla fina sirve como diagnóstico independiente de estabilidad numérica y equifinalidad paramétrica, mientras que la selección se realiza sobre el menor objetivo verificado entre los candidatos que convergieron con éxito (`status == 0`).
 
 ---
 
@@ -156,7 +156,7 @@ Para una opción put americana sobre un activo sin dividendos ($q=0$), el derech
 1. **Esquema ADI en QuantLib (`FdHestonVanillaEngine`):**
    Implementa un esquema de direcciones alternadas implícitas (ADI) con configuración por defecto de Hundsdorfer (`FdmSchemeDesc::Hundsdorfer()`) para ecuaciones parabólicas bidimensionales con término cruzado de covarianza $\rho \xi v S \frac{\partial^2 V}{\partial S \partial v}$, aplicando proyección libre sobre el obstáculo de ejercicio americano en cada paso de tiempo.
 2. **Integración Semi-analítica (`AnalyticHestonEngine`):**
-   Utiliza la representación analítica de la función característica de Heston (Heston 1993, formulación Albrecher et al. 2007) configurada en QuantLib con orden de integración fijo (`integrationOrder = 144`) mediante cuadratura Gauss-Legendre / Gauss-Laguerre.
+   Utiliza la representación analítica de la función característica de Heston (Heston 1993, formulación de logaritmo complejo continuo de Albrecher et al. 2007) invocando directamente el constructor `AnalyticHestonEngine(model)` de QuantLib, cuyo orden de integración por defecto es fijo (`integrationOrder = 144`). No se emplean tolerancias adaptativas relativas ni algoritmos adicionales de cuadratura sobre este motor analítico.
 
 ---
 
@@ -179,16 +179,18 @@ Heston clásico con 5 parámetros globales reduce el error medio de SVI históri
 ### 6.1 Validación Criptográfica Estricta de Caché y Replay (Resolución F1-04)
 El pipeline en `src/heston/pipeline_phase1.py` incorpora una función de validación criptográfica (`validate_and_load_multistart_cache`) que erradica la aceptación ciega de archivos preexistentes:
 1. **Comprobación Criptográfica de Insumos:** Calcula los hashes SHA-256 de todos los datos de entrada (`data_split_train.csv`, `treasury_cmt_2026_11_17_raw.json`, etc.) y los compara contra los registrados en `phase1_execution_manifest.json`. Si cualquiera difiere, la caché se descarta y exige recálculo.
-2. **Validación Estricta de Parámetros y Consistencia Matemática:** Se verifica la presencia del esquema completo, la finitud y cotas físicas de todos los parámetros ($v_0, \kappa, \theta, \xi > 0$, $|\rho| < 1$), y la no negatividad matemática estricta de la pérdida ($SSE \ge 0$).
-3. **Replay Numérico del Objetivo:** Se evalúa la función objetivo sobre los 60 contratos de Train reproduciendo el SSE con tolerancia estricta ($10^{-6}$ USD).
-4. **Malla Fina de Validación:** Se calcula y persiste la tabla de SSE en resolución fina ($200\times200\times100$) en `heston_multistart_fine_sse.csv`.
-5. **Cobertura con Tests Negativos:** En `tests/test_heston_phase1.py` se validan tres pruebas negativas que aseguran el fallo inmediato ante datos de entrenamiento alterados, SSE negativo o parámetros fuera de cotas.
+2. **Validación Estricta de Parámetros y Consistencia Matemática:** Se verifica la presencia del esquema completo, la finitud y cotas físicas de todos los parámetros ($v_0, \kappa, \theta, \xi > 0$, $|\rho| < 1$), y la no negatividad matemática y finitud estricta de la pérdida y RMSE ($SSE \ge 0$, $\text{RMSE} \ge 0$, rechazando valores $\text{NaN}$ o $\pm\infty$).
+3. **Replay Numérico Incondicional del Objetivo:** Se evalúa obligatoriamente la función de pérdida sobre los 60 contratos de Train para **la totalidad de los 5 arranques** ($i=1..5$) en la malla de calibración ($tFactor=50.0, x=70, v=35$). Ningún candidato queda exento de validación por su estado o pérdida declarada.
+4. **Tolerancia Determinista de Replay:** La tolerancia entre la SSE serializada en CSV y la revaluada se fija en $10^{-4}$ $\text{USD}^2$ (unidades de pérdida cuadrática). Dado que el solver FDM es determinista, la discrepancia observada entre parámetros serializados y revaluados es puramente de redondeo numérico de punto flotante en almacenamiento ($\approx 10^{-13}$ $\text{USD}^2$).
+5. **Regla de Elegibilidad para Selección:** Solo los candidatos con convergencia exitosa (`status == 0`) son elegibles como modelo operativo, seleccionando entre ellos el de menor pérdida verificada (**Start 2**). Los candidatos con terminación anómala (e.g. Start 4 con `status == 2`) se conservan en la tabla multistart para registro académico pero son explícitamente inelegibles.
+6. **Malla Fina de Diagnóstico:** Se calcula y persiste la tabla de SSE en resolución fina ($tFactor=200.0, x=200, v=100$) en `heston_multistart_fine_sse.csv`. La malla fina actúa como diagnóstico independiente de estabilidad numérica y equifinalidad.
+7. **Cobertura con Tests Negativos:** En `tests/test_heston_phase1.py` se validan 6 pruebas negativas que aseguran el fallo inmediato ante datos de entrenamiento alterados, SSE negativo, parámetros fuera de cotas, candidatos no convergentes con SSE falsificada a cero (contraejemplo Codex status 2 / SSE 0), RMSE con $\text{NaN}$ o $\pm\infty$, y discrepancias entre SSE declarada y objetivo reevaluado.
 
 ### 6.2 Artefactos Publicados en Repositorio
 Todos los artefactos se encuentran depositados exclusivamente en `data/heston/phase1/` con enlaces relativos para accesibilidad en el repositorio:
 - [`phase1_execution_manifest.json`](../../data/heston/phase1/phase1_execution_manifest.json): Manifiesto con timestamps disociados, hashes de insumos, versiones y diagnóstico integral de gate.
 - [`heston_multistart_results.csv`](../../data/heston/phase1/heston_multistart_results.csv): Registro de los 5 arranques con tipo de terminación explícita (`CONVERGED`, `MAX_ITERATIONS`, etc.).
-- [`heston_multistart_fine_sse.csv`](../../data/heston/phase1/heston_multistart_fine_sse.csv): Evaluación del objetivo en malla fina ($200\times200\times100$).
+- [`heston_multistart_fine_sse.csv`](../../data/heston/phase1/heston_multistart_fine_sse.csv): Evaluación del objetivo en malla fina ($tFactor=200.0, x=200, v=100$).
 - [`heston_candidate_predictive_dispersion.csv`](../../data/heston/phase1/heston_candidate_predictive_dispersion.csv): Rango predictivo de candidatos cercanos.
 - [`heston_pricing_train.csv`](../../data/heston/phase1/heston_pricing_train.csv): Precios crudos y errores en Train (60 puts).
 - [`heston_pricing_strike_holdout.csv`](../../data/heston/phase1/heston_pricing_strike_holdout.csv): Evaluación en Strike Holdout (22 puts).
@@ -206,10 +208,10 @@ Todos los artefactos se encuentran depositados exclusivamente en `data/heston/ph
 
 ## 7. Conclusión y Recomendación
 
-La Remediación 2 de la Fase 1:
+La Remediación 3 de la Fase 1:
 1. **Unifica y valida la malla productiva** (`300x160x80`), demostrando que el error de discretización espacial y temporal conjunto es $\le 0.000605$ USD en el conjunto evaluado (plenamente inferior al presupuesto de $0.0020$ USD).
-2. **Implementa validación criptográfica robusta de caché (F1-04)** vinculada a hashes de datos de entrada, consistencia matemática ($SSE \ge 0$), replay de objetivo y exportación de evaluación en malla fina (`heston_multistart_fine_sse.csv`), respaldada por tests negativos.
-3. **Reconcilia al 100% todas las cifras, tablas documentales y formulaciones matemáticas (F1-02)** con los artefactos de salida, corrigiendo el término cruzado de covarianza en la PDE ($\rho \xi v S \frac{\partial^2 V}{\partial S \partial v}$), la firma de los motores QuantLib (`FdmSchemeDesc::Hundsdorfer()` e `integrationOrder = 144`), las métricas de la muestra común (84 puts), la caracterización de $K=30$ como ITM profundo y la delimitación de ausencia de arbitraje a resultados numéricos sobre la muestra observada dentro de las tolerancias declaradas.
+2. **Implementa validación criptográfica y replay incondicional de caché (F1-04)** sobre todos los candidatos en la malla de calibración ($tFactor=50, x=70, v=35$) con tolerancia determinista de $10^{-4}$ $\text{USD}^2$, regla de elegibilidad estricta para candidatos convergentes (`status == 0`), verificación de finitud en RMSE (rechazando $\text{NaN}/\pm\infty$) y exportación de evaluación en malla fina (`heston_multistart_fine_sse.csv`), respaldada por una suite exhaustiva de tests negativos.
+3. **Reconcilia al 100% todas las especificaciones numéricas y documentales (F1-02)**, precisando la parametrización de mallas dinámicas ($tFactor50$ y $tFactor200$), la fórmula de covarianza cruzada en la PDE ($\rho \xi v S \frac{\partial^2 V}{\partial S \partial v}$), la firma exacta de los motores QuantLib (`FdmSchemeDesc::Hundsdorfer()` e `AnalyticHestonEngine` con orden fijo 144), las métricas de la muestra común (84 puts), la caracterización de $K=30$ como ITM profundo y la delimitación de ausencia de arbitraje a resultados numéricos sobre la muestra observada.
 4. **Verifica la ausencia de violaciones de cotas y no arbitraje en la muestra observada sobre precios crudos sin clipping**, aprobando la totalidad de las pruebas de cotas, monotonía en strike, monotonía temporal y convexidad por diferencias divididas dentro de las tolerancias numéricas establecidas ($\le 0.0020$ USD).
 
-Se dictamina **cumplimiento cuantitativo, formal y metodológico pleno del Gate PoC de Fase 1**, quedando el código listo para la auditoría técnica independiente de Codex previa a la Fase 2.
+Se dictamina **cumplimiento cuantitativo, formal, computacional y metodológico pleno del Gate PoC de Fase 1**, quedando el código listo para la auditoría técnica independiente definitiva de Codex previa a la Fase 2.

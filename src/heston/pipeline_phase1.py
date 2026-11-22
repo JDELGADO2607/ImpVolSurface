@@ -106,13 +106,18 @@ def validate_and_load_multistart_cache(
     # Validate bounds, non-negativity of SSE, and RMSE consistency
     n_train = len(train_df)
     for row in df_ms.itertuples():
-        if row.final_sse < 0.0 or not np.isfinite(row.final_sse):
+        if not np.isfinite(row.final_sse) or row.final_sse < 0.0:
             raise ValueError(
                 f"Cache validation failed: start {row.start_index} has invalid final_sse = {row.final_sse}. "
                 f"SSE must be non-negative and finite."
             )
+        if not np.isfinite(row.final_rmse) or row.final_rmse < 0.0:
+            raise ValueError(
+                f"Cache validation failed: start {row.start_index} has invalid final_rmse = {row.final_rmse}. "
+                f"RMSE must be non-negative and finite."
+            )
         exp_rmse = np.sqrt(row.final_sse / n_train)
-        if abs(row.final_rmse - exp_rmse) > 1e-3:
+        if abs(row.final_rmse - exp_rmse) > 1e-4:
             raise ValueError(
                 f"Cache validation failed: start {row.start_index} final_rmse {row.final_rmse} "
                 f"inconsistent with final_sse {row.final_sse} (expected {exp_rmse:.6f})."
@@ -133,21 +138,20 @@ def validate_and_load_multistart_cache(
                     f"outside bounds [{blow}, {bhigh}]."
                 )
 
-    # 3. Objective Replay Verification on current train set
+    # 3. Objective Replay Verification on current train set for ALL candidates (no status exemption)
     cal = HestonCalibrator(train_df=train_df, yield_term_structure=ts_handle, eval_date=eval_date,
                            grid_t_factor=50.0, grid_x=70, grid_v=35)
     for row in df_ms.itertuples():
-        # Verify objective replay for candidate runs (status 0 and reasonable SSE)
-        if row.status == 0 and row.final_sse < 1.0:
-            arr = np.array([row.v0, row.kappa, row.theta, row.xi, row.rho])
-            replayed_sse = cal.evaluate_sse(arr)
-            if abs(replayed_sse - row.final_sse) > 1e-3:
-                raise ValueError(
-                    f"Cache validation failed: start {row.start_index} cached SSE {row.final_sse:.6f} "
-                    f"does not match replayed SSE {replayed_sse:.6f} on current training dataset."
-                )
+        arr = np.array([row.v0, row.kappa, row.theta, row.xi, row.rho])
+        replayed_sse = cal.evaluate_sse(arr)
+        # Replay on identical calibration grid is strictly deterministic; tolerance 1e-4 USD^2 accounts for float serialization rounding
+        if abs(replayed_sse - row.final_sse) > 1e-4:
+            raise ValueError(
+                f"Cache validation failed: start {row.start_index} cached SSE {row.final_sse:.8f} USD^2 "
+                f"does not match replayed SSE {replayed_sse:.8f} USD^2 on calibration grid (diff = {abs(replayed_sse - row.final_sse):.2e} USD^2)."
+            )
 
-    # 4. Compute Fine-Grid SSE (tFactor=200, x=200, v=100) and export table
+    # 4. Compute Fine-Grid SSE (tFactor=200, min 25, x=200, v=100) and export table
     cal_fine = HestonCalibrator(train_df=train_df, yield_term_structure=ts_handle, eval_date=eval_date,
                                 grid_t_factor=200.0, grid_x=200, grid_v=100)
     fine_records = []
@@ -182,8 +186,11 @@ def validate_and_load_multistart_cache(
     df_ms["fine_grid_rmse"] = fine_rmse_list
     df_ms.to_csv(ms_csv_file, index=False)
 
-    # Select best candidate by validated lowest final_sse
-    best_row = df_ms.sort_values("final_sse").iloc[0]
+    # Select best candidate: only eligible from verified converged runs (status == 0)
+    eligible = df_ms[df_ms["status"] == 0]
+    if eligible.empty:
+        raise ValueError("Cache validation failed: no converged candidate (status == 0) eligible for selection.")
+    best_row = eligible.sort_values("final_sse").iloc[0]
     best_params = HestonParams(
         v0=float(best_row["v0"]),
         kappa=float(best_row["kappa"]),
@@ -229,7 +236,7 @@ def run_phase1_pipeline(
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    print(f"=== Starting Heston Phase 1 Pipeline (Remediation 2) ===")
+    print(f"=== Starting Heston Phase 1 Pipeline (Remediation 3) ===")
     print(f"Historical transcription timestamp: 2026-11-21T16:20:00-05:00")
     print(f"Execution timestamp: {start_time_utc}")
     print(f"QuantLib version: {QUANTLIB_VERSION}, SciPy version: {SCIPY_VERSION}")
@@ -667,7 +674,7 @@ def run_phase1_pipeline(
     )
 
     manifest = {
-        "phase": "PHASE_1_POC_HESTON_REMEDIATION_2",
+        "phase": "PHASE_1_POC_HESTON_REMEDIATION_3",
         "retrieval_timestamp_historical": "2026-11-21T16:20:00-05:00",
         "execution_timestamp": start_time_utc,
         "runtime_wall_seconds": round(time.time() - t_start_wall, 2),

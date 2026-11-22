@@ -287,6 +287,58 @@ def test_negative_cache_rejected_on_out_of_bounds_parameter(tmp_path):
         run_phase1_pipeline(str(data_t), str(data_t / "phase1"), reuse_existing_multistart=True, allow_recalibration=False)
 
 
+def test_negative_cache_rejected_on_status2_zero_sse(tmp_path):
+    """Negative test: pipeline must reject cache with ValueError when a candidate has status 2 and falsified SSE=0."""
+    data_t = tmp_path / "data"
+    shutil.copytree("data/heston", data_t)
+    ms_file = data_t / "phase1" / "heston_multistart_results.csv"
+    ms_df = pd.read_csv(ms_file)
+    # Replicate Codex contraexample: set candidate 3 to status 2, final_sse=0.0, final_rmse=0.0
+    ms_df.loc[ms_df["start_index"] == 3, "status"] = 2
+    ms_df.loc[ms_df["start_index"] == 3, "final_sse"] = 0.0
+    ms_df.loc[ms_df["start_index"] == 3, "final_rmse"] = 0.0
+    ms_df.to_csv(ms_file, index=False)
+
+    with pytest.raises(ValueError, match=r"Cache validation failed|does not match replayed SSE"):
+        run_phase1_pipeline(str(data_t), str(data_t / "phase1"), reuse_existing_multistart=True, allow_recalibration=False)
+
+
+def test_negative_cache_rejected_on_nan_or_inf_rmse(tmp_path):
+    """Negative test: pipeline must reject cache with ValueError when final_rmse is NaN or Inf."""
+    data_t = tmp_path / "data"
+    shutil.copytree("data/heston", data_t)
+    ms_file = data_t / "phase1" / "heston_multistart_results.csv"
+    ms_df = pd.read_csv(ms_file)
+    # Set candidate 1 final_rmse to NaN
+    ms_df.loc[ms_df["start_index"] == 1, "final_rmse"] = float("nan")
+    ms_df.to_csv(ms_file, index=False)
+
+    with pytest.raises(ValueError, match=r"Cache validation failed|RMSE must be non-negative and finite"):
+        run_phase1_pipeline(str(data_t), str(data_t / "phase1"), reuse_existing_multistart=True, allow_recalibration=False)
+
+    # Set candidate 1 final_rmse to Inf
+    ms_df.loc[ms_df["start_index"] == 1, "final_rmse"] = float("inf")
+    ms_df.to_csv(ms_file, index=False)
+    with pytest.raises(ValueError, match=r"Cache validation failed|RMSE must be non-negative and finite"):
+        run_phase1_pipeline(str(data_t), str(data_t / "phase1"), reuse_existing_multistart=True, allow_recalibration=False)
+
+
+def test_negative_cache_rejected_on_objective_mismatch(tmp_path):
+    """Negative test: pipeline must reject cache with ValueError when declared SSE mismatches replayed SSE."""
+    data_t = tmp_path / "data"
+    shutil.copytree("data/heston", data_t)
+    ms_file = data_t / "phase1" / "heston_multistart_results.csv"
+    ms_df = pd.read_csv(ms_file)
+    # Alter start 2 SSE by +0.005 while maintaining mathematical consistency with RMSE
+    new_sse = ms_df.loc[ms_df["start_index"] == 2, "final_sse"].values[0] + 0.005
+    ms_df.loc[ms_df["start_index"] == 2, "final_sse"] = new_sse
+    ms_df.loc[ms_df["start_index"] == 2, "final_rmse"] = np.sqrt(new_sse / 60.0)
+    ms_df.to_csv(ms_file, index=False)
+
+    with pytest.raises(ValueError, match=r"Cache validation failed|does not match replayed SSE"):
+        run_phase1_pipeline(str(data_t), str(data_t / "phase1"), reuse_existing_multistart=True, allow_recalibration=False)
+
+
 @pytest.mark.skipif(not HAS_QUANTLIB, reason="QuantLib required")
 def test_isolated_evaluation_using_tmp_path(tmp_path):
     """Verifies that pricing and evaluation run cleanly in an isolated directory without official writes."""
