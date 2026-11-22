@@ -6,4 +6,4 @@ F3-M1 MEDIUM parcial: calendario/tasas/v0/agregado worst3 corregidos, pero reuse
 49tests PASS sin escrituras oficiales.7tablas precio identicas37bbd12, inputs/outputs validos; hashes fuente coinciden con normalizacion LF (no defecto de codigo). Precios actuales favorables, sin defecto material del motor probado.
 [Informe](../audits/HESTON_PHASE_3_28bd72a.md). [Criterios congelados](PHASE_3_START.md).
 Proxima accion guarda real del snapshot/origen ANTES de reuse y gate con errores numericos finitos derivados de precios/ref, tests negativos. No redisenar motor ni recalibrar; conservar ahorro de tiempo con reutilizacion realmente verificada.
-Run run_0891738e9cf5, ultima entrega ctx_4c5de8c1d790 completada. Registrar dispatch reparacion2. PR5/PR4 OPEN. Cuota restante no expuesta. Sin merge.
+Run run_0891738e9cf5, reparacion2 fase3 activa ctx_5771a878bb22, task task_f597110b247e; informe commit77ed6828b66fbf8b796ab488752e81c756c621fd. PR5/PR4 OPEN. Cuota restante no expuesta. Sin merge.
