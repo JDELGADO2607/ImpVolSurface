@@ -45,3 +45,5 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-22 | PHASE_4_BLOCKED tras auditoria reparacion3, revisionhumana requerida |7f51a81,87tests PASS/120.52s y134archivosintactos;F4-H2 pendiente por cotasEUdescontadas, EU0/EEPcoherente daPASS condeficit4.611USD. Sin4areparacion ni fase5 |
 | 2026-11-22 | Informe487d233 accesible y HOLD entregado | PR4/PR5 OPEN;ctx_89eda2907db0/task_5955a39fc191 es tarea de control/acuse, no reparacion4. Esperar decisionhumana, no modificar implementacion |
 | 2026-11-22 | ACK_HOLD confirmado por Gemini | msg_013c069bdb23, tarea control terminada; revision7f51a81 congelada sin cambios ni fase5, pendiente decisionhumana |
+| 2026-11-22 | Decision humana posterior: aceptarF4-H2 como limitacion y levantarHOLD | Usuario ordena rigor necesario sobre resultados reales, aplaza robustez y autoriza empezar5;7f51a81aprobado para ese alcance, sin reparacion4 y sin declarar defecto corregido |
+| 2026-11-22 | PHASE_5 IN_PROGRESS, encargo previo a resultados |PHASE_5_START.md;subagentes de Gemini autorizados si realmente disponibles, archivos disjuntos;sin nuevas campanas de robustez |

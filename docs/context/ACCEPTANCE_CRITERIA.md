@@ -1,5 +1,7 @@
 # Criterios antes de evaluar resultados
 
+Actualización humana22-nov vigente: evaluar rigor matemático, precisión y resultados reales, reproducción limpia básica e integración académica. La robustez ante artefactos artificialmente alterados se documenta como limitación, sin bloquear salvo impacto real demostrado. F4-H2 aceptado expresamente, no reparado; no omitir esta distinción en el informe final. El historial de criterios/pruebas permanece abajo. Fase5 se rige por [PHASE_5_START](../orchestration/PHASE_5_START.md), fijado antes de sus resultados; no exige framework de validación/caché ni nueva campaña de corrupción de archivos.
+
 Propietario Codex. Versionar cualquier cambio de criterio y su motivo antes de seleccionar resultados. Una tolerancia debe relacionarse con escala de precio, granularidad observada y error numérico medido, sin presuponer bid/ask fiable. Fase 0 propondrá presupuesto de error y criterios cuantitativos para PoC; Codex los fijará antes de la calibración.
 
 | Fase | Evidencia exigida para aprobar |

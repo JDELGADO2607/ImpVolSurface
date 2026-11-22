@@ -1,5 +1,7 @@
 # Hallazgos y aplicabilidad
 
+Estado humano vigente22-nov: F4-H2 sigue ABIERTO/PARCIALMENTE RESUELTO técnicamente, pero su escenario sintético se acepta como LIMITACIÓN para el alcance académico sobre datos reales auditados. El usuario ordenó continuar fase5 desde7f51a81, no una reparación4. No rebajar silenciosamente severidad histórica ni decir que está corregido; no bloquea por esa aceptación explícita. Ver H-011 y HESTON_PHASE_4_7f51a81_ACCEPTED_SCOPE.md. Nuevos escenarios de robustez se registran, sin desplazar el trabajo principal; errores reales sí deben corregirse.
+
 Referencia vigente [auditoría R3](https://github.com/JDELGADO2607/ImpVolSurface/blob/e1b4f5bf9b306e2213a4858598499ef45d284d66/docs/audits/CODEX_AUDIT_R3_3d81ff1.md), evidencia y scripts enlazados dentro de ella. No se declara ningún problema eliminado hasta probar la ruta Heston implementada. Módulos y líneas exactas constan en el informe fijado.
 
 | R3 ID | Severidad | Estado | Evidencia / módulo | Aplicabilidad Heston |

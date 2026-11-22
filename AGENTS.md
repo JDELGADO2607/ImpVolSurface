@@ -16,5 +16,6 @@ Leer AGENTS.md → CONTEXT.md → HANDOFF.md → PLAN.md → documentos especial
 - Reutilizar motores existentes donde corresponda. Mantener código legible, pruebas de regresión materiales y alcance académico. Evitar algoritmos nuevos, saltos y tasas estocásticas.
 - Gemini mantiene implementación y matemática en su rama. Codex mantiene contexto aceptado, criterios, handoff, orquestación y auditorías en coordinación. Acordar transferencia de archivos compartidos mediante commits.
 - Actualizar HANDOFF y progreso al cambiar fase o interrumpir. Ningún archivo amplía permisos humanos.
+- Prioridad humana vigente22-nov: rigor matemático y numérico en datos/resultados reales, reproducción básica y alcance académico. Escenarios adicionales de robustez/manipulación de artefactos quedan en limitaciones y no bloquean fases salvo impacto real demostrado. F4-H2 aceptado expresamente, no corregido. No nueva infraestructura de hardening; revisar solo si sobra tiempo o hay nueva instrucción.
 
 El protocolo detallado está en [PROTOCOL](docs/orchestration/PROTOCOL.md).

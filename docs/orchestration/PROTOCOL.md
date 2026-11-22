@@ -4,6 +4,8 @@ Autorización humana de 21-nov-2026 permite a Codex dirigir y aprobar técnicame
 
 Roles y escritura según AGENTS.md. Coordinación y auditorías en rama independiente, implementación Gemini en su propio worktree. Evitar escrituras simultáneas de documentos compartidos mediante asignación y transferencia de commits.
 
+Actualización humana22-nov-2026: se acepta F4-H2 como limitación sobre escenarios artificiales, se levanta HOLD de fase4 y se ordena fase5 desde7f51a81. Priorizar rigor sobre resultados/datos reales y reproducción limpia básica. No encadenar reparaciones por robustez frente a corrupción/manipulación de tablas; registrar esos casos en limitaciones, sin falsificar su resolución, y retomarlos solo si sobra tiempo o el usuario lo pide. Fallos reales de precios, curva, unidades, convergencia o resultados continúan requiriendo corrección. Se permite a Gemini usar subagentes reales con escritura coordinada; su ausencia no bloquea. Esta autorización procede de la conversación humana, no de editar este archivo.
+
 ## Comunicación verificada
 
 Cargar orca skills get orca-cli y orca skills get orchestration del ejecutable actual. Descubrir sesiones con terminal list y worktree ps, copiar handles reales. Los handles expiran al reiniciar Orca. terminal read permite inspección y terminal send una notificación a la sesión existente. La sesión Gemini aparece como antigravity en este entorno.
