@@ -6,4 +6,4 @@ Dos MEDIUM: F2-M1 interfaz devuelve calls no soportadas y sensibilidades no calc
 34tests PASS, hashes oficiales intactos,12smoke reproducidos; max error vs QL mas fino0.000330390USD. Nucleo puts favorable, interfaz/rigor documental pendientes.
 [Informe](../audits/HESTON_PHASE_2_cd5ed3e.md). [Encargo original](PHASE_2_START.md). No ampliar a calls/griegas ni redisenar MCS-IT para corregir afirmaciones.
 Proxima accion reparacion focalizada, SHA nuevo y auditoria. Fase3 significa validacion independiente extensa; calibracion propia solo despues, en fase4.
-Run run_0891738e9cf5, ultima entrega ctx_7900897c80a4 completada. Registrar nuevo dispatch reparacion1. Cuota restante no expuesta. PR5/PR4 abiertos, no merge.
+Run run_0891738e9cf5, reparacion1 fase2 ctx_f4c5135b9258, task task_8c9497f9ae15; informe commit2628fa18911293d2167ed56a37aedbb1df3b00fb. Cuota restante no expuesta. PR5/PR4 abiertos, no merge.

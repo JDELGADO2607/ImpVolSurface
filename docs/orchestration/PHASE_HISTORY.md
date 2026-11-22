@@ -23,3 +23,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | PHASE_1 APPROVED tras reparacion3 y PHASE_2 autorizada | 654d1c2,25tests PASS, replay5 correcto, contraprueba candidato4 rechazada; H-005A y PHASE_2_START |
 | 2026-11-21 | PHASE_2 dispatch aceptado | ctx_7900897c80a4, task_d29ea08491c9; auditoria y especificacion672b523 verificadas accesibles, PR4 OPEN |
 | 2026-11-21 | PHASE_2 REJECTED, reparacion1/3 autorizada | cd5ed3e;2MEDIUM/1LOW aceptado;34tests,puts favorables; API y garantias pendientes |
+| 2026-11-21 | Reparacion1 fase2 dispatch aceptado | ctx_f4c5135b9258, task_8c9497f9ae15; informe2628fa1 verificado accesible, PR4 OPEN |
