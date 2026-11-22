@@ -21,3 +21,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-21 | PHASE_1 REJECTED tras reparacion2; reparacion3/3 autorizada | 3a294af, F1-04 HIGH parcial por seleccion sin replay, F1-02 residual LOW; precios intactos,22tests PASS |
 | 2026-11-21 | Reparacion3 fase1 dispatch aceptado, ultimo intento ordinario | ctx_6b652fb70838, task_01bc5eea818d; informe eafb055 publicado y PR4 OPEN |
 | 2026-11-21 | PHASE_1 APPROVED tras reparacion3 y PHASE_2 autorizada | 654d1c2,25tests PASS, replay5 correcto, contraprueba candidato4 rechazada; H-005A y PHASE_2_START |
+| 2026-11-21 | PHASE_2 dispatch aceptado | ctx_7900897c80a4, task_d29ea08491c9; auditoria y especificacion672b523 verificadas accesibles, PR4 OPEN |

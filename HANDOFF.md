@@ -7,7 +7,7 @@ Ultimo SHA aprobado654d1c2d05a0301dc3068cdc34219df3d42d2af7. SHA pendiente de au
 [Auditoria fase1](docs/audits/HESTON_PHASE_1_654d1c2.md). [PHASE_START2](docs/orchestration/PHASE_2_START.md). [Criterios](docs/context/ACCEPTANCE_CRITERIA.md).
 Coordinacion JDELGADO2607/heston-coordination, PR4, worktree C:/Users/CAROL/orca/workspaces/ImpVolSurface/heston-coordination.
 Implementacion Gemini JDELGADO2607/heston-implementation, PR5, worktree C:/Users/CAROL/orca/workspaces/ImpVolSurface/heston-implementation.
-Run run_0891738e9cf5; ultima entrega fase1 ctx_6b652fb70838 completada. Registrar nuevo dispatch fase2 tras asignar.
+Run run_0891738e9cf5; PHASE_2 asignada dispatch ctx_7900897c80a4, task task_d29ea08491c9. Auditoria y especificacion publicadas en commit672b523fce7933797b24b26b9f98bcbc9b6a57b1, PR4 OPEN.
 Terminado: datos/baseline, PoC americana QuantLib, multistart y holdouts, cierre de cache y diagnosticos. Falta solver propio y fases3-8. Sin bloqueo metodologico vigente.
 Siguiente accion recibir SHA publicado de fase2 y auditar extraccion limpia antes de fase3. No auditar archivos que Gemini modifique.
 Reproduccion PoC: extraccion de SHA aprobado, requirements-heston.txt, python -m pytest tests/test_heston_phase0.py tests/test_heston_phase1.py -q; scripts independientes enlazados en informe.
