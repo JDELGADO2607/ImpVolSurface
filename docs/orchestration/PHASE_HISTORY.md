@@ -47,3 +47,4 @@ Registro acumulativo, sin borrar transiciones.
 | 2026-11-22 | ACK_HOLD confirmado por Gemini | msg_013c069bdb23, tarea control terminada; revision7f51a81 congelada sin cambios ni fase5, pendiente decisionhumana |
 | 2026-11-22 | Decision humana posterior: aceptarF4-H2 como limitacion y levantarHOLD | Usuario ordena rigor necesario sobre resultados reales, aplaza robustez y autoriza empezar5;7f51a81aprobado para ese alcance, sin reparacion4 y sin declarar defecto corregido |
 | 2026-11-22 | PHASE_5 IN_PROGRESS, encargo previo a resultados |PHASE_5_START.md;subagentes de Gemini autorizados si realmente disponibles, archivos disjuntos;sin nuevas campanas de robustez |
+| 2026-11-22 | PHASE_START5 aceptado porOrca |ctx_7c22755f06ce/task_9d3cb57196ef, encargo/decision9e73faa accesibles;2-3subagentes permitidos si hay capacidad real, sin afirmar uso aun;esperar evento sin polling |
