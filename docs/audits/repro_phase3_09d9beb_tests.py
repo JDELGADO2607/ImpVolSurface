@@ -9,5 +9,3 @@ r=subprocess.run(['python','-m','pytest','tests/test_heston_phase0.py','tests/te
 after={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
 Path('audit_tests.log').write_text(r.stdout+r.stderr+'\nHASH_CHANGES '+json.dumps([p for p in before if before[p]!=after[p]]))
 print(r.returncode,r.stdout[-500:]);print('HASH_CHANGES',[p for p in before if before[p]!=after[p]])
-
-
