@@ -221,6 +221,32 @@ class DeterministicYieldCurve:
         D = self.get_discount_factor(tau)
         return float(S0 / D)
 
+    def get_instantaneous_forward_rate(self, t: float) -> float:
+        """
+        Calculates instantaneous forward rate r(t) = - d ln D(0, t) / dt.
+        Under log-linear discount interpolation, this corresponds to the exact
+        piecewise constant forward rate between benchmark nodes.
+        """
+        if t <= 0.0:
+            t = 1e-6
+
+        if self.method == "bootstrap":
+            sorted_t = sorted(self.D_nodes.keys())
+            if t <= sorted_t[0]:
+                return float(-np.log(self.D_nodes[sorted_t[0]]) / sorted_t[0])
+            for i in range(len(sorted_t) - 1):
+                t1, t2 = sorted_t[i], sorted_t[i + 1]
+                if t1 <= t < t2:
+                    return float(-(np.log(self.D_nodes[t2]) - np.log(self.D_nodes[t1])) / (t2 - t1))
+            t_last = sorted_t[-1]
+            t_prev = sorted_t[-2]
+            return float(-(np.log(self.D_nodes[t_last]) - np.log(self.D_nodes[t_prev])) / (t_last - t_prev))
+        else:
+            dt = 1e-5
+            d_minus = self.get_discount_factor(max(t - dt, 1e-7))
+            d_plus = self.get_discount_factor(t + dt)
+            return float(-(np.log(d_plus) - np.log(d_minus)) / (2.0 * dt))
+
     def to_quantlib_term_structure(self, dense_daily: bool = True) -> "ql.YieldTermStructureHandle":
         """
         Builds a single QuantLib YieldTermStructureHandle wrapping a DiscountCurve.
