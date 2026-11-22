@@ -48,3 +48,6 @@ Thumbs.db
 # Scratch and local dev scripts
 scratch/
 
+
+# Generated notebook outputs
+outputs/
