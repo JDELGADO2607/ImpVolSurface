@@ -477,7 +477,7 @@ def test_negative_tampered_partition_count_rejected(tmp_path):
     # Drop 1 contract
     df_puts_tampered = df_puts.iloc[1:].copy()
 
-    with pytest.raises(ValueError, match="Full pricing DataFrame must have exactly 97 contracts"):
+    with pytest.raises(ValueError, match="Full pricing DataFrame and clean puts must both have exactly 97 contracts"):
         step10_build_manifest(
             input_hashes={},
             config=config,
@@ -736,5 +736,128 @@ def test_step5_phase3_snapshot_cryptographic_verification_and_fallback(tmp_path)
     # MUST fall back to fresh solver 2D valuation, NEVER mark PHASE3_VERIFIED_AUDITED
     assert df_puts_tampered.loc[0, "valuation_provenance"] == "FRESH_SOLVER_2D_VALUATION"
     assert np.isfinite(df_puts_tampered.loc[0, "prop_fine_price"])
+
+
+def test_negative_economic_controls_invalid_or_impossible_rejected(tmp_path):
+    """Real production negative test: Inf, 1e9 USD, duplicates, bound violations, and incoherent monotonicity fail step10."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # 1. price_american = Inf
+    df_econ_inf = df_econ.copy()
+    df_econ_inf.loc[0, "price_american"] = np.inf
+    with pytest.raises(ValueError, match="Non-finite value.*price_american"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ_inf,
+            start_time=0.0, out_manifest_path=tmp_path / "econ_inf_manifest.json"
+        )
+
+    # 2. price_american = 1e9 USD for strike 9 USD with flags True
+    df_econ_huge = df_econ.copy()
+    df_econ_huge.loc[0, "price_american"] = 1e9
+    with pytest.raises(ValueError, match="exceeds strike upper bound"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ_huge,
+            start_time=0.0, out_manifest_path=tmp_path / "econ_huge_manifest.json"
+        )
+
+    # 3. Duplicate row: 9 rows total but duplicate contract tuple
+    df_econ_dup = df_econ.copy()
+    df_econ_dup.iloc[1] = df_econ_dup.iloc[0].copy()
+    with pytest.raises(ValueError, match="Economic controls grid mismatch or duplicates"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ_dup,
+            start_time=0.0, out_manifest_path=tmp_path / "econ_dup_manifest.json"
+        )
+
+    # 4. Negative Early Exercise Premium (price_american < price_european while above intrinsic floor)
+    df_econ_neg_eep = df_econ.copy()
+    # On row 2 (K=17, Spot=12.33, intrinsic=4.67), set price_american to 4.70 and price_european to 4.72
+    df_econ_neg_eep.loc[2, "price_american"] = 4.70
+    df_econ_neg_eep.loc[2, "price_european"] = 4.72
+    with pytest.raises(ValueError, match="negative EEP"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ_neg_eep,
+            start_time=0.0, out_manifest_path=tmp_path / "econ_neg_eep_manifest.json"
+        )
+
+    # 5. Incoherent early exercise premium declared in df_econ
+    df_econ_incoherent = df_econ.copy()
+    df_econ_incoherent.loc[0, "early_exercise_premium"] += 0.10
+    with pytest.raises(ValueError, match="Incoherent early_exercise_premium"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ_incoherent,
+            start_time=0.0, out_manifest_path=tmp_path / "econ_incoherent_manifest.json"
+        )
+
+    # 6. Strike monotonicity violation: K=9 price set higher than K=12.33 with flags and EEP updated
+    df_econ_mono = df_econ.copy()
+    mask_k9 = (df_econ_mono["strike"] == 9.0) & (df_econ_mono["tau_days"] == 31)
+    df_econ_mono.loc[mask_k9, "price_american"] = 1.50
+    df_econ_mono.loc[mask_k9, "early_exercise_premium"] = 1.50 - df_econ_mono.loc[mask_k9, "price_european"]
+    with pytest.raises(ValueError, match="Strike monotonicity violated"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ_mono,
+            start_time=0.0, out_manifest_path=tmp_path / "econ_mono_manifest.json"
+        )
+
+
+def test_negative_tampered_market_inputs_rejected(tmp_path):
+    """Real production negative test: Substituting canonical market quotes or tampering contract metadata fails step10."""
+    from src.heston.pipeline_phase4 import step10_build_manifest
+
+    df_puts = pd.read_csv(PHASE4_DIR / "heston_pricing_full_puts.csv")
+    df_part = pd.read_csv(PHASE4_DIR / "heston_pricing_summary_by_partition.csv")
+    df_worst3 = pd.read_csv(PHASE4_DIR / "heston_worst3_mesh_controls.csv")
+    df_econ = pd.read_csv(PHASE4_DIR / "heston_representative_economic_controls.csv")
+    with open(PHASE4_DIR / "phase4_calibration_config.json", "r") as f:
+        config = json.load(f)
+    with open(PHASE4_DIR / "heston_calibrated_parameters.json", "r") as f:
+        winner_meta = json.load(f)
+
+    # 1. Replace lastPrice of all 97 contracts with prop_fine_price (synthetic zero residual fraud)
+    df_puts_zero_res = df_puts.copy()
+    df_puts_zero_res["lastPrice"] = df_puts_zero_res["prop_fine_price"]
+    with pytest.raises(ValueError, match="Canonical market price mismatch"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts_zero_res, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "zero_res_manifest.json"
+        )
+
+    # 2. Tampered strike for contract 0
+    df_puts_bad_k = df_puts.copy()
+    df_puts_bad_k.loc[0, "strike"] += 0.50
+    with pytest.raises(ValueError, match="Canonical strike mismatch"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts_bad_k, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "bad_k_manifest.json"
+        )
+
+    # 3. Tampered expirationDate for contract 0
+    df_puts_bad_exp = df_puts.copy()
+    df_puts_bad_exp.loc[0, "expirationDate"] = "2029-12-31"
+    with pytest.raises(ValueError, match="Canonical expirationDate mismatch"):
+        step10_build_manifest(
+            input_hashes={}, config=config, winner_meta=winner_meta,
+            df_puts=df_puts_bad_exp, df_part=df_part, df_worst3=df_worst3, df_econ=df_econ,
+            start_time=0.0, out_manifest_path=tmp_path / "bad_exp_manifest.json"
+        )
+
 
 

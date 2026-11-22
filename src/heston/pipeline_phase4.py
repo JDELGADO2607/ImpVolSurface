@@ -1293,8 +1293,12 @@ def step10_build_manifest(
     clean_puts = pd.read_csv(DATA_DIR / "puts_selected_clean.csv")
     split_meta = json.load(open(DATA_DIR / "data_split_manifest.json"))
 
-    if len(df_puts) != 97:
-        raise ValueError(f"Full pricing DataFrame must have exactly 97 contracts, found {len(df_puts)}")
+    if len(df_puts) != 97 or len(clean_puts) != 97:
+        raise ValueError(
+            f"Full pricing DataFrame and clean puts must both have exactly 97 contracts, found {len(df_puts)} and {len(clean_puts)}"
+        )
+    if clean_puts["contractSymbol"].duplicated().any() or df_puts["contractSymbol"].duplicated().any():
+        raise ValueError("Duplicate contractSymbol detected in pricing or clean puts dataset")
     if set(df_puts["contractSymbol"]) != set(clean_puts["contractSymbol"]):
         raise ValueError("Contract symbols in df_puts do not match official puts_selected_clean.csv")
 
@@ -1325,6 +1329,42 @@ def step10_build_manifest(
             raise ValueError(
                 f"Non-finite pricing value (NaN/Inf) detected in column '{col}' for contract(s): {bad_contracts}"
             )
+
+    # Reconcile pricing table against canonical market inputs 1-to-1 at serialization tolerance (1e-6)
+    merged_clean = pd.merge(
+        df_puts,
+        clean_puts[["contractSymbol", "strike", "lastPrice", "tau_years", "tau_days", "expirationDate"]],
+        on="contractSymbol",
+        suffixes=("", "_canon"),
+        validate="one_to_one"
+    )
+    for idx, row in merged_clean.iterrows():
+        sym = row["contractSymbol"]
+        diff_p = abs(float(row["lastPrice"]) - float(row["lastPrice_canon"]))
+        if diff_p > 1e-6:
+            raise ValueError(
+                f"Canonical market price mismatch for contract '{sym}': exported lastPrice {row['lastPrice']} differs from canonical market data {row['lastPrice_canon']} (diff={diff_p:.6e} USD)"
+            )
+        diff_k = abs(float(row["strike"]) - float(row["strike_canon"]))
+        if diff_k > 1e-6:
+            raise ValueError(
+                f"Canonical strike mismatch for contract '{sym}': exported strike {row['strike']} differs from canonical {row['strike_canon']} (diff={diff_k:.6e})"
+            )
+        diff_tau = abs(float(row["tau_years"]) - float(row["tau_years_canon"]))
+        if diff_tau > 1e-6:
+            raise ValueError(
+                f"Canonical tau_years mismatch for contract '{sym}': exported tau_years {row['tau_years']} differs from canonical {row['tau_years_canon']} (diff={diff_tau:.6e})"
+            )
+        if "tau_days" in row and "tau_days_canon" in row:
+            if int(row["tau_days"]) != int(row["tau_days_canon"]):
+                raise ValueError(
+                    f"Canonical tau_days mismatch for contract '{sym}': exported tau_days {row['tau_days']} != canonical {row['tau_days_canon']}"
+                )
+        if "expirationDate" in row and "expirationDate_canon" in row:
+            if str(row["expirationDate"]).strip() != str(row["expirationDate_canon"]).strip():
+                raise ValueError(
+                    f"Canonical expirationDate mismatch for contract '{sym}': exported expirationDate '{row['expirationDate']}' != canonical '{row['expirationDate_canon']}'"
+                )
 
     train_syms = set(split_meta["train_symbols"])
     sh_syms = set(split_meta["strike_holdout_symbols"])
@@ -1433,19 +1473,131 @@ def step10_build_manifest(
         if not bool(r["gate_prop_stability_pass"]):
             raise ValueError(f"Incoherent gate_prop_stability_pass flag for {r['contractSymbol']}")
 
-    # Validate raw economic controls
+    # Validate raw economic controls from real evidence
     if len(df_econ) != 9:
-        raise ValueError(f"Economic controls must have 9 contracts, found {len(df_econ)}")
-    if not (df_econ["price_american"] >= df_econ["intrinsic_floor"] - 1e-4).all():
-        raise ValueError("Economic Validation Failure: American put price below intrinsic floor.")
-    if not (df_econ["price_american"] >= df_econ["price_european"] - 1e-4).all():
-        raise ValueError("Economic Validation Failure: American put price below European price (negative EEP).")
-    if not bool(df_econ["monotonicity_strike_pass"].all()):
-        raise ValueError("Economic Validation Failure: Strike monotonicity violated.")
-    if not bool(df_econ["monotonicity_maturity_pass"].all()):
-        raise ValueError("Economic Validation Failure: Maturity monotonicity violated.")
-    if not bool(df_econ["convexity_strike_pass"].all()):
-        raise ValueError("Economic Validation Failure: Convexity violated.")
+        raise ValueError(f"Economic controls DataFrame must have exactly 9 contracts, found {len(df_econ)}")
+
+    econ_required_cols = [
+        "contract_id", "strike", "tau_days", "tau_years", "spot", "price_american", "price_european"
+    ]
+    for col in econ_required_cols:
+        if col not in df_econ.columns:
+            raise ValueError(f"Missing required economic control column in df_econ: '{col}'")
+        if df_econ[col].isna().any():
+            raise ValueError(f"Missing/NaN value detected in df_econ column '{col}'")
+
+    # Strict numeric finiteness check on all economic variables
+    econ_numeric_cols = ["strike", "tau_days", "tau_years", "spot", "price_american", "price_european"]
+    if "early_exercise_premium" in df_econ.columns:
+        econ_numeric_cols.append("early_exercise_premium")
+    if "intrinsic_floor" in df_econ.columns:
+        econ_numeric_cols.append("intrinsic_floor")
+    for col in econ_numeric_cols:
+        s_num = pd.to_numeric(df_econ[col], errors="coerce")
+        if not np.isfinite(s_num).all():
+            bad_contracts = df_econ.loc[~np.isfinite(s_num), "contract_id"].tolist()
+            raise ValueError(
+                f"Non-finite value (NaN/Inf) detected in df_econ column '{col}' for contract(s): {bad_contracts}"
+            )
+
+    # Check 9 unique expected tuples of strikes {9.0, 12.33, 17.0} and days {31, 94, 430}
+    expected_tuples = {
+        (9.0, 31), (12.33, 31), (17.0, 31),
+        (9.0, 94), (12.33, 94), (17.0, 94),
+        (9.0, 430), (12.33, 430), (17.0, 430)
+    }
+    actual_tuples = set(zip(df_econ["strike"].round(2), df_econ["tau_days"].astype(int)))
+    if actual_tuples != expected_tuples or len(df_econ["contract_id"].unique()) != 9:
+        raise ValueError(
+            f"Economic controls grid mismatch or duplicates: expected 9 unique (K, T_days) tuples, found {len(actual_tuples)} unique"
+        )
+
+    if not np.allclose(df_econ["spot"], SPOT_PRICE, atol=1e-6):
+        raise ValueError(f"Economic controls spot price mismatch: expected {SPOT_PRICE}")
+
+    # Derive intrinsic, EEP, and test rigorous financial bounds
+    econ_grid = {}
+    for _, er in df_econ.iterrows():
+        c_id = er["contract_id"]
+        K = float(er["strike"])
+        t_days = int(er["tau_days"])
+        p_am = float(er["price_american"])
+        p_eu = float(er["price_european"])
+
+        derived_intrinsic = max(0.0, K - SPOT_PRICE)
+        derived_eep = p_am - p_eu
+
+        # Bounds: 0 <= derived_intrinsic <= p_am <= K and p_eu <= p_am
+        if p_eu < -1e-4:
+            raise ValueError(f"Economic Failure on {c_id}: European price {p_eu:.6f} < 0.0")
+        if p_am < derived_intrinsic - 1e-4:
+            raise ValueError(
+                f"Economic Failure on {c_id}: American put price {p_am:.6f} below intrinsic floor {derived_intrinsic:.6f}"
+            )
+        if p_am < p_eu - 1e-4:
+            raise ValueError(
+                f"Economic Failure on {c_id}: American put price {p_am:.6f} below European price {p_eu:.6f} (negative EEP)"
+            )
+        if p_am > K + 1e-4:
+            raise ValueError(
+                f"Economic Failure on {c_id}: American put price {p_am:.6f} exceeds strike upper bound {K:.6f}"
+            )
+        if p_eu > K + 1e-4:
+            raise ValueError(
+                f"Economic Failure on {c_id}: European put price {p_eu:.6f} exceeds strike upper bound {K:.6f}"
+            )
+
+        # Coherence with declared columns
+        if "intrinsic_floor" in er:
+            if abs(float(er["intrinsic_floor"]) - derived_intrinsic) > 1e-4:
+                raise ValueError(f"Incoherent intrinsic_floor declared for {c_id}")
+        if "early_exercise_premium" in er:
+            if abs(float(er["early_exercise_premium"]) - derived_eep) > 1e-4:
+                raise ValueError(f"Incoherent early_exercise_premium declared for {c_id}")
+
+        if t_days not in econ_grid:
+            econ_grid[t_days] = {}
+        econ_grid[t_days][K] = p_am
+
+    # Recalculate strike monotonicity from raw prices: P(9) <= P(12.33) <= P(17)
+    for t_days in [31, 94, 430]:
+        p9 = econ_grid[t_days][9.0]
+        p12 = econ_grid[t_days][12.33]
+        p17 = econ_grid[t_days][17.0]
+        if not (p9 <= p12 + 1e-4 and p12 <= p17 + 1e-4):
+            raise ValueError(
+                f"Economic Validation Failure: Strike monotonicity violated for tenor {t_days}d: P(9)={p9:.6f}, P(12.33)={p12:.6f}, P(17)={p17:.6f}"
+            )
+
+    # Recalculate maturity monotonicity from raw prices: P(31d) <= P(94d) <= P(430d)
+    for K in [9.0, 12.33, 17.0]:
+        p31 = econ_grid[31][K]
+        p94 = econ_grid[94][K]
+        p430 = econ_grid[430][K]
+        if not (p31 <= p94 + 1e-4 and p94 <= p430 + 1e-4):
+            raise ValueError(
+                f"Economic Validation Failure: Maturity monotonicity violated for strike {K}: P(31d)={p31:.6f}, P(94d)={p94:.6f}, P(430d)={p430:.6f}"
+            )
+
+    # Recalculate discrete strike convexity from raw prices
+    for t_days in [31, 94, 430]:
+        p1 = econ_grid[t_days][9.0]
+        p2 = econ_grid[t_days][12.33]
+        p3 = econ_grid[t_days][17.0]
+        h1 = 12.33 - 9.0
+        h2 = 17.0 - 12.33
+        slope1 = (p2 - p1) / h1
+        slope2 = (p3 - p2) / h2
+        if slope2 < slope1 - 1e-4:
+            raise ValueError(
+                f"Economic Validation Failure: Strike convexity violated for tenor {t_days}d: slope1={slope1:.6f}, slope2={slope2:.6f}"
+            )
+
+    # Coherence with declared boolean flags
+    for flag_col in ["monotonicity_strike_pass", "monotonicity_maturity_pass", "convexity_strike_pass"]:
+        if flag_col in df_econ.columns:
+            if not bool(df_econ[flag_col].all()):
+                raise ValueError(f"Economic Validation Failure: Declared flag {flag_col} contains False")
 
     # Gate dictionary derived from verified raw values
     gates = {
