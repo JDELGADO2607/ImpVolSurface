@@ -9,7 +9,7 @@ Estados permitidos NOT_STARTED, IN_PROGRESS, READY_FOR_AUDIT, APPROVED, REJECTED
 | 1 | PoC QuantLib puts americanas | 0 | APPROVED | 3 |
 | 2 | Solver propio 2D, ADI y obstáculo | 1 | APPROVED | 1 |
 | 3 | Validación independiente del solver contra QuantLib | 2 | APPROVED | 3 |
-| 4 | Calibración definitiva global y refinamiento | 3 | REJECTED | 1 |
+| 4 | Calibración definitiva global y refinamiento | 3 | REJECTED | 2 |
 | 5 | Precios Heston e IV equivalentes por tipo | 4 | NOT_STARTED | 0 |
 | 6 | Integración en comparación, griegas, cartera y stress | 5 | NOT_STARTED | 0 |
 | 7 | Regeneración global, integridad y auditoría | 6 | NOT_STARTED | 0 |

@@ -1,0 +1,47 @@
+
+===== audit_repair1_controls.log =====
+
+REAL_GATE legitimate PASS {'train_mae': 0.02573726190963425, 'train_rmse': 0.037979063096091094, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE price_plus_one REJECTED RuntimeError Execution Manifest Gates Failed.
+REAL_GATE price_nan PASS {'train_mae': 0.025665012111492455, 'train_rmse': 0.038099903024791416, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE reference_nan PASS {'train_mae': 0.02573726190963425, 'train_rmse': 0.037979063096091094, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE market_nan PASS {'train_mae': 0.025665012111492455, 'train_rmse': 0.038099903024791416, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE default_inf PASS {'train_mae': 0.02573726190963425, 'train_rmse': 0.037979063096091094, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE missing_economic REJECTED FileNotFoundError Missing required Phase 4 output file: heston_representative_economic_controls.csv
+REAL_GATE invalid_parameter REJECTED ValueError Calibrated parameter 0 violates bounds [0.01, 1.5]: -1.0
+REAL_GATE changed_summary_only PASS {'train_mae': 0.02573726190963425, 'train_rmse': 0.037979063096091094, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE bad_raw_partition PASS {'train_mae': 0.02573726190963425, 'train_rmse': 0.037979063096091094, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE mesh_raw_bad PASS {'train_mae': 0.02573726190963425, 'train_rmse': 0.037979063096091094, 'strike_holdout_mae': 0.021108199892518692, 'tenor_holdout_mae': 0.020304486315723288, 'max_solver_discrepancy': 0.0005457561610642259}
+REAL_GATE all_local_failed REJECTED RuntimeError Validation Failure: Zero local refinements converged.
+STEP5_INVALID_PHASE3_SNAPSHOT [{"contractSymbol":"NU261218P00012000","prop_fine_price":null,"status_discrepancy_gate_002":"FAIL"}] provenance [('valuation_provenance', 'PHASE3_VERIFIED_AUDITED')]
+FRESH_CHANGED_VECTOR_REAL_API [{"prop_fine_price":0.4715874002,"ql_fine_price":0.4716160337,"abs_diff_prop_fine_vs_ql_fine_usd":0.0000286335}] EXTRAFINE [{"abs_diff_ql_refinement_usd":0.0000159258,"abs_diff_prop_refinement_usd":0.0000411747}]
+DONE
+
+
+===== audit_repair1_replay.log =====
+
+
+=== REPLAY & VERIFICATION OF HISTORICAL LOCAL REFINEMENTS ===
+  [Refinement_A_Start_2]
+    Recorded Init SSE:   0.08664053 | Replayed: 0.08664053 | Diff: 0.00e+00
+    Recorded Final SSE:  0.08662192 | Replayed: 0.08662192 | Diff: 0.00e+00
+    Status: 0 (CONVERGED) | Feller: 5.0116
+  [Refinement_B_Start_5]
+    Recorded Init SSE:   0.08784052 | Replayed: 0.08784052 | Diff: 0.00e+00
+    Recorded Final SSE:  0.08783275 | Replayed: 0.08783275 | Diff: 0.00e+00
+    Status: 0 (CONVERGED) | Feller: 4.7152
+  [Refinement_C_Start_1]
+    Recorded Init SSE:   0.08825896 | Replayed: 0.08825896 | Diff: 0.00e+00
+    Recorded Final SSE:  0.08819995 | Replayed: 0.08819995 | Diff: 0.00e+00
+    Status: 2 (ABNORMAL_TERMINATION) | Feller: 2.3431
+=== ALL HISTORICAL REFINEMENTS VERIFIED AND REPLAYED AT MACHINE PRECISION ===
+
+
+
+===== audit_phase4_tests.log =====
+
+........................................................................ [ 90%]
+........                                                                 [100%]
+80 passed in 134.27s (0:02:14)
+
+HASH_CHANGES []
